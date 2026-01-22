@@ -9,7 +9,7 @@ public class VideoProject : BaseEntity
     public VideoProjectStatus Status { get; set; }
     
     // Configuration Snapshot
-    public BackgroundAsset BackgroundAsset { get; set; } = null!;
+    public Asset Asset { get; set; } = null!;
     public TtsEngine TtsEngine { get; set; }
     public string VoiceProfileJson { get; set; } = string.Empty;
     public SubtitleEngine SubtitleEngine { get; set; }

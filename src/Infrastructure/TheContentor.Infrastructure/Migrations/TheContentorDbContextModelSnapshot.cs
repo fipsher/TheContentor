@@ -48,11 +48,16 @@ namespace TheContentor.Infrastructure.Migrations
                     b.ToTable("AnalysisCriteria");
                 });
 
-            modelBuilder.Entity("TheContentor.Domain.Entities.BackgroundAsset", b =>
+            modelBuilder.Entity("TheContentor.Domain.Entities.Asset", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<string>("BlobPath")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.Property<TimeSpan>("Duration")
                         .HasColumnType("interval");
@@ -65,18 +70,13 @@ namespace TheContentor.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
-                    b.Property<string>("LocalPath")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
                     b.Property<string>("Tags")
                         .IsRequired()
                         .HasColumnType("text");
 
                     b.HasKey("Id");
 
-                    b.ToTable("BackgroundAssets");
+                    b.ToTable("Assets");
                 });
 
             modelBuilder.Entity("TheContentor.Domain.Entities.ContentAnalysis", b =>
@@ -183,7 +183,7 @@ namespace TheContentor.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("BackgroundAssetId")
+                    b.Property<Guid>("AssetId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
@@ -229,7 +229,7 @@ namespace TheContentor.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BackgroundAssetId");
+                    b.HasIndex("AssetId");
 
                     b.HasIndex("SourcePostId");
 
@@ -268,9 +268,9 @@ namespace TheContentor.Infrastructure.Migrations
 
             modelBuilder.Entity("TheContentor.Domain.Entities.VideoProject", b =>
                 {
-                    b.HasOne("TheContentor.Domain.Entities.BackgroundAsset", "BackgroundAsset")
+                    b.HasOne("TheContentor.Domain.Entities.Asset", "Asset")
                         .WithMany()
-                        .HasForeignKey("BackgroundAssetId")
+                        .HasForeignKey("AssetId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
@@ -280,7 +280,7 @@ namespace TheContentor.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("BackgroundAsset");
+                    b.Navigation("Asset");
 
                     b.Navigation("SourcePost");
                 });

@@ -1,18 +1,45 @@
 using TheContentor.API.Components;
 using TheContentor.Application;
 using TheContentor.Infrastructure;
+using Xabe.FFmpeg;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Configure FFmpeg path
+var ffmpegPath = builder.Configuration["FFmpegPath"];
+if (string.IsNullOrEmpty(ffmpegPath) && OperatingSystem.IsMacOS())
+{
+    if (Directory.Exists("/opt/homebrew/bin"))
+    {
+        ffmpegPath = "/opt/homebrew/bin";
+    }
+    else if (Directory.Exists("/usr/local/bin"))
+    {
+        ffmpegPath = "/usr/local/bin";
+    }
+}
+
+if (!string.IsNullOrEmpty(ffmpegPath))
+{
+    FFmpeg.SetExecutablesPath(ffmpegPath);
+}
 
 // Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    .AddInteractiveServerComponents(options =>
+    {
+        options.DetailedErrors = builder.Environment.IsDevelopment();
+    })
+    .AddHubOptions(options =>
+    {
+        options.MaximumReceiveMessageSize = 512 * 1024 * 1024; // 512MB
+    });
 
 builder.Services.AddApplicationServices();
-builder.Services.AddInfrastructureServices(builder.Configuration);
+builder.AddInfrastructureServices(builder.Configuration);
 
 var app = builder.Build();
 

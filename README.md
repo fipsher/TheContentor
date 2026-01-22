@@ -24,16 +24,17 @@
 🛠 Tech Stack
 -------------
 
-| **Component** | **Technology** |
-| --- | --- |
-| **Frontend/API** | ASP.NET Core & Blazor |
-| **Orchestration** | Azure Durable Functions (via .NET Aspire) |
-| **Database** | PostgreSQL (EF Core Code-First) |
-| **LLM Integration** | Gemini API, ChatGPT API |
-| **Voice / TTS** | Edge-TTS (Primary), Tortoise-TTS, Bark |
-| **Subtitles** | OpenAI Whisper |
-| **Video Processing** | MoviePy / FFmpeg |
-| **Environment** | Docker / On-Premise |
+| **Component**        | **Technology**                            |
+|----------------------|-------------------------------------------|
+| **Frontend/API**     | ASP.NET Core & Blazor                     |
+| **Orchestration**    | Azure Durable Functions (via .NET Aspire) |
+| **Database**         | PostgreSQL (EF Core Code-First)           |
+| **LLM Integration**  | Gemini API, ChatGPT API                   |
+| **Voice / TTS**      | Edge-TTS (Primary), Tortoise-TTS, Bark    |
+| **Subtitles**        | OpenAI Whisper                            |
+| **Video Processing** | MoviePy / FFmpeg                          |
+| **File Storage**     | Azure Blob Storage Emulator via Aspire    |
+| **Environment**      | Docker / On-Premise                       |
 
 * * *
 
@@ -66,7 +67,7 @@
 
 *   **Criteria Library:** Manage predefined logic for content selection. Supports versioning via "snapshots" for default criteria.
     
-*   **Background Library:** CRUD operations for video assets. Includes an "Active/Inactive" toggle system instead of hard deletion to preserve pipeline history.
+*   **Asset Library:** CRUD operations for video assets. Includes an "Active/Inactive" toggle system instead of hard deletion to preserve pipeline history.
 
 
 * * *

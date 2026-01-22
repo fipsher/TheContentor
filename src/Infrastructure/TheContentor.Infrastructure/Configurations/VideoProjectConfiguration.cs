@@ -15,13 +15,13 @@ public class VideoProjectConfiguration : IEntityTypeConfiguration<VideoProject>
             .HasForeignKey("SourcePostId")
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasOne(e => e.BackgroundAsset)
+        builder.HasOne(e => e.Asset)
             .WithMany()
-            .HasForeignKey("BackgroundAssetId")
+            .HasForeignKey("AssetId")
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex("SourcePostId");
-        builder.HasIndex("BackgroundAssetId");
+        builder.HasIndex("AssetId");
 
         builder.Property(e => e.VoiceProfileJson)
             .IsRequired();

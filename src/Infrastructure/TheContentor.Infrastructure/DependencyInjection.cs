@@ -1,19 +1,26 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using TheContentor.Infrastructure.Interfaces;
+using TheContentor.Infrastructure.Services;
 
 namespace TheContentor.Infrastructure;
 
 public static class DependencyInjection
 {
-    public static IServiceCollection AddInfrastructureServices(this IServiceCollection services, IConfiguration configuration)
+    public static IHostApplicationBuilder AddInfrastructureServices(this IHostApplicationBuilder builder, IConfiguration configuration)
     {
         var connectionString = configuration.GetConnectionString("the-contentor-db");
 
-        services.AddDbContext<TheContentorDbContext>(options =>
+        builder.Services.AddDbContext<TheContentorDbContext>(options =>
             options.UseNpgsql(connectionString));
 
-        return services;
+        builder.AddAzureBlobServiceClient("blobs");
+
+        builder.Services.AddScoped<IBlobService, BlobService>();
+
+        return builder;
     }
 
     public static async Task ApplyMigrations(this IServiceProvider services)

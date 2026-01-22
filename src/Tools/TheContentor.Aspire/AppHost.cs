@@ -9,6 +9,11 @@ var postgres = builder.AddPostgres("the-contentor-postgres", port: 5433)
 
 var postgresDb = postgres.AddDatabase("the-contentor-db");
 
+var storage = builder.AddAzureStorage("storage")
+    .RunAsEmulator();
+
+var blobs = storage.AddBlobs("blobs");
+
 // Service Bus & Queues
 // var serviceBus = builder
 //     .AddAzureServiceBus("ContentorServiceBus")
@@ -25,8 +30,10 @@ var postgresDb = postgres.AddDatabase("the-contentor-db");
 // serviceBus.AddServiceBusQueue("infrastructure-management-callback-queue");
 
 
+
 builder.AddProject<Projects.TheContentor_API>("the-contentor")
     .WithReference(postgresDb)
+    .WithReference(blobs)
     .WaitFor(postgresDb);
 
 builder.Build().Run();
