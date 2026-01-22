@@ -67,7 +67,7 @@
 *   **Criteria Library:** Manage predefined logic for content selection. Supports versioning via "snapshots" for default criteria.
     
 *   **Background Library:** CRUD operations for video assets. Includes an "Active/Inactive" toggle system instead of hard deletion to preserve pipeline history.
-    
+
 
 * * *
 

@@ -1,0 +1,21 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.1.0">
+
+  <ItemGroup>
+    <ProjectReference Include="..\TheContentor.ServiceDefaults\TheContentor.ServiceDefaults.csproj" IsAspireProjectResource="false" />
+    <ProjectReference Include="..\..\API\TheContentor.API\TheContentor.API.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.Azure.ServiceBus" Version="13.1.0" />
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" Version="13.1.0" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UserSecretsId>38313700-e9c5-48e4-a510-129c57d18934</UserSecretsId>
+  </PropertyGroup>
+
+</Project>
