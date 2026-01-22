@@ -38,7 +38,6 @@ public class AssetController(IMediator mediator) : ControllerBase
         {
             FileName = model.FileName ?? model.File.FileName,
             Tags = model.Tags ?? string.Empty,
-            IsActive = model.IsActive,
             FileStream = stream,
             ContentType = model.File.ContentType
         };

@@ -9,7 +9,6 @@ public record CreateCriteriaCommand : IRequest<Guid>
 {
     public string Name { get; set; } = string.Empty;
     public string SystemPrompt { get; set; } = string.Empty;
-    public bool IsActive { get; set; }
     public CriteriaEngine Engine { get; set; }
 }
 
@@ -21,7 +20,7 @@ public class CreateCriteriaCommandHandler(TheContentorDbContext context) : IRequ
         {
             Name = request.Name,
             SystemPrompt = request.SystemPrompt,
-            IsActive = request.IsActive,
+            IsActive = true,
             Engine = request.Engine
         };
 

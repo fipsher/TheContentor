@@ -9,7 +9,6 @@ public record CreateAssetCommand : IRequest<Guid>
 {
     public string FileName { get; set; } = string.Empty;
     public string Tags { get; set; } = string.Empty;
-    public bool IsActive { get; set; }
     public Stream? FileStream { get; set; }
     public string? ContentType { get; set; }
 }
@@ -66,7 +65,7 @@ public class CreateAssetCommandHandler(
             BlobPath = localPath,
             Tags = request.Tags,
             Duration = duration,
-            IsActive = request.IsActive
+            IsActive = true
         };
 
         context.Assets.Add(entity);

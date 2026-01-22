@@ -11,7 +11,6 @@ public record UpdateCriteriaCommand : IRequest<bool>
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string SystemPrompt { get; set; } = string.Empty;
-    public bool IsActive { get; set; }
     public CriteriaEngine Engine { get; set; }
 }
 
@@ -29,7 +28,6 @@ public class UpdateCriteriaCommandHandler(TheContentorDbContext context) : IRequ
 
         entity.Name = request.Name;
         entity.SystemPrompt = request.SystemPrompt;
-        entity.IsActive = request.IsActive;
         entity.Engine = request.Engine;
 
         await context.SaveChangesAsync(cancellationToken);

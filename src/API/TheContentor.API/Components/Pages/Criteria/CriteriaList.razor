@@ -2,6 +2,7 @@
 @using MediatR
 @using TheContentor.Application.Features.Criteria.Models
 @using TheContentor.Application.Features.Criteria.Queries
+@using TheContentor.Application.Features.Criteria.Commands
 @inject IMediator Mediator
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
@@ -42,9 +43,16 @@ else
                         </span>
                     </td>
                     <td>
-                        <button class="btn btn-sm btn-outline-primary" @onclick="() => Edit(item.Id)">
-                            <i class="bi bi-pencil"></i> Edit
-                        </button>
+                        <div class="btn-group">
+                            <button class="btn btn-sm btn-outline-primary" @onclick="() => Edit(item.Id)">
+                                <i class="bi bi-pencil"></i> Edit
+                            </button>
+                            <button class="btn btn-sm @(item.IsActive ? "btn-outline-warning" : "btn-outline-success")" 
+                                    @onclick="() => ToggleStatus(item.Id)">
+                                <i class="bi @(item.IsActive ? "bi-eye-slash" : "bi-eye")"></i> 
+                                @(item.IsActive ? "Deactivate" : "Activate")
+                            </button>
+                        </div>
                     </td>
                 </tr>
             }
@@ -73,5 +81,14 @@ else
     private void Edit(Guid id)
     {
         NavigationManager.NavigateTo($"/criteria/edit/{id}");
+    }
+
+    private async Task ToggleStatus(Guid id)
+    {
+        var result = await Mediator.Send(new ToggleCriteriaStatusCommand(id));
+        if (result)
+        {
+            await LoadCriteria();
+        }
     }
 }

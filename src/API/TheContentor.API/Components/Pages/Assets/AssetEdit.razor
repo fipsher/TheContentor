@@ -64,11 +64,6 @@
                 <InputText id="tags" class="form-control" @bind-Value="_model.Tags" placeholder="nature, relaxing, drone" />
             </div>
 
-            <div class="mb-3 form-check">
-                <InputCheckbox id="isActive" class="form-check-input" @bind-Value="_model.IsActive" />
-                <label for="isActive" class="form-check-label">Is Active</label>
-            </div>
-
             <div class="mt-4">
                 <button type="submit" class="btn btn-primary">Save</button>
                 <button type="button" class="btn btn-secondary" @onclick="Cancel">Cancel</button>
@@ -136,8 +131,7 @@
                     FileName = _model.FileName,
                     LocalPath = _model.LocalPath,
                     Tags = _model.Tags,
-                    Duration = _model.Duration,
-                    IsActive = _model.IsActive
+                    Duration = _model.Duration
                 };
                 await Mediator.Send(command);
             }
@@ -153,7 +147,6 @@
                 {
                     FileName = _model.FileName,
                     Tags = _model.Tags,
-                    IsActive = _model.IsActive,
                     FileStream = stream,
                     ContentType = _contentType
                 };

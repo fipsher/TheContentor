@@ -39,11 +39,6 @@
                 <InputTextArea id="systemPrompt" class="form-control" @bind-Value="_model.SystemPrompt" rows="10" />
             </div>
 
-            <div class="mb-3 form-check">
-                <InputCheckbox id="isActive" class="form-check-input" @bind-Value="_model.IsActive" />
-                <label for="isActive" class="form-check-label">Is Active</label>
-            </div>
-
             <div class="mt-4">
                 <button type="submit" class="btn btn-primary">Save</button>
                 <button type="button" class="btn btn-secondary" @onclick="Cancel">Cancel</button>
@@ -90,7 +85,6 @@
                 Id = Id!.Value,
                 Name = _model.Name,
                 SystemPrompt = _model.SystemPrompt,
-                IsActive = _model.IsActive,
                 Engine = _model.Engine
             };
             await Mediator.Send(command);
@@ -101,7 +95,6 @@
             {
                 Name = _model.Name,
                 SystemPrompt = _model.SystemPrompt,
-                IsActive = _model.IsActive,
                 Engine = _model.Engine
             };
             await Mediator.Send(command);

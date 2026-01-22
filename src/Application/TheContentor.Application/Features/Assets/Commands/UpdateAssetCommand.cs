@@ -11,7 +11,6 @@ public record UpdateAssetCommand : IRequest<bool>
     public string LocalPath { get; set; } = string.Empty;
     public string Tags { get; set; } = string.Empty;
     public TimeSpan Duration { get; set; }
-    public bool IsActive { get; set; }
 }
 
 public class UpdateAssetCommandHandler(TheContentorDbContext context) : IRequestHandler<UpdateAssetCommand, bool>
@@ -30,7 +29,6 @@ public class UpdateAssetCommandHandler(TheContentorDbContext context) : IRequest
         entity.BlobPath = request.LocalPath;
         entity.Tags = request.Tags;
         entity.Duration = request.Duration;
-        entity.IsActive = request.IsActive;
 
         await context.SaveChangesAsync(cancellationToken);
 

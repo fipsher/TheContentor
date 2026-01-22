@@ -51,4 +51,16 @@ public class CriteriaController(IMediator mediator) : ControllerBase
 
         return NoContent();
     }
+
+    [HttpPatch("{id:guid}/toggle-status")]
+    public async Task<ActionResult> ToggleStatus(Guid id)
+    {
+        var result = await mediator.Send(new ToggleCriteriaStatusCommand(id));
+        if (!result)
+        {
+            return NotFound();
+        }
+
+        return NoContent();
+    }
 }
