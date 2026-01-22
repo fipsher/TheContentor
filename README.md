@@ -1,93 +1,120 @@
-# Overview of the Project
-The goal of this project is to create a system that will scrap the web for specific content, process it, and generate engaging videos with subtitles using text-to-speech (TTS) technology.
-we preferr open source solutions, to have it as cheap as possible. Gemini & Chat GPT api keys are available.
+🎬 TheContentor
+===============
 
-Name of the app: TheContentor
+**TheContentor** is an automated content creation engine designed to scrape web content, analyze it for engagement potential using AI, and transform it into high-quality videos with voiceovers and synchronized subtitles.
 
-# flows
-## scrapper pipeline
-1. User selects scrapper type (e.g. Reddit scrapper), configures trigger options.
-2. User can configure attractiveness criteria
-2. user triggers scrapper
-3. system pulls data and stores it. System uses deduplication logic, relevant to the scrapper
-4. system analyzes each pulled story for "attractiveness" using gen AI
-5. user sees list of scrapped materials
+> **Project Philosophy:** Prioritize open-source, on-premise solutions to minimize operational costs while leveraging powerful APIs (Gemini/ChatGPT) for high-level content analysis.
 
-## attractiveness criteria library
-1. User can see library of pre-defined criterias
-2. User can create new criteria or edit existing ones
-3. User cannot edit default criteria, but can create snapshot of it and edit that snapshot
+* * *
 
-## background video library
-1. User can see the video library
-2. User can CRU the video library
-3. User cannot delete, but can deactivate/activate video
+🚀 Key Features
+---------------
 
-## video compilation pipeline
-1. User configures pipeline settings, including TTS options and subtitle preferences, background video settings, etc..
-  a. User selects source(s)
-  b. User configures TTS settings such as voice type, speed, and language.
-  c. User sets subtitle options including font, size, and positioning.
-  d. User selects background video options or uploads their own.
-2. User manually starts the pipeline, which triggers the scraping process.
-3. User can see the progress of the pipeline in real-time through the web interface.
-4. Once the pipeline completes, user can access and download the composed results (and individual results also).
+*   **Multi-Source Scraping:** Integrated Reddit API support with expandable module architecture.
+    
+*   **AI Content Scoring:** Automatic "attractiveness" filtering using GenAI to ensure only the best content is produced.
+    
+*   **Dynamic Video Synthesis:** Automatic merging of background footage, AI voiceovers, and dynamic subtitles.
+    
+*   **On-Premise Orchestration:** Powered by .NET Aspire and Azure Durable Functions running locally via Docker.
+    
 
+* * *
 
-# System Components
-0. Aspire to run that onpremise.
-1. asp.net + blazor for web interface to configure the pipeline and monitor progress.
-2. PostgreSQL for storing configurations, progress data, and results.
-3. Scrapper module(s) to gather data from specified web resources. Can be multiple scrapers for different sources. (could be anything, but mainly python)
-4. TTS module(s) to convert text data into speech audio files. Python script
-5. Subtitle module(s) to generate subtitle files synchronized with the TTS audio. Python script
-6. Video composition module to combine background video, TTS audio, and subtitles into final video output.
-7. Pipeline orchestrator that triggers all components and composes the final result. Azure Durable Functions. Deployed on local docker via Aspire.
+🛠 Tech Stack
+-------------
 
-# Database Schema Changes
-- EF Core code first is used
+| **Component** | **Technology** |
+| --- | --- |
+| **Frontend/API** | ASP.NET Core & Blazor |
+| **Orchestration** | Azure Durable Functions (via .NET Aspire) |
+| **Database** | PostgreSQL (EF Core Code-First) |
+| **LLM Integration** | Gemini API, ChatGPT API |
+| **Voice / TTS** | Edge-TTS (Primary), Tortoise-TTS, Bark |
+| **Subtitles** | OpenAI Whisper |
+| **Video Processing** | MoviePy / FFmpeg |
+| **Environment** | Docker / On-Premise |
 
-# Scrapper modules
-- mainly python, but could be anything
-- Reddit API (PRAW)
-  - ability to select subreddit and download the content
-  - AI integration later to analyze best content
+* * *
 
-# TTS modules
-- mainly python, but could be anything
-- Edge-TTS is main tool
-- Tortoise-TTS or Bark are seconrary tools
+🔄 System Workflows
+-------------------
 
-# Subtitle modules
-- mainly python, but could be anything
-- OpenAI Whisper
+### 1. Scraper Pipeline
 
-# Video concatenation
-- MoviePy or FFmpeg - to combine all components together
+1.  **Configuration:** User selects source (e.g., Reddit) and defines "Attractiveness Criteria."
+    
+2.  **Extraction:** System pulls data, applies source-specific deduplication, and stores raw content.
+    
+3.  **Analysis:** GenAI analyzes stories against criteria to rank high-potential content.
+    
+4.  **Review:** User interacts with a curated list of "approved" materials.
+    
 
+### 2. Video Compilation Pipeline
 
-# Project Structure
-/src
---/Tools
-----/TheContentor.Aspire
---/API
-----/TheContentor.API --Blazor + API
---/Orchestrators
---/Infrastructure
-----/TheContentor.Infrastructure --contains infrastructure items  + DbContext
---/Application
-----/TheContentor.Application --contains business logic
---/Domain
-----/TheContentor.Domain --contains domain objects
---/Modules
-----/TTS
-------/TheContentor.TTS.Abstract
-------/TheContentor.TTS.EdgeTTS
-------/TheContentor.TTS.TortoiseTTS
-------/TheContentor.TTS.Bark
-----/Scrapper
-------/TheContentor.Scrapper.Abstract
-------/TheContentor.Scrapper.Reddit
-----/Subtitle
-------/TheContentor.Subtitle.Abstract
-------/TheContentor.Subtitle.Whisper
+1.  **Settings:** User configures TTS (voice, speed), Subtitles (font, position), and Background Video.
+    
+2.  **Execution:** The orchestrator triggers the scraping-to-composition sequence.
+    
+3.  **Monitoring:** Real-time progress tracking via the Blazor dashboard.
+    
+4.  **Delivery:** Final video and individual assets (audio/subtitles) are available for download.
+    
+
+### 3. Library Management
+
+*   **Criteria Library:** Manage predefined logic for content selection. Supports versioning via "snapshots" for default criteria.
+    
+*   **Background Library:** CRUD operations for video assets. Includes an "Active/Inactive" toggle system instead of hard deletion to preserve pipeline history.
+    
+
+* * *
+
+📂 Project Structure
+--------------------
+
+Plaintext
+
+    src/
+    ├── Tools/
+    │   └── TheContentor.Aspire          # Orchestration & local deployment
+    ├── API/
+    │   └── TheContentor.API             # Blazor UI & Web API
+    ├── Application/
+    │   └── TheContentor.Application     # Business logic & Orchestrators
+    ├── Domain/
+    │   └── TheContentor.Domain          # Entities & Domain objects
+    ├── Infrastructure/
+    │   └── TheContentor.Infrastructure  # DBContext & Data Persistence
+    └── Modules/
+        ├── Scraper/                     # Python-based scraping modules
+        │   ├── Scraper.Abstract
+        │   └── Scraper.Reddit           # PRAW Integration
+        ├── TTS/                         # Text-to-Speech engines
+        │   ├── TTS.Abstract
+        │   ├── TTS.EdgeTTS
+        │   └── TTS.Bark/Tortoise
+        └── Subtitle/                    # Transcription & Alignment
+            ├── Subtitle.Abstract
+            └── Subtitle.Whisper
+
+* * *
+
+⚙️ Module Details
+-----------------
+
+### Scraper Modules
+
+*   **Reddit:** Utilizes `PRAW` to fetch trending posts from specific subreddits.
+    
+*   **Scalability:** Abstracted to allow for future modules (Twitter/X, News RSS, etc.).
+    
+
+### Audio & Video
+
+*   **TTS:** `Edge-TTS` provides high-quality, fast results. `Bark` and `Tortoise` are available for more expressive, high-compute local generation.
+    
+*   **Subtitles:** `OpenAI Whisper` ensures timestamps are perfectly aligned with generated audio.
+    
+*   **Composition:** `MoviePy` handles the heavy lifting of layering audio, video, and text overlays.
