@@ -89,9 +89,7 @@ Plaintext
     ├── Infrastructure/
     │   └── TheContentor.Infrastructure  # DBContext & Data Persistence
     ├── Orchestrators/
-    │   ├── TheContentor.AssetMetadata   # Calcualtes Asset metadata
-    │   ├── TheContentor.VideoMaker      # Calcualtes Asset metadata
-    │   └── TheContentor.Scrapper        # Calcualtes Asset metadata
+    │   └── TheContentor.Orchestrator    # Calcualtes Asset metadata, Generate Video, etc.
     └── Modules/
         ├── Scraper/                     # Python-based scraping modules
         │   ├── Scraper.Abstract

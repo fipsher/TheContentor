@@ -1,3 +1,6 @@
+using Aspire.Hosting.Azure;
+using TheContentor.Aspire;
+
 var builder = DistributedApplication.CreateBuilder(args);
 
 var postgres = builder.AddPostgres("the-contentor-postgres", port: 5433)
@@ -15,21 +18,15 @@ var storage = builder.AddAzureStorage("storage")
 var blobs = storage.AddBlobs("blobs");
 
 // Service Bus & Queues
-// var serviceBus = builder
-//     .AddAzureServiceBus("ContentorServiceBus")
-//     .RunAsEmulator(c => c.WithLifetime(ContainerLifetime.Session));
-// serviceBus.WithAnnotation(new ProxySupportAnnotation { ProxyEnabled = false }, ResourceAnnotationMutationBehavior.Replace);
+var serviceBus = builder
+    .AddAzureServiceBus("ContentorServiceBus")
+    .RunAsMyEmulator(c => { c.WithLifetime(ContainerLifetime.Session); });
+ConfigureServiceBus(serviceBus);
 
-// serviceBus.AddServiceBusQueue("tdm-queue");
-// serviceBus.AddServiceBusQueue("tdm-feedback-queue");
-// serviceBus.AddServiceBusQueue("rules-engine-queue");
-// serviceBus.AddServiceBusQueue("cdm-tdm-queue");
-// serviceBus.AddServiceBusQueue("cdm-rules-engine-queue");
-// serviceBus.AddServiceBusQueue("cdm-feedback-queue");
-// serviceBus.AddServiceBusQueue("infrastructure-management-queue");
-// serviceBus.AddServiceBusQueue("infrastructure-management-callback-queue");
-
-
+builder
+    .AddAzureFunctionsProject<Projects.TheContentor_Orchestrator>("Func-Orchestrator")
+    .WithReference(serviceBus)
+    .WaitFor(serviceBus);
 
 builder.AddProject<Projects.TheContentor_API>("the-contentor")
     .WithReference(postgresDb)
@@ -37,3 +34,144 @@ builder.AddProject<Projects.TheContentor_API>("the-contentor")
     .WaitFor(postgresDb);
 
 builder.Build().Run();
+
+void ConfigureServiceBus(IResourceBuilder<AzureServiceBusResource> resourceBuilder)
+{
+    serviceBus.WithAnnotation(new ProxySupportAnnotation { ProxyEnabled = false },
+        ResourceAnnotationMutationBehavior.Replace);
+    
+    resourceBuilder.AddServiceBusQueue("trigger-orchestration");
+
+    var commandsTopic = serviceBus.AddServiceBusTopic("commands-topic");
+    resourceBuilder.AddServiceBusQueue("asset-metadata-commands-queue");
+    resourceBuilder.AddServiceBusQueue("scrapper-commands-queue");
+    resourceBuilder.AddServiceBusQueue("video-generation-commands-queue");
+
+    var eventsTopic = resourceBuilder.AddServiceBusTopic("events-topic");
+    resourceBuilder.AddServiceBusQueue("asset-metadata-events-queue");
+    resourceBuilder.AddServiceBusQueue("scrapper-events-queue");
+    resourceBuilder.AddServiceBusQueue("video-generation-events-queue");
+
+    ConfigureEventSubscriptions(eventsTopic);
+    ConfigureCommandsSubscriptions(commandsTopic);
+}
+
+void ConfigureEventSubscriptions(IResourceBuilder<AzureServiceBusTopicResource> eventsTopic)
+{
+    eventsTopic.AddServiceBusSubscription("asset-metadata-events-subscription")
+        .WithProperties(subscription =>
+        {
+            subscription.ForwardTo = "asset-metadata-events-queue";
+            subscription.MaxDeliveryCount = 5;
+            subscription.Rules.Add(
+                new AzureServiceBusRule("asset-metadata-events-subscription-filter")
+                {
+                    FilterType = AzureServiceBusFilterType.CorrelationFilter,
+                    CorrelationFilter = new AzureServiceBusCorrelationFilter
+                    {
+                        Properties = new Dictionary<string, object>()
+                        {
+                            { "Type", "asset-metadata" },
+                        },
+                    },
+                });
+        });
+
+    eventsTopic.AddServiceBusSubscription("scrapper-events-subscription")
+        .WithProperties(subscription =>
+        {
+            subscription.ForwardTo = "scrapper-events-queue";
+            subscription.MaxDeliveryCount = 5;
+            subscription.Rules.Add(
+                new AzureServiceBusRule("scrapper-events-subscription-filter")
+                {
+                    FilterType = AzureServiceBusFilterType.CorrelationFilter,
+                    CorrelationFilter = new AzureServiceBusCorrelationFilter
+                    {
+                        Properties = new Dictionary<string, object>()
+                        {
+                            { "Type", "scrapper" },
+                        },
+                    },
+                });
+        });
+
+    eventsTopic.AddServiceBusSubscription("video-generation-events-subscription")
+        .WithProperties(subscription =>
+        {
+            subscription.ForwardTo = "video-generation-events-queue";
+            subscription.MaxDeliveryCount = 5;
+            subscription.Rules.Add(
+                new AzureServiceBusRule("video-generation-events-subscription-filter")
+                {
+                    FilterType = AzureServiceBusFilterType.CorrelationFilter,
+                    CorrelationFilter = new AzureServiceBusCorrelationFilter
+                    {
+                        Properties = new Dictionary<string, object>()
+                        {
+                            { "Type", "video-generation" },
+                        },
+                    },
+                });
+        });
+}
+
+void ConfigureCommandsSubscriptions(IResourceBuilder<AzureServiceBusTopicResource> commandsTopic)
+{
+    commandsTopic.AddServiceBusSubscription("asset-metadata-commands-subscription")
+        .WithProperties(subscription =>
+        {
+            subscription.ForwardTo = "asset-metadata-commands-queue";
+            subscription.MaxDeliveryCount = 5;
+            subscription.Rules.Add(
+                new AzureServiceBusRule("asset-metadata-commands-subscription-filter")
+                {
+                    FilterType = AzureServiceBusFilterType.CorrelationFilter,
+                    CorrelationFilter = new AzureServiceBusCorrelationFilter
+                    {
+                        Properties = new Dictionary<string, object>()
+                        {
+                            { "Type", "asset-metadata" },
+                        },
+                    },
+                });
+        });
+
+    commandsTopic.AddServiceBusSubscription("scrapper-commands-subscription")
+        .WithProperties(subscription =>
+        {
+            subscription.ForwardTo = "scrapper-commands-queue";
+            subscription.MaxDeliveryCount = 5;
+            subscription.Rules.Add(
+                new AzureServiceBusRule("scrapper-commands-subscription-filter")
+                {
+                    FilterType = AzureServiceBusFilterType.CorrelationFilter,
+                    CorrelationFilter = new AzureServiceBusCorrelationFilter
+                    {
+                        Properties = new Dictionary<string, object>()
+                        {
+                            { "Type", "scrapper" },
+                        },
+                    },
+                });
+        });
+
+    commandsTopic.AddServiceBusSubscription("video-generation-commands-subscription")
+        .WithProperties(subscription =>
+        {
+            subscription.ForwardTo = "video-generation-commands-queue";
+            subscription.MaxDeliveryCount = 5;
+            subscription.Rules.Add(
+                new AzureServiceBusRule("video-generation-commands-subscription-filter")
+                {
+                    FilterType = AzureServiceBusFilterType.CorrelationFilter,
+                    CorrelationFilter = new AzureServiceBusCorrelationFilter
+                    {
+                        Properties = new Dictionary<string, object>()
+                        {
+                            { "Type", "video-generation" },
+                        },
+                    },
+                });
+        });
+}
