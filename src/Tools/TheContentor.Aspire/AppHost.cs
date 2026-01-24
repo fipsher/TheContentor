@@ -47,12 +47,8 @@ void ConfigureServiceBus(IResourceBuilder<AzureServiceBusResource> resourceBuild
     resourceBuilder.AddServiceBusQueue("scrapper-commands-queue");
     resourceBuilder.AddServiceBusQueue("video-generation-commands-queue");
 
-    var eventsTopic = resourceBuilder.AddServiceBusTopic("events-topic");
-    resourceBuilder.AddServiceBusQueue("asset-metadata-events-queue");
-    resourceBuilder.AddServiceBusQueue("scrapper-events-queue");
-    resourceBuilder.AddServiceBusQueue("video-generation-events-queue");
+    resourceBuilder.AddServiceBusQueue("events-queue");
 
-    ConfigureEventSubscriptions(eventsTopic);
     ConfigureCommandsSubscriptions(commandsTopic);
 }
 

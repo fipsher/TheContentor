@@ -24,7 +24,7 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
 
     [Function("EventHandler")]
     public async Task EventHandler(
-        [ServiceBusTrigger("events", Connection = "ContentorServiceBus")] ServiceBusReceivedMessage message,
+        [ServiceBusTrigger("events-queue", Connection = "ContentorServiceBus")] ServiceBusReceivedMessage message,
         [DurableClient] DurableTaskClient client)
     {
         var queueMessage = JsonSerializer.Deserialize<object>(message.Body.ToString());
