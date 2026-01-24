@@ -52,66 +52,6 @@ void ConfigureServiceBus(IResourceBuilder<AzureServiceBusResource> resourceBuild
     ConfigureCommandsSubscriptions(commandsTopic);
 }
 
-void ConfigureEventSubscriptions(IResourceBuilder<AzureServiceBusTopicResource> eventsTopic)
-{
-    eventsTopic.AddServiceBusSubscription("asset-metadata-events-subscription")
-        .WithProperties(subscription =>
-        {
-            subscription.ForwardTo = "asset-metadata-events-queue";
-            subscription.MaxDeliveryCount = 5;
-            subscription.Rules.Add(
-                new AzureServiceBusRule("asset-metadata-events-subscription-filter")
-                {
-                    FilterType = AzureServiceBusFilterType.CorrelationFilter,
-                    CorrelationFilter = new AzureServiceBusCorrelationFilter
-                    {
-                        Properties = new Dictionary<string, object>()
-                        {
-                            { "Type", "asset-metadata" },
-                        },
-                    },
-                });
-        });
-
-    eventsTopic.AddServiceBusSubscription("scrapper-events-subscription")
-        .WithProperties(subscription =>
-        {
-            subscription.ForwardTo = "scrapper-events-queue";
-            subscription.MaxDeliveryCount = 5;
-            subscription.Rules.Add(
-                new AzureServiceBusRule("scrapper-events-subscription-filter")
-                {
-                    FilterType = AzureServiceBusFilterType.CorrelationFilter,
-                    CorrelationFilter = new AzureServiceBusCorrelationFilter
-                    {
-                        Properties = new Dictionary<string, object>()
-                        {
-                            { "Type", "scrapper" },
-                        },
-                    },
-                });
-        });
-
-    eventsTopic.AddServiceBusSubscription("video-generation-events-subscription")
-        .WithProperties(subscription =>
-        {
-            subscription.ForwardTo = "video-generation-events-queue";
-            subscription.MaxDeliveryCount = 5;
-            subscription.Rules.Add(
-                new AzureServiceBusRule("video-generation-events-subscription-filter")
-                {
-                    FilterType = AzureServiceBusFilterType.CorrelationFilter,
-                    CorrelationFilter = new AzureServiceBusCorrelationFilter
-                    {
-                        Properties = new Dictionary<string, object>()
-                        {
-                            { "Type", "video-generation" },
-                        },
-                    },
-                });
-        });
-}
-
 void ConfigureCommandsSubscriptions(IResourceBuilder<AzureServiceBusTopicResource> commandsTopic)
 {
     commandsTopic.AddServiceBusSubscription("asset-metadata-commands-subscription")

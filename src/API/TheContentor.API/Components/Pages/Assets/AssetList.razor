@@ -43,7 +43,7 @@ else
             {
                 <tr>
                     <td>@item.FileName</td>
-                    <td>@item.Duration.ToString(@"mm\:ss")</td>
+                    <td>@item.Duration?.ToString(@"mm\:ss")</td>
                     <td>
                         @foreach (var tag in item.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries))
                         {
@@ -57,9 +57,6 @@ else
                     </td>
                     <td>
                         <div class="btn-group">
-                            <button class="btn btn-sm btn-outline-primary" @onclick="() => Edit(item.Id)">
-                                <i class="bi bi-pencil"></i> Edit
-                            </button>
                             <button class="btn btn-sm @(item.IsActive ? "btn-outline-warning" : "btn-outline-success")" 
                                     @onclick="() => ToggleStatus(item.Id)">
                                 <i class="bi @(item.IsActive ? "bi-eye-slash" : "bi-eye")"></i> 
@@ -89,11 +86,6 @@ else
     private void CreateNew()
     {
         NavigationManager.NavigateTo("/assets/create");
-    }
-
-    private void Edit(Guid id)
-    {
-        NavigationManager.NavigateTo($"/assets/edit/{id}");
     }
 
     private async Task ToggleStatus(Guid id)

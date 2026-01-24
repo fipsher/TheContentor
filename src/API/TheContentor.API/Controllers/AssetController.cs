@@ -36,7 +36,7 @@ public class AssetController(IMediator mediator) : ControllerBase
         await using var stream = model.File.OpenReadStream();
         var command = new CreateAssetCommand
         {
-            FileName = model.FileName ?? model.File.FileName,
+            Name = model.FileName ?? model.File.FileName,
             Tags = model.Tags ?? string.Empty,
             FileStream = stream,
             ContentType = model.File.ContentType
@@ -44,23 +44,6 @@ public class AssetController(IMediator mediator) : ControllerBase
         
         var id = await mediator.Send(command);
         return CreatedAtAction(nameof(GetById), new { id }, id);
-    }
-
-    [HttpPut("{id:guid}")]
-    public async Task<ActionResult> Update(Guid id, UpdateAssetCommand command)
-    {
-        if (id != command.Id)
-        {
-            return BadRequest();
-        }
-
-        var result = await mediator.Send(command);
-        if (!result)
-        {
-            return NotFound();
-        }
-
-        return NoContent();
     }
 
     [HttpPatch("{id:guid}/toggle-status")]

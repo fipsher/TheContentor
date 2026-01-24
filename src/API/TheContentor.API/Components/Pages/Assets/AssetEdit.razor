@@ -1,16 +1,14 @@
 @page "/assets/create"
 @page "/assets/edit/{Id:guid}"
 @using MediatR
-@using TheContentor.Application.Features.Assets.Models
-@using TheContentor.Application.Features.Assets.Queries
 @using TheContentor.Application.Features.Assets.Commands
 @inject IMediator Mediator
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 
-<PageTitle>@(_isEdit ? "Edit Asset" : "Add Asset")</PageTitle>
+<PageTitle>Add Asset</PageTitle>
 
-<h1>@(_isEdit ? "Edit Asset" : "Add Asset")</h1>
+<h1>Add Asset</h1>
 
 <div class="row">
     <div class="col-md-8">
@@ -23,41 +21,29 @@
                 <InputText id="fileName" class="form-control" @bind-Value="_model.FileName" placeholder="e.g. park_drone_shot.mp4" />
             </div>
 
-            @if (!_isEdit)
-            {
-                <div class="mb-3">
-                    <label for="fileUpload" class="form-label">Upload Video File</label>
-                    <InputFile id="fileUpload" class="form-control" OnChange="OnInputFileChange" accept="video/*" disabled="@_isUploading" />
-                    @if (_isUploading)
-                    {
-                        <div class="mt-2">
-                            <div class="spinner-border spinner-border-sm" role="status">
-                                <span class="visually-hidden">Loading...</span>
-                            </div>
-                            <span>Processing file...</span>
+            <div class="mb-3">
+                <label for="fileUpload" class="form-label">Upload Video File</label>
+                <InputFile id="fileUpload" class="form-control" OnChange="OnInputFileChange" accept="video/*" disabled="@_isUploading" />
+                @if (_isUploading)
+                {
+                    <div class="mt-2">
+                        <div class="spinner-border spinner-border-sm" role="status">
+                            <span class="visually-hidden">Loading...</span>
                         </div>
-                    }
-                </div>
-            }
-            else
-            {
-                <div class="mb-3">
-                    <label for="localPath" class="form-label">Local Path / URL</label>
-                    <InputText id="localPath" class="form-control" @bind-Value="_model.LocalPath" disabled />
-                </div>
-            }
-
-            @if (_isEdit)
-            {
-                <div class="mb-3">
-                    <label for="duration" class="form-label">Duration (hh:mm:ss)</label>
-                    <div class="input-group">
-                        <input type="time" id="duration" step="1" class="form-control" 
-                               value="@_model.Duration.ToString(@"hh\:mm\:ss")" 
-                               @onchange="@(e => { if(TimeSpan.TryParse(e.Value?.ToString(), out var ts)) _model.Duration = ts; })" />
+                        <span>Processing file...</span>
                     </div>
+                }
+            </div>
+            
+
+            <div class="mb-3">
+                <label for="duration" class="form-label">Duration (hh:mm:ss)</label>
+                <div class="input-group">
+                    <input type="time" id="duration" step="1" class="form-control" 
+                           value="@_model.Duration.ToString(@"hh\:mm\:ss")" 
+                           @onchange="@(e => { if(TimeSpan.TryParse(e.Value?.ToString(), out var ts)) _model.Duration = ts; })" />
                 </div>
-            }
+            </div>
 
             <div class="mb-3">
                 <label for="tags" class="form-label">Tags (comma separated)</label>
@@ -74,10 +60,9 @@
 
 @code {
     [Parameter]
-    public Guid? Id { get; set; }
+    public Guid Id { get; set; }
 
     private AssetFormModel _model = new();
-    private bool _isEdit => Id.HasValue;
     private bool _isUploading;
     private IBrowserFile? _browserFile;
     private string? _contentType;
@@ -95,25 +80,7 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        if (Id.HasValue)
-        {
-            var dto = await Mediator.Send(new GetAssetByIdQuery(Id.Value));
-            if (dto != null)
-            {
-                _model = new AssetFormModel
-                {
-                    FileName = dto.FileName,
-                    LocalPath = dto.LocalPath,
-                    Tags = dto.Tags,
-                    Duration = dto.Duration,
-                    IsActive = dto.IsActive
-                };
-            }
-            else
-            {
-                NavigationManager.NavigateTo("/assets");
-            }
-        }
+       
     }
 
     private async Task HandleSubmit()
@@ -122,36 +89,21 @@
         {
             _isUploading = true;
             StateHasChanged();
-
-            if (_isEdit)
+            
+            Stream? stream = null;
+            if (_browserFile != null)
             {
-                var command = new UpdateAssetCommand
-                {
-                    Id = Id!.Value,
-                    FileName = _model.FileName,
-                    LocalPath = _model.LocalPath,
-                    Tags = _model.Tags,
-                    Duration = _model.Duration
-                };
-                await Mediator.Send(command);
+                stream = _browserFile.OpenReadStream(maxAllowedSize: 500 * 1024 * 1024); // 500MB max
             }
-            else
-            {
-                Stream? stream = null;
-                if (_browserFile != null)
-                {
-                    stream = _browserFile.OpenReadStream(maxAllowedSize: 500 * 1024 * 1024); // 500MB max
-                }
 
-                var command = new CreateAssetCommand
-                {
-                    FileName = _model.FileName,
-                    Tags = _model.Tags,
-                    FileStream = stream,
-                    ContentType = _contentType
-                };
-                await Mediator.Send(command);
-            }
+            var command = new CreateAssetCommand
+            {
+                Name = _model.FileName,
+                Tags = _model.Tags,
+                FileStream = stream,
+                ContentType = _contentType
+            };
+            await Mediator.Send(command);
 
             NavigationManager.NavigateTo("/assets");
         }
@@ -172,7 +124,6 @@
     private class AssetFormModel
     {
         public string FileName { get; set; } = string.Empty;
-        public string LocalPath { get; set; } = string.Empty;
         public string Tags { get; set; } = string.Empty;
         public TimeSpan Duration { get; set; } = TimeSpan.Zero;
         public bool IsActive { get; set; } = true;

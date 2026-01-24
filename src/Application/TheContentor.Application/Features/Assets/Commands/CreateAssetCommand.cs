@@ -7,7 +7,7 @@ namespace TheContentor.Application.Features.Assets.Commands;
 
 public record CreateAssetCommand : IRequest<Guid>
 {
-    public string FileName { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
     public string Tags { get; set; } = string.Empty;
     public Stream? FileStream { get; set; }
     public string? ContentType { get; set; }
@@ -19,7 +19,7 @@ public class CreateAssetCommandHandler(
 {
     public async Task<Guid> Handle(CreateAssetCommand request, CancellationToken cancellationToken)
     {
-        string localPath;
+        BlobPath localPath;
         var duration = TimeSpan.Zero;
 
         if (request.FileStream == null)
@@ -48,7 +48,7 @@ public class CreateAssetCommandHandler(
                 uploadStream.Position = 0;
             }
 
-            localPath = await blobService.UploadAsync(uploadStream, request.FileName,
+            localPath = await blobService.UploadAsync(uploadStream, "assets", request.Name,
                 request.ContentType ?? "video/mp4", cancellationToken);
         }
         finally
@@ -61,7 +61,7 @@ public class CreateAssetCommandHandler(
 
         var entity = new Asset
         {
-            FileName = request.FileName,
+            Name = request.Name,
             BlobPath = localPath,
             Tags = request.Tags,
             Duration = duration,

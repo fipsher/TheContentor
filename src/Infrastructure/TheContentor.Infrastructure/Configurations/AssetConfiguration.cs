@@ -10,12 +10,13 @@ public class AssetConfiguration : IEntityTypeConfiguration<Asset>
     {
         builder.HasKey(e => e.Id);
 
-        builder.Property(e => e.FileName)
+        builder.Property(e => e.Name)
             .IsRequired()
             .HasMaxLength(255);
 
-        builder.Property(e => e.BlobPath)
-            .IsRequired()
-            .HasMaxLength(500);
+        builder.HasIndex(e => e.Name)
+            .IsUnique();
+
+        builder.OwnsOne(e => e.BlobPath);
     }
 }

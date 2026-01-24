@@ -4,9 +4,9 @@ namespace TheContentor.Domain.Entities;
 
 public class Asset : BaseEntity
 {
-    public string FileName { get; set; } = string.Empty;
-    public string BlobPath { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public required BlobPath BlobPath { get; set; }
     public string Tags { get; set; } = string.Empty;
-    public TimeSpan Duration { get; set; }
+    public TimeSpan? Duration { get; set; }
     public bool IsActive { get; set; }
 }
