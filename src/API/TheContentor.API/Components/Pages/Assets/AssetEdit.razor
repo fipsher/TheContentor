@@ -34,16 +34,6 @@
                     </div>
                 }
             </div>
-            
-
-            <div class="mb-3">
-                <label for="duration" class="form-label">Duration (hh:mm:ss)</label>
-                <div class="input-group">
-                    <input type="time" id="duration" step="1" class="form-control" 
-                           value="@_model.Duration.ToString(@"hh\:mm\:ss")" 
-                           @onchange="@(e => { if(TimeSpan.TryParse(e.Value?.ToString(), out var ts)) _model.Duration = ts; })" />
-                </div>
-            </div>
 
             <div class="mb-3">
                 <label for="tags" class="form-label">Tags (comma separated)</label>
@@ -125,7 +115,6 @@
     {
         public string FileName { get; set; } = string.Empty;
         public string Tags { get; set; } = string.Empty;
-        public TimeSpan Duration { get; set; } = TimeSpan.Zero;
         public bool IsActive { get; set; } = true;
     }
 }

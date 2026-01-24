@@ -13,7 +13,7 @@ var postgres = builder.AddPostgres("the-contentor-postgres", port: 5433)
 var postgresDb = postgres.AddDatabase("the-contentor-db");
 
 var storage = builder.AddAzureStorage("storage")
-    .RunAsEmulator();
+    .RunAsEmulator(cfg => cfg.WithDataVolume("the-contentor-storage"));
 
 var blobs = storage.AddBlobs("blobs");
 

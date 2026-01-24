@@ -13,6 +13,7 @@ public class GetAssetListQueryHandler(TheContentorDbContext context, IBlobServic
     public async Task<List<AssetDto>> Handle(GetAssetListQuery request, CancellationToken cancellationToken)
     {
         var assets = await context.Assets
+            .Include(b => b.BlobPath)
             .AsNoTracking()
             .Select(b => new AssetDto
             {
@@ -20,7 +21,8 @@ public class GetAssetListQueryHandler(TheContentorDbContext context, IBlobServic
                 FileName = b.Name,
                 Tags = b.Tags,
                 Duration = b.Duration,
-                IsActive = b.IsActive
+                IsActive = b.IsActive,
+                BlobPath = b.BlobPath
             })
             .ToListAsync(cancellationToken);
 

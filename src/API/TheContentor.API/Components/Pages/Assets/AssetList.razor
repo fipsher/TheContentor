@@ -57,6 +57,9 @@ else
                     </td>
                     <td>
                         <div class="btn-group">
+                            <button class="btn btn-sm btn-outline-primary" @onclick="() => ViewAsset(item)">
+                                <i class="bi bi-play-circle"></i> View
+                            </button>
                             <button class="btn btn-sm @(item.IsActive ? "btn-outline-warning" : "btn-outline-success")" 
                                     @onclick="() => ToggleStatus(item.Id)">
                                 <i class="bi @(item.IsActive ? "bi-eye-slash" : "bi-eye")"></i> 
@@ -70,8 +73,32 @@ else
     </table>
 }
 
+@if (_selectedAsset != null)
+{
+    <div class="modal fade show" style="display: block; background-color: rgba(0,0,0,0.5);" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Viewing: @_selectedAsset.FileName</h5>
+                    <button type="button" class="btn-close" @onclick="CloseModal"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <video controls autoplay class="img-fluid" style="max-height: 70vh;">
+                        <source src="@_selectedAsset.SasUri.ToString()" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseModal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private List<AssetDto>? _assets;
+    private AssetDto? _selectedAsset;
 
     protected override async Task OnInitializedAsync()
     {
@@ -86,6 +113,16 @@ else
     private void CreateNew()
     {
         NavigationManager.NavigateTo("/assets/create");
+    }
+
+    private void ViewAsset(AssetDto asset)
+    {
+        _selectedAsset = asset;
+    }
+
+    private void CloseModal()
+    {
+        _selectedAsset = null;
     }
 
     private async Task ToggleStatus(Guid id)

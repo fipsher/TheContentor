@@ -14,6 +14,11 @@ public class BlobService(BlobServiceClient blobServiceClient) : IBlobService
         
         await container.CreateIfNotExistsAsync(PublicAccessType.Blob, cancellationToken: cancellationToken);
         await container.SetAccessPolicyAsync(PublicAccessType.Blob, cancellationToken: cancellationToken);
+
+        var fileAndExt = fileName.Split('.');
+        fileName = fileAndExt.Length > 1 
+            ? $"{string.Join('.', fileAndExt[..^2])}-{Guid.NewGuid()}.{fileAndExt[^1]}" 
+            : $"{fileName}-{Guid.NewGuid()}";
         
         var blob = container.GetBlobClient(fileName);
         
