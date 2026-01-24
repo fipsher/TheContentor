@@ -42,6 +42,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Orchestrators", "Orchestrat
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TheContentor.Orchestrator", "src\Orchestrators\TheContentor.Orchestrator\TheContentor.Orchestrator.csproj", "{7AB03FD1-3DA7-4B06-98E0-B2D45AEDEAC8}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TheContentor.Console", "src\Tools\TheContentor.Console\TheContentor.Console.csproj", "{EB4CE42B-4718-4B92-9CAA-B14DBBA7B17B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -136,6 +138,18 @@ Global
 		{7AB03FD1-3DA7-4B06-98E0-B2D45AEDEAC8}.Release|x64.Build.0 = Release|Any CPU
 		{7AB03FD1-3DA7-4B06-98E0-B2D45AEDEAC8}.Release|x86.ActiveCfg = Release|Any CPU
 		{7AB03FD1-3DA7-4B06-98E0-B2D45AEDEAC8}.Release|x86.Build.0 = Release|Any CPU
+		{EB4CE42B-4718-4B92-9CAA-B14DBBA7B17B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EB4CE42B-4718-4B92-9CAA-B14DBBA7B17B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EB4CE42B-4718-4B92-9CAA-B14DBBA7B17B}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{EB4CE42B-4718-4B92-9CAA-B14DBBA7B17B}.Debug|x64.Build.0 = Debug|Any CPU
+		{EB4CE42B-4718-4B92-9CAA-B14DBBA7B17B}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{EB4CE42B-4718-4B92-9CAA-B14DBBA7B17B}.Debug|x86.Build.0 = Debug|Any CPU
+		{EB4CE42B-4718-4B92-9CAA-B14DBBA7B17B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EB4CE42B-4718-4B92-9CAA-B14DBBA7B17B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EB4CE42B-4718-4B92-9CAA-B14DBBA7B17B}.Release|x64.ActiveCfg = Release|Any CPU
+		{EB4CE42B-4718-4B92-9CAA-B14DBBA7B17B}.Release|x64.Build.0 = Release|Any CPU
+		{EB4CE42B-4718-4B92-9CAA-B14DBBA7B17B}.Release|x86.ActiveCfg = Release|Any CPU
+		{EB4CE42B-4718-4B92-9CAA-B14DBBA7B17B}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -158,5 +172,6 @@ Global
 		{50A6A09E-8DC8-4781-A0C9-3D261DCF8B34} = {E98D3A37-A67F-4C9B-8462-EF87EB387DEF}
 		{C897EC53-2749-4E58-BD1C-04A27243AB98} = {DDEE5021-AB97-419B-B7A3-B1B5CA76E3C7}
 		{7AB03FD1-3DA7-4B06-98E0-B2D45AEDEAC8} = {C897EC53-2749-4E58-BD1C-04A27243AB98}
+		{EB4CE42B-4718-4B92-9CAA-B14DBBA7B17B} = {471A335B-59E2-4B64-BDE9-25CD256C0BDC}
 	EndGlobalSection
 EndGlobal

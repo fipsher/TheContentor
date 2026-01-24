@@ -8,7 +8,7 @@ public sealed record RedditPost
 {
     // Identity
     public string ExternalId { get; init; } = string.Empty;
-    public string ExternalUrl { get; init; } = string.Empty;
+    public Uri ExternalUrl { get; init; } = null!;
 
     // Where it came from
     public string Community { get; init; } = string.Empty;
@@ -24,10 +24,11 @@ public sealed record RedditPost
     public string RawText { get; init; } = string.Empty;
     public string? RawHtml { get; init; }
     public int WordCount { get; init; }
-    public string Language { get; init; } = "en";
+    public string? Language { get; init; } = "en";
 
     // Engagement
-    public int Score { get; init; }
+    public int? Score { get; init; }
+    public bool HideScore { get; init; }
     public int CommentCount { get; init; }
     public double? UpvoteRatio { get; init; }
     public bool IsNsfw { get; init; }
@@ -60,6 +61,9 @@ public sealed record RedditPost
 
     // Awards / other signals
     public int? TotalAwardsReceived { get; init; }
+    
+    // Comments
+    public List<RedditComment> Comments { get; init; } = new();
     
     // Raw metadata
     public string MetadataJson { get; init; } = "{}";

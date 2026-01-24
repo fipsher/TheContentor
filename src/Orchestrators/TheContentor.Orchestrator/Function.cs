@@ -4,7 +4,7 @@ using Microsoft.Azure.Functions.Worker;
 using Microsoft.DurableTask;
 using Microsoft.DurableTask.Client;
 using Microsoft.Extensions.Logging;
-using Ryan.Orchestrator.Models;
+using TheContentor.Orchestrator.Models;
 
 namespace TheContentor.Orchestrator;
 

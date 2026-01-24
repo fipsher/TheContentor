@@ -1,7 +1,7 @@
-using Newtonsoft.Json;
-using Reddit;
-using Reddit.Controllers;
-using TheContentor.Domain.Enums;
+using System.Collections.Specialized;
+using System.Text.Json;
+using System.Web;
+using RestSharp;
 using TheContentor.Infrastructure.Scrappers.Reddit.Models;
 using TheContentor.Infrastructure.Scrappers.Shared;
 
@@ -10,147 +10,169 @@ namespace TheContentor.Infrastructure.Scrappers.Reddit;
 // r/pettyrevenge, r/ProRevenge, r/MaliciousCompliance, r/AmItheAsshole, r/JUSTNOMIL,r/raisedbynarcissists, r/entitledparents
 /// <summary>
 /// Reddit implementation of the source scraper.
-/// Uses Reddit.NET library to fetch posts from subreddits.
 /// </summary>
-public class RedditScrapper(RedditClient redditClient) : ISourceScraper<RedditPost>
+public class RedditScrapper(RestClient client) : ISourceScraper<RedditPost, RedditScrapperRequest>
 {
-    public SourcePlatform Platform => SourcePlatform.Reddit;
+    public static readonly Uri RedditUri = new("https://www.reddit.com/");
 
-    /// <inheritdoc />
-    public async Task<ScrapeResult<RedditPost>> ScrapeAsync(
-        ScrapeRequest request,
-        CancellationToken ct = default)
+    public async Task<IEnumerable<RedditPost>> ScrapeListAsync(RedditScrapperRequest request)
     {
-        var targetResults = new List<ScrapeTargetResult<RedditPost>>();
+        var uri = new Uri(RedditUri, $"r/{request.Subreddit}/{request.RedditSort.ToString().ToLowerInvariant()}.json");
 
-        foreach (var target in request.Targets)
+        var queryString = HttpUtility.ParseQueryString(string.Empty);
+        if (request.Limit.HasValue)
         {
-            if (await FetchAndProcessRedditPosts(request, ct, target, targetResults)) break;
+            queryString.Add("limit", request.Limit.ToString());
         }
 
-        return new ScrapeResult<RedditPost>(targetResults);
+        if (!string.IsNullOrWhiteSpace(request.After))
+        {
+            queryString.Add("after", request.After);
+        }
+
+        var ub = new UriBuilder(uri)
+        {
+            Query = queryString.ToString(),
+        };
+
+        var response = await client.ExecuteGetAsync<RedditNestedJson>(ub.Uri.ToString());
+
+        if (response.Data?.Data?.children == null)
+        {
+            return [];
+        }
+
+        return response.Data.Data.children
+            .Where(c => c.Kind == "t3") // t3 is Post
+            .Select(c => MapToRedditPost(c.Data));
     }
 
-    private async Task<bool> FetchAndProcessRedditPosts(
-        ScrapeRequest request,
-        CancellationToken ct,
-        ScrapeTarget target,
-        List<ScrapeTargetResult<RedditPost>> targetResults)
+    public async Task<RedditPost> ScrapeItemAsync(RedditPost post, int? depth = null)
     {
-        if (ct.IsCancellationRequested) return true;
+        var uri = new Uri(RedditUri, $"{post.Permalink.TrimStart('/')}.json");
 
-        var subreddit = redditClient.Subreddit(target.Community);
-
-        // Fetch posts from Reddit API. Wrapping in Task.Run since Reddit.NET is largely synchronous.
-        var rawPosts =
-            await Task.Run(() => FetchRawPosts(subreddit, request.Sort, target.Cursor, request.MaxItemsPerTarget), ct);
-
-        var items = new List<RedditPost>();
-        foreach (var post in rawPosts)
+        var queryString = HttpUtility.ParseQueryString(string.Empty);
+        if (depth.HasValue)
         {
-            if (ct.IsCancellationRequested) break;
+            queryString.Add("depth", depth.ToString());
+        }
 
-            // Time-based filtering
-            if (request.UntilUtc.HasValue && post.Created < request.UntilUtc.Value.UtcDateTime)
+        var ub = new UriBuilder(uri)
+        {
+            Query = queryString.ToString(),
+        };
+
+        var response = await client.ExecuteGetAsync<List<RedditNestedJson>>(ub.Uri.ToString());
+
+        if (response.Data == null || response.Data.Count == 0)
+        {
+            return post;
+        }
+
+        // The first element in the array is the post itself
+        var postListing = response.Data[0];
+        if (postListing.Data?.children != null && postListing.Data.children.Count > 0)
+        {
+            var updatedPost = MapToRedditPost(postListing.Data.children[0].Data);
+
+            // The second element in the array contains the comments
+            if (response.Data.Count > 1)
             {
-                if (request.Sort == ScrapeSort.New)
-                {
-                    // For 'New' sort, we can stop early as subsequent posts will be even older.
-                    break;
-                }
-
-                continue;
+                var commentsListing = response.Data[1];
+                var comments = ExtractComments(commentsListing);
+                updatedPost = updatedPost with { Comments = comments };
             }
 
-            items.Add(MapToRedditPost(post));
+            return updatedPost;
         }
 
-        var lastPost = items.LastOrDefault();
-        var newCursor = new ScrapeCursor(
-            WatermarkUtc: lastPost?.CreatedUtc,
-            LastExternalId: lastPost?.FullName,
-            ContinuationToken: lastPost?.FullName
-        );
-
-        // If we fetched the limit, there might be more items.
-        var hasMore = rawPosts.Count >= request.MaxItemsPerTarget;
-
-        targetResults.Add(new ScrapeTargetResult<RedditPost>(
-            target.Community,
-            items,
-            newCursor,
-            hasMore
-        ));
-        return false;
+        return post;
     }
 
-    private List<Post> FetchRawPosts(Subreddit subreddit, ScrapeSort sort, ScrapeCursor cursor, int limit)
+    private static List<RedditComment> ExtractComments(RedditNestedJson? listing)
     {
-        var after = cursor.ContinuationToken ?? cursor.LastExternalId;
-
-        return sort switch
+        if (listing?.Data?.children == null)
         {
-            ScrapeSort.New => subreddit.Posts.GetNew(after: after, limit: limit),
-            ScrapeSort.Top => subreddit.Posts.GetTop(t: "all", after: after, limit: limit),
-            ScrapeSort.Hot => subreddit.Posts.GetHot(after: after, limit: limit),
-            _ => subreddit.Posts.GetHot(after: after, limit: limit)
+            return [];
+        }
+
+        var comments = new List<RedditComment>();
+        foreach (var child in listing.Data.children.Where(c => c.Kind == "t1"))
+        {
+            var comment = MapToRedditComment(child.Data);
+            
+            // Handle replies
+            if (child.Data.replies is JsonElement repliesElement && repliesElement.ValueKind == JsonValueKind.Object)
+            {
+                var repliesListing = repliesElement.Deserialize<RedditNestedJson>(new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+                
+                if (repliesListing != null)
+                {
+                    comment = comment with { Replies = ExtractComments(repliesListing) };
+                }
+            }
+
+            comments.Add(comment);
+        }
+
+        return comments;
+    }
+
+    private static RedditComment MapToRedditComment(RedditListItem item)
+    {
+        return new RedditComment
+        {
+            ExternalId = item.id ?? string.Empty,
+            AuthorName = item.author ?? string.Empty,
+            Body = item.body ?? string.Empty,
+            BodyHtml = item.body_html,
+            Score = item.score,
+            HideScore = item.hide_score,
+            CreatedUtc = DateTimeOffset.FromUnixTimeSeconds((long)item.created_utc),
+            Permalink = item.permalink ?? string.Empty,
+            FullName = item.name ?? string.Empty,
+            MetadataJson = JsonSerializer.Serialize(item)
         };
     }
 
-    private RedditPost MapToRedditPost(Post post)
+    private static RedditPost MapToRedditPost(RedditListItem item)
     {
-        var isSelfPost = post is SelfPost;
-        var selfText = isSelfPost ? ((SelfPost)post).SelfText : string.Empty;
-        var linkUrl = !isSelfPost ? ((LinkPost)post).URL : string.Empty;
-
         return new RedditPost
         {
-            ExternalId = post.Id,
-            ExternalUrl = "https://reddit.com" + post.Permalink,
-            Community = post.Subreddit,
-            CommunityExternalId = null, // Often not directly exposed on the post object without an extra call
-
-            AuthorExternalId = post.Author,
-            AuthorName = post.Author,
-
-            Title = post.Title,
-            RawText = isSelfPost ? selfText : linkUrl,
-            WordCount = CountWords(isSelfPost ? selfText : string.Empty),
-            Language = "en",
-
-            Score = post.Score,
-            CommentCount = post.Listing.NumComments,
-            UpvoteRatio = post.UpvoteRatio,
-            IsNsfw = post.Listing.Over18,
-            IsSpoiler = post.Listing.Spoiler,
-
-            CreatedUtc = new DateTimeOffset(post.Created, TimeSpan.Zero),
-
-            Subreddit = post.Subreddit,
-            Permalink = post.Permalink,
-            FullName = post.Fullname,
-            IsSelfPost = isSelfPost,
-            LinkUrl = isSelfPost ? null : linkUrl,
-            Domain = post.Listing.Domain,
-            FlairText = post.Listing.LinkFlairText,
-
-            IsAuthorDeleted = post.Author == "[deleted]",
-
-            // These flags are typically available in the underlying Thing data
-            IsLocked = post.Listing.Locked,
-            IsRemoved = false,
-            IsDeleted = post.Author == "[deleted]",
-            IsStickied = post.Listing.Stickied,
-            IsArchived = post.Listing.Archived,
-
-            TotalAwardsReceived = null,
-            MetadataJson = JsonConvert.SerializeObject(post.Listing)
+            ExternalId = item.id ?? string.Empty,
+            ExternalUrl = !string.IsNullOrEmpty(item.url) ? new Uri(item.url) : null!,
+            Community = item.subreddit ?? string.Empty,
+            CommunityExternalId = item.subreddit_id,
+            Flairs = item.link_flair_text,
+            AuthorExternalId = item.author_fullname ?? string.Empty,
+            AuthorName = item.author ?? string.Empty,
+            Title = item.title ?? string.Empty,
+            RawText = item.selftext ?? string.Empty,
+            RawHtml = item.selftext_html,
+            WordCount = (item.selftext ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries).Length,
+            Language = null,
+            Score = item.score,
+            HideScore = item.hide_score,
+            CommentCount = item.num_comments,
+            UpvoteRatio = item.upvote_ratio,
+            IsNsfw = item.over_18,
+            IsSpoiler = item.spoiler,
+            CreatedUtc = DateTimeOffset.FromUnixTimeSeconds((long)item.created_utc),
+            Subreddit = item.subreddit ?? string.Empty,
+            Permalink = item.permalink ?? string.Empty,
+            FullName = item.name ?? string.Empty,
+            IsSelfPost = item.is_self,
+            LinkUrl = item.url,
+            Domain = item.domain,
+            FlairText = item.link_flair_text,
+            IsLocked = item.locked,
+            IsArchived = item.archived,
+            IsStickied = item.stickied,
+            TotalAwardsReceived = item.total_awards_received,
+            MetadataJson = JsonSerializer.Serialize(item)
         };
-    }
-
-    private static int CountWords(string text)
-    {
-        if (string.IsNullOrWhiteSpace(text)) return 0;
-        return text.Split([' ', '\r', '\n', '\t'], StringSplitOptions.RemoveEmptyEntries).Length;
     }
 }

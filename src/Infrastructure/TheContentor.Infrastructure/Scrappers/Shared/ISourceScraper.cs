@@ -1,17 +1,7 @@
-using TheContentor.Domain.Enums;
-
 namespace TheContentor.Infrastructure.Scrappers.Shared;
 
-public interface ISourceScraper<TPost>
+public interface ISourceScraper<TPost, in TRequest>
 {
-    SourcePlatform Platform { get; }
-
-    /// <summary>
-    /// Scrape each target once (one batch per community).
-    /// Caller controls scheduling + repeated calls if HasMore is true.
-    /// </summary>
-    Task<ScrapeResult<TPost>> ScrapeAsync(
-        ScrapeRequest request,
-        CancellationToken ct = default
-    );
+    public Task<IEnumerable<TPost>> ScrapeListAsync(TRequest request);
+    public Task<TPost> ScrapeItemAsync(TPost request, int? depth = null);
 }

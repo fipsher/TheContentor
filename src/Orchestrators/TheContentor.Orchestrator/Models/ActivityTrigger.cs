@@ -1,4 +1,4 @@
-namespace Ryan.Orchestrator.Models;
+namespace TheContentor.Orchestrator.Models;
 
 public class ActivityTrigger<T>
 {
