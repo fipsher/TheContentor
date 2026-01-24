@@ -6,9 +6,11 @@
 
   <ItemGroup>
     <PackageReference Include="Aspire.Azure.Storage.Blobs" Version="13.1.0" />
+    <PackageReference Include="AutoMapper" Version="16.0.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
     <PackageReference Include="RestSharp" Version="113.1.0" />
+    <PackageReference Include="RestSharp.Extensions.DependencyInjection" Version="113.1.0" />
     <PackageReference Include="Xabe.FFmpeg" Version="6.0.2" />
   </ItemGroup>
 

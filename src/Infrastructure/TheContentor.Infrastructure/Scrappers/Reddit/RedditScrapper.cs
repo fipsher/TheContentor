@@ -1,4 +1,3 @@
-using System.Collections.Specialized;
 using System.Text.Json;
 using System.Web;
 using RestSharp;
@@ -13,7 +12,7 @@ namespace TheContentor.Infrastructure.Scrappers.Reddit;
 /// </summary>
 public class RedditScrapper(RestClient client) : ISourceScraper<RedditPost, RedditScrapperRequest>
 {
-    public static readonly Uri RedditUri = new("https://www.reddit.com/");
+    private static readonly Uri RedditUri = new("https://www.reddit.com/");
 
     public async Task<IEnumerable<RedditPost>> ScrapeListAsync(RedditScrapperRequest request)
     {
@@ -71,7 +70,7 @@ public class RedditScrapper(RestClient client) : ISourceScraper<RedditPost, Redd
 
         // The first element in the array is the post itself
         var postListing = response.Data[0];
-        if (postListing.Data?.children != null && postListing.Data.children.Count > 0)
+        if (postListing.Data?.children is { Count: > 0 })
         {
             var updatedPost = MapToRedditPost(postListing.Data.children[0].Data);
 

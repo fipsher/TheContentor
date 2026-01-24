@@ -9,3 +9,4 @@
 * Prefer var over explicit types when possible.
 * Use async/await whenever possible.
 * XML comments are required. But should be minimal.
+* Use Automapper library for mappings.

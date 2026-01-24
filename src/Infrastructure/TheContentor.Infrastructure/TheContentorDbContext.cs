@@ -10,6 +10,8 @@ public class TheContentorDbContext(DbContextOptions<TheContentorDbContext> optio
     public DbSet<Asset> Assets { get; set; } = null!;
     public DbSet<SourcePost> SourcePosts { get; set; } = null!;
     public DbSet<SourceComment> SourceComments { get; set; } = null!;
+    public DbSet<RedditPostData> RedditPostData { get; set; } = null!;
+    public DbSet<PostMetricSnapshot> PostMetricSnapshots { get; set; } = null!;
     public DbSet<VideoProject> VideoProjects { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

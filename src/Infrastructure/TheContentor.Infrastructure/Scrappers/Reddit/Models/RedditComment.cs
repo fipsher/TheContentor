@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace TheContentor.Infrastructure.Scrappers.Reddit.Models;
 
 public sealed record RedditComment
