@@ -91,6 +91,7 @@ else
                     <th style="cursor: pointer" @onclick='() => SetSort("Status")'>
                         Status @GetSortIcon("Status")
                     </th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -102,14 +103,7 @@ else
                         </td>
                         <td>@post.Community</td>
                         <td>
-                            <div class="d-flex align-items-center">
-                                <button class="btn btn-sm btn-outline-info me-2" @onclick="() => ViewDetails(post.Id)">
-                                    View
-                                </button>
-                                <a href="@post.ExternalUrl" target="_blank" class="text-decoration-none">
-                                    @post.Title
-                                </a>
-                            </div>
+                            @post.Title
                         </td>
                         <td>@post.WordCount</td>
                         <td>@post.Score</td>
@@ -118,6 +112,11 @@ else
                         <td>@post.IngestedUtc.ToString("yyyy-MM-dd HH:mm")</td>
                         <td>
                             <span class="badge @GetStatusClass(post.Status)">@post.Status</span>
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-info" @onclick="() => ViewDetails(post.Id)">
+                                View
+                            </button>
                         </td>
                     </tr>
                 }
