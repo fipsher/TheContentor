@@ -33,7 +33,7 @@ public class ProcessedPostDto
 
 public class ProcessedPostPartDto
 {
-    public Guid Id { get; set; }
+    public Guid? Id { get; set; }
     public string ProcessedText { get; set; } = string.Empty;
     public List<string> Hashtags { get; set; } = new();
     public List<SocialPlatform> PublishedTo { get; set; } = new();

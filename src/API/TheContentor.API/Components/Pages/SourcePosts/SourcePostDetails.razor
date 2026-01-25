@@ -1,0 +1,335 @@
+@page "/source-posts/{Id:guid}"
+@using MediatR
+@using TheContentor.Application.Features.SourcePosts.Models
+@using TheContentor.Application.Features.SourcePosts.Commands
+@using TheContentor.Application.Features.SourcePosts.Queries
+@using TheContentor.Domain.Enums
+@inject IMediator Mediator
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+@if (Post == null)
+{
+    <div class="container mt-4">
+        <p><em>Loading...</em></p>
+    </div>
+}
+else
+{
+    <div class="container mt-4 pb-5">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2>@Post.Title</h2>
+                <small class="text-muted">
+                    Posted by u/@Post.AuthorName in r/@Post.Community 
+                    • @Post.CreatedUtc.ToString("f")
+                </small>
+            </div>
+            <div>
+                <button class="btn btn-outline-secondary me-2" @onclick="GoBack">Back to List</button>
+                @if (!_isEditing)
+                {
+                    <button class="btn btn-primary" @onclick="StartEditing">Edit</button>
+                }
+                else
+                {
+                    <button class="btn btn-success me-2" @onclick="UpdateProcessedPost">Save</button>
+                    <button class="btn btn-secondary" @onclick="CancelEditing">Cancel</button>
+                }
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card mb-4 shadow-sm">
+                    <div class="card-header bg-light fw-bold">Post Info</div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <span class="badge bg-secondary me-1">@Post.Platform</span>
+                            <span class="badge bg-info me-1">@Post.Score points</span>
+                            @if (Post.UpvoteRatio.HasValue)
+                            {
+                                <span class="badge bg-info me-1">@(Post.UpvoteRatio.Value.ToString("P0")) Upvoted</span>
+                            }
+                            <span class="badge bg-dark me-1">@Post.WordCount words</span>
+                            <span class="badge @GetStatusClass(Post.Status) me-1">@Post.Status</span>
+                        </div>
+                        <div class="mb-3">
+                             <a href="@Post.ExternalUrl" target="_blank" class="btn btn-sm btn-outline-primary">View on @Post.Platform</a>
+                        </div>
+                        <hr/>
+                        <div class="post-content" style="white-space: pre-wrap; max-height: 500px; overflow-y: auto; font-size: 0.9rem;">
+                            @Post.RawText
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="d-grid gap-2 mb-4">
+                     <button type="button" class="btn btn-warning" @onclick="ProcessWithAI" disabled="@(_isProcessing || _isEditing)">
+                        @if (_isProcessing)
+                        {
+                            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                            <span> Processing...</span>
+                        }
+                        else
+                        {
+                            <span>@(Post.Status == SourcePostStatus.Processed ? "Re-process with AI" : "Process with AI")</span>
+                        }
+                    </button>
+                </div>
+            </div>
+
+            <div class="col-md-8">
+                @if (Post.ProcessedPost != null)
+                {
+                    <div class="card mb-4 border-primary shadow-sm">
+                        <div class="card-header bg-primary text-white fw-bold">
+                            AI Processed Content
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Post Title (Social Media)</label>
+                                @if (_isEditing)
+                                {
+                                    <input type="text" class="form-control" @bind="Post.ProcessedPost.Title" />
+                                }
+                                else
+                                {
+                                    <div class="p-2 border rounded bg-light">@Post.ProcessedPost.Title</div>
+                                }
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Post Description (Social Media)</label>
+                                @if (_isEditing)
+                                {
+                                    <textarea class="form-control" rows="3" @bind="Post.ProcessedPost.Description"></textarea>
+                                }
+                                else
+                                {
+                                    <div class="p-2 border rounded bg-light" style="white-space: pre-wrap;">@Post.ProcessedPost.Description</div>
+                                }
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Post Hashtags</label>
+                                @if (_isEditing)
+                                {
+                                    <input type="text" class="form-control" @bind="_hashtagsText" placeholder="Enter hashtags separated by comma..." />
+                                }
+                                else
+                                {
+                                    <div class="p-2 border rounded bg-light">@_hashtagsText</div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4 class="mb-0">Content Parts</h4>
+                        @if (_isEditing)
+                        {
+                            <button class="btn btn-outline-primary btn-sm" @onclick="AddPart">+ Add Part</button>
+                        }
+                    </div>
+
+                    @foreach (var part in Post.ProcessedPost.Parts.OrderBy(p => p.Part))
+                    {
+                        <div class="card mb-3 border-secondary shadow-sm" @key="part">
+                            <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
+                                <div class="d-flex align-items-center">
+                                    <span class="badge bg-secondary me-3">Part @part.Part</span>
+                                    @if (_isEditing)
+                                    {
+                                        <div class="d-flex align-items-center">
+                                            <small class="me-2 fw-bold">Order:</small>
+                                            <input type="number" class="form-control form-control-sm" style="width: 70px;" @bind="part.Part" />
+                                        </div>
+                                    }
+                                </div>
+                                @if (_isEditing)
+                                {
+                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => RemovePart(part)">
+                                        Remove
+                                    </button>
+                                }
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Processed Text</label>
+                                    @if (_isEditing)
+                                    {
+                                        <textarea class="form-control" rows="4" @bind="part.ProcessedText"></textarea>
+                                    }
+                                    else
+                                    {
+                                        <div class="p-2 border rounded bg-light" style="white-space: pre-wrap;">@part.ProcessedText</div>
+                                    }
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Part Hashtags</label>
+                                    @if (_isEditing)
+                                    {
+                                        <input type="text" class="form-control" @bind="@_partHashtags[part]" placeholder="Part hashtags..." />
+                                    }
+                                    else
+                                    {
+                                        <div class="p-2 border rounded bg-light">@(_partHashtags.TryGetValue(part, out var h) ? h : "")</div>
+                                    }
+                                </div>
+                                <div class="mb-0">
+                                    <label class="form-label fw-bold d-block">Publish To</label>
+                                    @foreach (var platform in Enum.GetValues<SocialPlatform>())
+                                    {
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   id="@($"platform-{part.GetHashCode()}-{platform}")"
+                                                   checked="@part.PublishedTo.Contains(platform)"
+                                                   disabled="@(!_isEditing)"
+                                                   @onchange="@(e => TogglePlatform(part, platform, e.Value))" />
+                                            <label class="form-check-label" for="@($"platform-{part.GetHashCode()}-{platform}")">@platform</label>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
+                }
+                else if (Post.Status == SourcePostStatus.Raw)
+                {
+                    <div class="alert alert-info">
+                        This post hasn't been processed by AI yet. Click "Process with AI" to generate social media content.
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private SourcePostDetailsDto? Post { get; set; }
+    private string _hashtagsText = "";
+    private Dictionary<ProcessedPostPartDto, string> _partHashtags = new();
+    private bool _isProcessing = false;
+    private bool _isEditing = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPost();
+    }
+
+    private async Task LoadPost()
+    {
+        Post = await Mediator.Send(new GetSourcePostDetailsQuery(Id));
+        if (Post?.ProcessedPost != null)
+        {
+            _hashtagsText = string.Join(", ", Post.ProcessedPost.Hashtags);
+            _partHashtags.Clear();
+            foreach (var part in Post.ProcessedPost.Parts)
+            {
+                _partHashtags[part] = string.Join(", ", part.Hashtags);
+            }
+        }
+    }
+
+    private async Task ProcessWithAI()
+    {
+        if (Post == null) return;
+        _isProcessing = true;
+        try
+        {
+            await Mediator.Send(new ProcessSourcePostCommand(Post.Id));
+            await LoadPost();
+            _isEditing = false;
+        }
+        finally
+        {
+            _isProcessing = false;
+        }
+    }
+
+    private void StartEditing()
+    {
+        _isEditing = true;
+    }
+
+    private async Task CancelEditing()
+    {
+        await LoadPost();
+        _isEditing = false;
+    }
+
+    private async Task UpdateProcessedPost()
+    {
+        if (Post?.ProcessedPost == null) return;
+
+        var command = new UpdateProcessedPostCommand(
+            Post.ProcessedPost.Id,
+            Post.ProcessedPost.Title,
+            Post.ProcessedPost.Description,
+            _hashtagsText.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList(),
+            Post.ProcessedPost.Parts.Select(p => new UpdateProcessedPostPartDto(
+                p.Id,
+                p.ProcessedText,
+                _partHashtags.GetValueOrDefault(p, "").Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList(),
+                p.PublishedTo,
+                p.Part
+            )).ToList()
+        );
+
+        await Mediator.Send(command);
+        await LoadPost();
+        _isEditing = false;
+    }
+
+    private void AddPart()
+    {
+        if (Post?.ProcessedPost == null) return;
+        
+        var newPart = new ProcessedPostPartDto
+        {
+            Part = Post.ProcessedPost.Parts.Any() ? Post.ProcessedPost.Parts.Max(p => p.Part) + 1 : 1,
+            ProcessedText = "",
+            Hashtags = new List<string>(),
+            PublishedTo = new List<SocialPlatform>()
+        };
+        
+        Post.ProcessedPost.Parts.Add(newPart);
+        _partHashtags[newPart] = "";
+    }
+
+    private void RemovePart(ProcessedPostPartDto part)
+    {
+        Post?.ProcessedPost?.Parts.Remove(part);
+        _partHashtags.Remove(part);
+    }
+
+    private void TogglePlatform(ProcessedPostPartDto part, SocialPlatform platform, object? isChecked)
+    {
+        if (!_isEditing) return;
+
+        if (isChecked is true)
+        {
+            if (!part.PublishedTo.Contains(platform))
+                part.PublishedTo.Add(platform);
+        }
+        else
+        {
+            part.PublishedTo.Remove(platform);
+        }
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo("/source-posts");
+    }
+
+    private string GetStatusClass(SourcePostStatus status) => status switch
+    {
+        SourcePostStatus.Raw => "bg-info",
+        SourcePostStatus.Processed => "bg-primary",
+        SourcePostStatus.Approved => "bg-success",
+        SourcePostStatus.Rejected => "bg-danger",
+        _ => "bg-secondary"
+    };
+}

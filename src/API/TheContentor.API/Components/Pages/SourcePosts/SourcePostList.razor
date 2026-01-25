@@ -4,6 +4,7 @@
 @using TheContentor.Application.Features.SourcePosts.Queries
 @using TheContentor.Domain.Enums
 @inject IMediator Mediator
+@inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 
 <PageTitle>Source Posts</PageTitle>
@@ -14,7 +15,6 @@
 </div>
 
 <ScrapRedditDialog Show="_showScrapDialog" OnClose="() => _showScrapDialog = false" OnScrapped="RefreshList" />
-<SourcePostDetailsDialog Post="_selectedPostDetails" OnClose="() => _selectedPostDetails = null" OnProcessed="RefreshList" />
 
 <div class="card mb-4">
     <div class="card-body">
@@ -113,9 +113,9 @@ else
                             <span class="badge @GetStatusClass(post.Status)">@post.Status</span>
                         </td>
                         <td>
-                            <button class="btn btn-sm btn-outline-info" @onclick="() => ViewDetails(post.Id)">
+                            <a class="btn btn-sm btn-outline-info" href="/source-posts/@post.Id">
                                 View
-                            </button>
+                            </a>
                         </td>
                     </tr>
                 }
@@ -126,7 +126,6 @@ else
 
 @code {
     private bool _showScrapDialog;
-    private SourcePostDetailsDto? _selectedPostDetails;
     private List<SourcePostListItemDto>? _posts;
     private string _searchTitle = "";
     private SourcePlatform? _filterPlatform;
@@ -142,11 +141,6 @@ else
     private async Task RefreshList()
     {
         _posts = await Mediator.Send(new GetSourcePostListQuery());
-    }
-
-    private async Task ViewDetails(Guid id)
-    {
-        _selectedPostDetails = await Mediator.Send(new GetSourcePostDetailsQuery(id));
     }
 
     private IEnumerable<SourcePostListItemDto> FilteredPosts
