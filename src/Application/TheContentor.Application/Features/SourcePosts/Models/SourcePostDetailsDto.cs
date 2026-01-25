@@ -25,6 +25,8 @@ public class SourcePostDetailsDto
 public class ProcessedPostDto
 {
     public Guid Id { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
     public List<string> Hashtags { get; set; } = new();
     public List<ProcessedPostPartDto> Parts { get; set; } = new();
 }
@@ -35,4 +37,5 @@ public class ProcessedPostPartDto
     public string ProcessedText { get; set; } = string.Empty;
     public List<string> Hashtags { get; set; } = new();
     public List<SocialPlatform> PublishedTo { get; set; } = new();
+    public int Part { get; set; }
 }

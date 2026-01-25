@@ -144,9 +144,18 @@ namespace TheContentor.Infrastructure.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.PrimitiveCollection<List<string>>("Hashtags")
                         .IsRequired()
                         .HasColumnType("text[]");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
 
                     b.HasKey("Id");
 
@@ -163,6 +172,9 @@ namespace TheContentor.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text[]");
 
+                    b.Property<int>("Part")
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("ProcessedPostId")
                         .HasColumnType("uuid");
 
@@ -176,7 +188,8 @@ namespace TheContentor.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ProcessedPostId");
+                    b.HasIndex("ProcessedPostId", "Part")
+                        .IsUnique();
 
                     b.ToTable("ProcessedPostParts", (string)null);
                 });

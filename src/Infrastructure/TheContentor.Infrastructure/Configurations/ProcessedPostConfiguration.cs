@@ -17,6 +17,14 @@ public sealed class ProcessedPostConfiguration : IEntityTypeConfiguration<Proces
             .HasForeignKey<ProcessedPost>(x => x.Id)
             .OnDelete(DeleteBehavior.Cascade);
 
+        b.Property(x => x.Title)
+            .HasMaxLength(512)
+            .IsRequired();
+
+        b.Property(x => x.Description)
+            .HasColumnType("text")
+            .IsRequired();
+
         b.Property(x => x.Hashtags)
             .HasColumnType("text[]");
     }

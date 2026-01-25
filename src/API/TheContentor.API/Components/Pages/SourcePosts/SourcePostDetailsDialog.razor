@@ -41,15 +41,27 @@
                         <hr />
                         <h6 class="mb-3">AI Processed Content</h6>
                         <div class="mb-3">
+                            <label class="form-label fw-bold">Post Title (Social Media)</label>
+                            <input type="text" class="form-control" @bind="Post.ProcessedPost.Title" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Post Description (Social Media)</label>
+                            <textarea class="form-control" rows="3" @bind="Post.ProcessedPost.Description"></textarea>
+                        </div>
+                        <div class="mb-3">
                             <label class="form-label fw-bold">Post Hashtags</label>
                             <input type="text" class="form-control" @bind="_hashtagsText" placeholder="Enter hashtags separated by comma..." />
                         </div>
 
-                        @foreach (var part in Post.ProcessedPost.Parts)
+                        @foreach (var part in Post.ProcessedPost.Parts.OrderBy(p => p.Part))
                         {
                             <div class="card mb-3 border-primary">
-                                <div class="card-header bg-primary text-white py-1">
+                                <div class="card-header bg-primary text-white py-1 d-flex justify-content-between align-items-center">
                                     <small>Content Part</small>
+                                    <div class="d-flex align-items-center">
+                                        <small class="me-2">Order:</small>
+                                        <input type="number" class="form-control form-control-sm" style="width: 60px;" @bind="part.Part" />
+                                    </div>
                                 </div>
                                 <div class="card-body">
                                     <div class="mb-3">
@@ -84,20 +96,17 @@
                 <div class="modal-footer justify-content-between">
                     <div>
                         <a href="@Post.ExternalUrl" target="_blank" class="btn btn-outline-primary">View on @Post.Platform</a>
-                        @if (Post.Status != SourcePostStatus.Processed)
-                        {
-                            <button type="button" class="btn btn-warning ms-2" @onclick="ProcessWithAI" disabled="@_isProcessing">
-                                @if (_isProcessing)
-                                {
-                                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                                    <span> Processing...</span>
-                                }
-                                else
-                                {
-                                    <span>Process with AI</span>
-                                }
-                            </button>
-                        }
+                        <button type="button" class="btn btn-warning ms-2" @onclick="ProcessWithAI" disabled="@_isProcessing">
+                            @if (_isProcessing)
+                            {
+                                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                <span> Processing...</span>
+                            }
+                            else
+                            {
+                                <span>@(Post.Status == SourcePostStatus.Processed ? "Re-process with AI" : "Process with AI")</span>
+                            }
+                        </button>
                     </div>
                     <button type="button" class="btn btn-secondary" @onclick="Close">Close</button>
                 </div>
@@ -153,12 +162,15 @@
 
         var command = new UpdateProcessedPostCommand(
             Post.ProcessedPost.Id,
+            Post.ProcessedPost.Title,
+            Post.ProcessedPost.Description,
             _hashtagsText.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList(),
             Post.ProcessedPost.Parts.Select(p => new UpdateProcessedPostPartDto(
                 p.Id,
                 p.ProcessedText,
                 _partHashtags.GetValueOrDefault(p.Id, "").Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList(),
-                p.PublishedTo
+                p.PublishedTo,
+                p.Part
             )).ToList()
         );
 

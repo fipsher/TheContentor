@@ -8,6 +8,8 @@ namespace TheContentor.Application.Features.SourcePosts.Commands;
 
 public record UpdateProcessedPostCommand(
     Guid ProcessedPostId,
+    string Title,
+    string Description,
     List<string> Hashtags,
     List<UpdateProcessedPostPartDto> Parts) : IRequest;
 
@@ -15,7 +17,8 @@ public record UpdateProcessedPostPartDto(
     Guid? Id,
     string ProcessedText,
     List<string> Hashtags,
-    List<SocialPlatform> PublishedTo);
+    List<SocialPlatform> PublishedTo,
+    int Part);
 
 public class UpdateProcessedPostCommandHandler(TheContentorDbContext context)
     : IRequestHandler<UpdateProcessedPostCommand>
@@ -31,6 +34,8 @@ public class UpdateProcessedPostCommandHandler(TheContentorDbContext context)
             return;
         }
 
+        processedPost.Title = request.Title;
+        processedPost.Description = request.Description;
         processedPost.Hashtags = request.Hashtags;
 
         // Remove parts that are not in the request
@@ -49,6 +54,7 @@ public class UpdateProcessedPostCommandHandler(TheContentorDbContext context)
                 var existingPart = processedPost.Parts.FirstOrDefault(p => p.Id == partDto.Id.Value);
                 if (existingPart != null)
                 {
+                    existingPart.Part = partDto.Part;
                     existingPart.ProcessedText = partDto.ProcessedText;
                     existingPart.Hashtags = partDto.Hashtags;
                     existingPart.PublishedTo = partDto.PublishedTo;
@@ -59,6 +65,7 @@ public class UpdateProcessedPostCommandHandler(TheContentorDbContext context)
                 processedPost.Parts.Add(new ProcessedPostPart
                 {
                     ProcessedPostId = processedPost.Id,
+                    Part = partDto.Part,
                     ProcessedText = partDto.ProcessedText,
                     Hashtags = partDto.Hashtags,
                     PublishedTo = partDto.PublishedTo

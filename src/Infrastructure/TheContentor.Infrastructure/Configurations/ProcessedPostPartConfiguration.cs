@@ -11,6 +11,7 @@ public sealed class ProcessedPostPartConfiguration : IEntityTypeConfiguration<Pr
         b.ToTable("ProcessedPostParts");
 
         b.HasKey(x => x.Id);
+        b.HasIndex(x => new { x.ProcessedPostId, x.Part }).IsUnique();
 
         b.Property(x => x.ProcessedText)
             .HasColumnType("text")

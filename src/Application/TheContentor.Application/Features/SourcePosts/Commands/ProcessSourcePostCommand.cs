@@ -34,9 +34,12 @@ public class ProcessSourcePostCommandHandler(TheContentorDbContext context, IPos
         var processedPost = new ProcessedPost
         {
             Id = sourcePost.Id,
+            Title = processedData.Title,
+            Description = processedData.Description,
             Hashtags = processedData.Hashtags,
             Parts = processedData.Parts.Select(p => new ProcessedPostPart
             {
+                Part = p.Part,
                 ProcessedText = p.ProcessedText,
                 Hashtags = p.Hashtags
             }).ToList()

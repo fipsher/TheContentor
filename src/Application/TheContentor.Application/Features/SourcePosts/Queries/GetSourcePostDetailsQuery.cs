@@ -32,13 +32,16 @@ public class GetSourcePostDetailsQueryHandler(TheContentorDbContext dbContext)
                 ProcessedPost = x.ProcessedPost == null ? null : new ProcessedPostDto
                 {
                     Id = x.ProcessedPost.Id,
+                    Title = x.ProcessedPost.Title,
+                    Description = x.ProcessedPost.Description,
                     Hashtags = x.ProcessedPost.Hashtags,
                     Parts = x.ProcessedPost.Parts.Select(p => new ProcessedPostPartDto
                     {
                         Id = p.Id,
                         ProcessedText = p.ProcessedText,
                         Hashtags = p.Hashtags,
-                        PublishedTo = p.PublishedTo
+                        PublishedTo = p.PublishedTo,
+                        Part = p.Part
                     }).ToList()
                 }
             })
