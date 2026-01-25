@@ -47,7 +47,7 @@ public class SourcePost : BaseEntity
     public string MetadataJson { get; set; } = "{}";          // raw API payload (optional but useful)
 
     // Navigation
-    public List<SourceComment> Comments { get; set; } = new();
-    public List<PostMetricSnapshot> MetricSnapshots { get; set; } = new();
+    public List<SourceComment> Comments { get; set; } = [];
+    public List<PostMetricSnapshot> MetricSnapshots { get; set; } = [];
     public ProcessedPost? ProcessedPost { get; set; }
 }

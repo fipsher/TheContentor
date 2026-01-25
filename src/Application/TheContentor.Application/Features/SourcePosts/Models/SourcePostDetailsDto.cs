@@ -27,15 +27,15 @@ public class ProcessedPostDto
     public Guid Id { get; set; }
     public string Title { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
-    public List<string> Hashtags { get; set; } = new();
-    public List<ProcessedPostPartDto> Parts { get; set; } = new();
+    public List<string> Hashtags { get; set; } = [];
+    public List<ProcessedPostPartDto> Parts { get; set; } = [];
 }
 
 public class ProcessedPostPartDto
 {
     public Guid? Id { get; set; }
     public string ProcessedText { get; set; } = string.Empty;
-    public List<string> Hashtags { get; set; } = new();
-    public List<SocialPlatform> PublishedTo { get; set; } = new();
+    public List<string> Hashtags { get; set; } = [];
+    public List<SocialPlatform> PublishedTo { get; set; } = [];
     public int Part { get; set; }
 }

@@ -7,7 +7,7 @@ using TheContentor.Infrastructure.Interfaces;
 
 namespace TheContentor.Application.Features.SourcePosts.Commands;
 
-public record ProcessSourcePostCommand(Guid SourcePostId) : IRequest;
+public record ProcessSourcePostCommand(Guid SourcePostId, CriteriaEngine Engine = CriteriaEngine.Gemini) : IRequest;
 
 public class ProcessSourcePostCommandHandler(TheContentorDbContext context, IPostProcessor postProcessor)
     : IRequestHandler<ProcessSourcePostCommand>
@@ -29,7 +29,7 @@ public class ProcessSourcePostCommandHandler(TheContentorDbContext context, IPos
             context.ProcessedPosts.Remove(sourcePost.ProcessedPost);
         }
 
-        var processedData = await postProcessor.ProcessAsync(sourcePost.Title, sourcePost.RawText, cancellationToken);
+        var processedData = await postProcessor.ProcessAsync(sourcePost.Title, sourcePost.RawText, request.Engine, cancellationToken);
 
         var processedPost = new ProcessedPost
         {

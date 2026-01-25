@@ -17,5 +17,5 @@ public sealed record RedditComment
     public string MetadataJson { get; init; } = "{}";
     
     // Potentially nested replies
-    public List<RedditComment> Replies { get; init; } = new();
+    public List<RedditComment> Replies { get; init; } = [];
 }

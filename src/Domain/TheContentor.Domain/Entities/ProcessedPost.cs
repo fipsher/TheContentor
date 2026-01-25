@@ -10,6 +10,6 @@ public class ProcessedPost : BaseEntity
     public string Title { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     
-    public List<string> Hashtags { get; set; } = new();
-    public List<ProcessedPostPart> Parts { get; set; } = new();
+    public List<string> Hashtags { get; set; } = [];
+    public List<ProcessedPostPart> Parts { get; set; } = [];
 }

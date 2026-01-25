@@ -63,7 +63,7 @@ public sealed record RedditPost
     public int? TotalAwardsReceived { get; init; }
     
     // Comments
-    public List<RedditComment> Comments { get; init; } = new();
+    public List<RedditComment> Comments { get; init; } = [];
     
     // Raw metadata
     public string MetadataJson { get; init; } = "{}";

@@ -147,7 +147,7 @@ else
     {
         get
         {
-            if (_posts == null) return Enumerable.Empty<SourcePostListItemDto>();
+            if (_posts == null) return [];
 
             return _posts.Where(p =>
                 (string.IsNullOrWhiteSpace(_searchTitle) || p.Title.Contains(_searchTitle, StringComparison.OrdinalIgnoreCase)) &&
