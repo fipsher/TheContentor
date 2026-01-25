@@ -1,4 +1,9 @@
+@using MediatR
 @using TheContentor.Application.Features.SourcePosts.Models
+@using TheContentor.Application.Features.SourcePosts.Commands
+@using TheContentor.Application.Features.SourcePosts.Queries
+@using TheContentor.Domain.Enums
+@inject IMediator Mediator
 
 @if (Post != null)
 {
@@ -24,14 +29,76 @@
                             <span class="badge bg-info me-1">@(Post.UpvoteRatio.Value.ToString("P0")) Upvoted</span>
                         }
                         <span class="badge bg-dark me-1">@Post.WordCount words</span>
+                        <span class="badge @GetStatusClass(Post.Status) me-1">@Post.Status</span>
                     </div>
 
-                    <div class="post-content" style="white-space: pre-wrap;">
+                    <div class="post-content mb-4" style="white-space: pre-wrap; max-height: 200px; overflow-y: auto; border: 1px solid #dee2e6; padding: 1rem; border-radius: 0.25rem;">
                         @Post.RawText
                     </div>
+
+                    @if (Post.ProcessedPost != null && Post.Status == SourcePostStatus.Processed)
+                    {
+                        <hr />
+                        <h6 class="mb-3">AI Processed Content</h6>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Post Hashtags</label>
+                            <input type="text" class="form-control" @bind="_hashtagsText" placeholder="Enter hashtags separated by comma..." />
+                        </div>
+
+                        @foreach (var part in Post.ProcessedPost.Parts)
+                        {
+                            <div class="card mb-3 border-primary">
+                                <div class="card-header bg-primary text-white py-1">
+                                    <small>Content Part</small>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Processed Text</label>
+                                        <textarea class="form-control" rows="4" @bind="part.ProcessedText"></textarea>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Part Hashtags</label>
+                                        <input type="text" class="form-control" @bind="@_partHashtags[part.Id]" placeholder="Part hashtags..." />
+                                    </div>
+                                    <div class="mb-0">
+                                        <label class="form-label fw-bold d-block">Publish To</label>
+                                        @foreach (var platform in Enum.GetValues<SocialPlatform>())
+                                        {
+                                            <div class="form-check form-check-inline">
+                                                <input class="form-check-input" type="checkbox" 
+                                                       id="@($"platform-{part.Id}-{platform}")"
+                                                       checked="@part.PublishedTo.Contains(platform)"
+                                                       @onchange="@(e => TogglePlatform(part, platform, e.Value))" />
+                                                <label class="form-check-label" for="@($"platform-{part.Id}-{platform}")">@platform</label>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                        <div class="d-grid">
+                            <button type="button" class="btn btn-primary" @onclick="UpdateProcessedPost">Save Adjustments</button>
+                        </div>
+                    }
                 </div>
                 <div class="modal-footer justify-content-between">
-                    <a href="@Post.ExternalUrl" target="_blank" class="btn btn-outline-primary">View on @Post.Platform</a>
+                    <div>
+                        <a href="@Post.ExternalUrl" target="_blank" class="btn btn-outline-primary">View on @Post.Platform</a>
+                        @if (Post.Status != SourcePostStatus.Processed)
+                        {
+                            <button type="button" class="btn btn-warning ms-2" @onclick="ProcessWithAI" disabled="@_isProcessing">
+                                @if (_isProcessing)
+                                {
+                                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                    <span> Processing...</span>
+                                }
+                                else
+                                {
+                                    <span>Process with AI</span>
+                                }
+                            </button>
+                        }
+                    </div>
                     <button type="button" class="btn btn-secondary" @onclick="Close">Close</button>
                 </div>
             </div>
@@ -42,9 +109,90 @@
 @code {
     [Parameter] public SourcePostDetailsDto? Post { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnProcessed { get; set; }
+
+    private string _hashtagsText = "";
+    private Dictionary<Guid, string> _partHashtags = new();
+    private bool _isProcessing = false;
+
+    protected override void OnParametersSet()
+    {
+        if (Post?.ProcessedPost != null)
+        {
+            _hashtagsText = string.Join(", ", Post.ProcessedPost.Hashtags.ToArray());
+            _partHashtags.Clear();
+            foreach (var part in Post.ProcessedPost.Parts)
+            {
+                _partHashtags[part.Id] = string.Join(", ", part.Hashtags.ToArray());
+            }
+        }
+    }
+
+    private async Task ProcessWithAI()
+    {
+        if (Post == null) return;
+        _isProcessing = true;
+        try
+        {
+            await Mediator.Send(new ProcessSourcePostCommand(Post.Id));
+            
+            // Refresh post details to show processed content
+            Post = await Mediator.Send(new GetSourcePostDetailsQuery(Post.Id));
+            
+            await OnProcessed.InvokeAsync();
+        }
+        finally
+        {
+            _isProcessing = false;
+        }
+    }
+
+    private async Task UpdateProcessedPost()
+    {
+        if (Post?.ProcessedPost == null) return;
+
+        var command = new UpdateProcessedPostCommand(
+            Post.ProcessedPost.Id,
+            _hashtagsText.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList(),
+            Post.ProcessedPost.Parts.Select(p => new UpdateProcessedPostPartDto(
+                p.Id,
+                p.ProcessedText,
+                _partHashtags.GetValueOrDefault(p.Id, "").Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList(),
+                p.PublishedTo
+            )).ToList()
+        );
+
+        await Mediator.Send(command);
+        
+        // Refresh to confirm saved
+        Post = await Mediator.Send(new GetSourcePostDetailsQuery(Post.Id));
+        await OnProcessed.InvokeAsync();
+    }
+
+    private void TogglePlatform(ProcessedPostPartDto part, SocialPlatform platform, object? isChecked)
+    {
+        if (isChecked is true)
+        {
+            if (!part.PublishedTo.Contains(platform))
+                part.PublishedTo.Add(platform);
+        }
+        else
+        {
+            part.PublishedTo.Remove(platform);
+        }
+    }
 
     private async Task Close()
     {
         await OnClose.InvokeAsync();
     }
+
+    private string GetStatusClass(SourcePostStatus status) => status switch
+    {
+        SourcePostStatus.Raw => "bg-info",
+        SourcePostStatus.Processed => "bg-primary",
+        SourcePostStatus.Approved => "bg-success",
+        SourcePostStatus.Rejected => "bg-danger",
+        _ => "bg-secondary"
+    };
 }

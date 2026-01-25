@@ -28,7 +28,19 @@ public class GetSourcePostDetailsQueryHandler(TheContentorDbContext dbContext)
                 UpvoteRatio = x.UpvoteRatio,
                 CreatedUtc = x.CreatedUtc,
                 ExternalUrl = x.ExternalUrl,
-                Status = x.Status
+                Status = x.Status,
+                ProcessedPost = x.ProcessedPost == null ? null : new ProcessedPostDto
+                {
+                    Id = x.ProcessedPost.Id,
+                    Hashtags = x.ProcessedPost.Hashtags,
+                    Parts = x.ProcessedPost.Parts.Select(p => new ProcessedPostPartDto
+                    {
+                        Id = p.Id,
+                        ProcessedText = p.ProcessedText,
+                        Hashtags = p.Hashtags,
+                        PublishedTo = p.PublishedTo
+                    }).ToList()
+                }
             })
             .FirstOrDefaultAsync(cancellationToken);
     }

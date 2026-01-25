@@ -14,8 +14,7 @@
 </div>
 
 <ScrapRedditDialog Show="_showScrapDialog" OnClose="() => _showScrapDialog = false" OnScrapped="RefreshList" />
-
-<SourcePostDetailsDialog Post="_selectedPostDetails" OnClose="() => _selectedPostDetails = null" />
+<SourcePostDetailsDialog Post="_selectedPostDetails" OnClose="() => _selectedPostDetails = null" OnProcessed="RefreshList" />
 
 <div class="card mb-4">
     <div class="card-body">
@@ -207,7 +206,7 @@ else
     private string GetStatusClass(SourcePostStatus status) => status switch
     {
         SourcePostStatus.Raw => "bg-info",
-        SourcePostStatus.Analyzed => "bg-primary",
+        SourcePostStatus.Processed => "bg-primary",
         SourcePostStatus.Approved => "bg-success",
         SourcePostStatus.Rejected => "bg-danger",
         _ => "bg-secondary"

@@ -10,3 +10,4 @@
 * Use async/await whenever possible.
 * XML comments are required. But should be minimal.
 * Use Automapper library for mappings.
+* If entity relationship is built, it must be added only in one entity. Adding it on both entities will cause a duplicate FK to be added.

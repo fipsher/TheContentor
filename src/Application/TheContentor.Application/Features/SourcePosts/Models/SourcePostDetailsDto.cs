@@ -19,4 +19,20 @@ public class SourcePostDetailsDto
     public DateTimeOffset CreatedUtc { get; set; }
     public string ExternalUrl { get; set; } = string.Empty;
     public SourcePostStatus Status { get; set; }
+    public ProcessedPostDto? ProcessedPost { get; set; }
+}
+
+public class ProcessedPostDto
+{
+    public Guid Id { get; set; }
+    public List<string> Hashtags { get; set; } = new();
+    public List<ProcessedPostPartDto> Parts { get; set; } = new();
+}
+
+public class ProcessedPostPartDto
+{
+    public Guid Id { get; set; }
+    public string ProcessedText { get; set; } = string.Empty;
+    public List<string> Hashtags { get; set; } = new();
+    public List<SocialPlatform> PublishedTo { get; set; } = new();
 }

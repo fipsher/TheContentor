@@ -13,6 +13,8 @@ public class TheContentorDbContext(DbContextOptions<TheContentorDbContext> optio
     public DbSet<RedditPostData> RedditPostData { get; set; } = null!;
     public DbSet<PostMetricSnapshot> PostMetricSnapshots { get; set; } = null!;
     public DbSet<VideoProject> VideoProjects { get; set; } = null!;
+    public DbSet<ProcessedPost> ProcessedPosts { get; set; } = null!;
+    public DbSet<ProcessedPostPart> ProcessedPostParts { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -27,6 +27,7 @@ public static class DependencyInjection
         builder.AddAzureBlobServiceClient("blobs");
 
         builder.Services.AddScoped<IBlobService, BlobService>();
+        builder.Services.AddScoped<IPostProcessor, PostProcessor>();
 
         builder.Services.AddRestClient();
         builder.Services.AddScoped<ISourceScraper<RedditPost, RedditScrapperRequest>, RedditScrapper>();

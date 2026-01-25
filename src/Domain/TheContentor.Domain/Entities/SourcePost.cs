@@ -49,4 +49,5 @@ public class SourcePost : BaseEntity
     // Navigation
     public List<SourceComment> Comments { get; set; } = new();
     public List<PostMetricSnapshot> MetricSnapshots { get; set; } = new();
+    public ProcessedPost? ProcessedPost { get; set; }
 }
