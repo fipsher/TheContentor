@@ -1,0 +1,101 @@
+@using MediatR
+@using TheContentor.Application.Features.Scrapper.Commands
+@using TheContentor.Infrastructure.Scrappers.Reddit.Models
+@inject IMediator Mediator
+
+@if (Show)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Reddit Scraping</h5>
+                    <button type="button" class="btn-close" @onclick="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Subreddit</label>
+                        <select class="form-select mb-2" @bind="_selectedSubreddit">
+                            @foreach (var subreddit in _predefinedSubreddits)
+                            {
+                                <option value="@subreddit">@subreddit</option>
+                            }
+                            <option value="Other">Other (Manual Entry)</option>
+                        </select>
+                        @if (_selectedSubreddit == "Other")
+                        {
+                            <input type="text" class="form-control" @bind="_manualSubreddit" placeholder="Enter subreddit manually..." />
+                        }
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Sort</label>
+                        <select class="form-select" @bind="_command.RedditSort">
+                            @foreach (var sort in Enum.GetValues<RedditSort>())
+                            {
+                                <option value="@sort">@sort</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Limit</label>
+                        <input type="number" class="form-control" @bind="_command.Limit" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="Close">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="HandleScrap" disabled="@_isSubmitting">
+                        @if (_isSubmitting)
+                        {
+                            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                            <span> Scraping...</span>
+                        }
+                        else
+                        {
+                            <span>Scrap</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Show { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnScrapped { get; set; }
+
+    private RedditScrapCommand _command = new() { Subreddit = "", RedditSort = RedditSort.Hot, Limit = 25 };
+    private bool _isSubmitting;
+    
+    private string _selectedSubreddit = "pettyrevenge";
+    private string _manualSubreddit = "";
+    private readonly string[] _predefinedSubreddits = 
+    { 
+        "pettyrevenge", "ProRevenge", "MaliciousCompliance", "AmItheAsshole", "JUSTNOMIL", "raisedbynarcissists", "entitledparents" 
+    };
+
+    private async Task Close()
+    {
+        await OnClose.InvokeAsync();
+    }
+
+    private async Task HandleScrap()
+    {
+        _command.Subreddit = _selectedSubreddit == "Other" ? _manualSubreddit : _selectedSubreddit;
+        
+        if (string.IsNullOrWhiteSpace(_command.Subreddit)) return;
+
+        _isSubmitting = true;
+        try
+        {
+            await Mediator.Send(_command);
+            await OnScrapped.InvokeAsync();
+            await Close();
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+}

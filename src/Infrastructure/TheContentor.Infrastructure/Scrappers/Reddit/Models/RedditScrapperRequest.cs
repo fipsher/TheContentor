@@ -6,7 +6,6 @@ public class RedditScrapperRequest
     public required RedditSort RedditSort { get; set; }
     
     public int? Limit { get; set; }
-    public int? Depth { get; set; }
     public string? After { get; set; }
 }
 

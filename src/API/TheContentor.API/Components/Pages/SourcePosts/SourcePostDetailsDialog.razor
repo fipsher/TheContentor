@@ -1,0 +1,50 @@
+@using TheContentor.Application.Features.SourcePosts.Models
+
+@if (Post != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title">@Post.Title</h5>
+                        <small class="text-muted">
+                            Posted by u/@Post.AuthorName in r/@Post.Community 
+                            • @Post.CreatedUtc.ToString("f")
+                        </small>
+                    </div>
+                    <button type="button" class="btn-close" @onclick="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <span class="badge bg-secondary me-1">@Post.Platform</span>
+                        <span class="badge bg-info me-1">@Post.Score points</span>
+                        @if (Post.UpvoteRatio.HasValue)
+                        {
+                            <span class="badge bg-info me-1">@(Post.UpvoteRatio.Value.ToString("P0")) Upvoted</span>
+                        }
+                        <span class="badge bg-dark me-1">@Post.WordCount words</span>
+                    </div>
+
+                    <div class="post-content" style="white-space: pre-wrap;">
+                        @Post.RawText
+                    </div>
+                </div>
+                <div class="modal-footer justify-content-between">
+                    <a href="@Post.ExternalUrl" target="_blank" class="btn btn-outline-primary">View on @Post.Platform</a>
+                    <button type="button" class="btn btn-secondary" @onclick="Close">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public SourcePostDetailsDto? Post { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private async Task Close()
+    {
+        await OnClose.InvokeAsync();
+    }
+}

@@ -1,0 +1,216 @@
+@page "/source-posts"
+@using MediatR
+@using TheContentor.Application.Features.SourcePosts.Models
+@using TheContentor.Application.Features.SourcePosts.Queries
+@using TheContentor.Domain.Enums
+@inject IMediator Mediator
+@rendermode InteractiveServer
+
+<PageTitle>Source Posts</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Source Posts</h1>
+    <button class="btn btn-primary" @onclick="() => _showScrapDialog = true">Scrap Reddit</button>
+</div>
+
+<ScrapRedditDialog Show="_showScrapDialog" OnClose="() => _showScrapDialog = false" OnScrapped="RefreshList" />
+
+<SourcePostDetailsDialog Post="_selectedPostDetails" OnClose="() => _selectedPostDetails = null" />
+
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label">Search Title</label>
+                <input type="text" class="form-control" @bind="_searchTitle" @bind:event="oninput" placeholder="Filter by title..." />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Platform</label>
+                <select class="form-select" @bind="_filterPlatform">
+                    <option value="">All</option>
+                    @foreach (var platform in Enum.GetValues<SourcePlatform>())
+                    {
+                        <option value="@platform">@platform</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Status</label>
+                <select class="form-select" @bind="_filterStatus">
+                    <option value="">All</option>
+                    @foreach (var status in Enum.GetValues<SourcePostStatus>())
+                    {
+                        <option value="@status">@status</option>
+                    }
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (_posts == null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (!FilteredPosts.Any())
+{
+    <div class="alert alert-info">
+        No source posts found matching filters.
+    </div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th style="cursor: pointer" @onclick='() => SetSort("Platform")'>
+                        Source @GetSortIcon("Platform")
+                    </th>
+                    <th style="cursor: pointer" @onclick='() => SetSort("Community")'>
+                        Community @GetSortIcon("Community")
+                    </th>
+                    <th style="cursor: pointer" @onclick='() => SetSort("Title")'>
+                        Title @GetSortIcon("Title")
+                    </th>
+                    <th style="cursor: pointer" @onclick='() => SetSort("WordCount")'>
+                        Words @GetSortIcon("WordCount")
+                    </th>
+                    <th style="cursor: pointer" @onclick='() => SetSort("Score")'>
+                        Score @GetSortIcon("Score")
+                    </th>
+                    <th style="cursor: pointer" @onclick='() => SetSort("UpvoteRatio")'>
+                        Ratio @GetSortIcon("UpvoteRatio")
+                    </th>
+                    <th style="cursor: pointer" @onclick='() => SetSort("CreatedUtc")'>
+                        Created @GetSortIcon("CreatedUtc")
+                    </th>
+                    <th style="cursor: pointer" @onclick='() => SetSort("IngestedUtc")'>
+                        Ingested @GetSortIcon("IngestedUtc")
+                    </th>
+                    <th style="cursor: pointer" @onclick='() => SetSort("Status")'>
+                        Status @GetSortIcon("Status")
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var post in SortedPosts)
+                {
+                    <tr>
+                        <td>
+                            <span class="badge bg-secondary">@post.Platform</span>
+                        </td>
+                        <td>@post.Community</td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <button class="btn btn-sm btn-outline-info me-2" @onclick="() => ViewDetails(post.Id)">
+                                    View
+                                </button>
+                                <a href="@post.ExternalUrl" target="_blank" class="text-decoration-none">
+                                    @post.Title
+                                </a>
+                            </div>
+                        </td>
+                        <td>@post.WordCount</td>
+                        <td>@post.Score</td>
+                        <td>@(post.UpvoteRatio?.ToString("P0") ?? "N/A")</td>
+                        <td>@post.CreatedUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                        <td>@post.IngestedUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                        <td>
+                            <span class="badge @GetStatusClass(post.Status)">@post.Status</span>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private bool _showScrapDialog;
+    private SourcePostDetailsDto? _selectedPostDetails;
+    private List<SourcePostListItemDto>? _posts;
+    private string _searchTitle = "";
+    private SourcePlatform? _filterPlatform;
+    private SourcePostStatus? _filterStatus;
+    private string _sortColumn = "IngestedUtc";
+    private bool _sortAscending = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshList();
+    }
+
+    private async Task RefreshList()
+    {
+        _posts = await Mediator.Send(new GetSourcePostListQuery());
+    }
+
+    private async Task ViewDetails(Guid id)
+    {
+        _selectedPostDetails = await Mediator.Send(new GetSourcePostDetailsQuery(id));
+    }
+
+    private IEnumerable<SourcePostListItemDto> FilteredPosts
+    {
+        get
+        {
+            if (_posts == null) return Enumerable.Empty<SourcePostListItemDto>();
+
+            return _posts.Where(p =>
+                (string.IsNullOrWhiteSpace(_searchTitle) || p.Title.Contains(_searchTitle, StringComparison.OrdinalIgnoreCase)) &&
+                (_filterPlatform == null || p.Platform == _filterPlatform) &&
+                (_filterStatus == null || p.Status == _filterStatus)
+            );
+        }
+    }
+
+    private IEnumerable<SourcePostListItemDto> SortedPosts
+    {
+        get
+        {
+            var filtered = FilteredPosts;
+            return _sortColumn switch
+            {
+                "Platform" => _sortAscending ? filtered.OrderBy(p => p.Platform) : filtered.OrderByDescending(p => p.Platform),
+                "Community" => _sortAscending ? filtered.OrderBy(p => p.Community) : filtered.OrderByDescending(p => p.Community),
+                "Title" => _sortAscending ? filtered.OrderBy(p => p.Title) : filtered.OrderByDescending(p => p.Title),
+                "WordCount" => _sortAscending ? filtered.OrderBy(p => p.WordCount) : filtered.OrderByDescending(p => p.WordCount),
+                "Score" => _sortAscending ? filtered.OrderBy(p => p.Score) : filtered.OrderByDescending(p => p.Score),
+                "UpvoteRatio" => _sortAscending ? filtered.OrderBy(p => p.UpvoteRatio) : filtered.OrderByDescending(p => p.UpvoteRatio),
+                "CreatedUtc" => _sortAscending ? filtered.OrderBy(p => p.CreatedUtc) : filtered.OrderByDescending(p => p.CreatedUtc),
+                "IngestedUtc" => _sortAscending ? filtered.OrderBy(p => p.IngestedUtc) : filtered.OrderByDescending(p => p.IngestedUtc),
+                "Status" => _sortAscending ? filtered.OrderBy(p => p.Status) : filtered.OrderByDescending(p => p.Status),
+                _ => filtered
+            };
+        }
+    }
+
+    private void SetSort(string column)
+    {
+        if (_sortColumn == column)
+        {
+            _sortAscending = !_sortAscending;
+        }
+        else
+        {
+            _sortColumn = column;
+            _sortAscending = true;
+        }
+    }
+
+    private string GetSortIcon(string column)
+    {
+        if (_sortColumn != column) return "";
+        return _sortAscending ? "↑" : "↓";
+    }
+
+    private string GetStatusClass(SourcePostStatus status) => status switch
+    {
+        SourcePostStatus.Raw => "bg-info",
+        SourcePostStatus.Analyzed => "bg-primary",
+        SourcePostStatus.Approved => "bg-success",
+        SourcePostStatus.Rejected => "bg-danger",
+        _ => "bg-secondary"
+    };
+}

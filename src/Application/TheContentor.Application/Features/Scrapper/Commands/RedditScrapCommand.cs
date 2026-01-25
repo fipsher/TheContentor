@@ -13,7 +13,6 @@ public record RedditScrapCommand : IRequest
     public required RedditSort RedditSort { get; set; }
     
     public int? Limit { get; set; }
-    public int? Depth { get; set; }
     public string? After { get; set; }
 }
 
@@ -24,7 +23,6 @@ public class ScrapCommandHandler(TheContentorDbContext context, ISourceScraper<R
         var result = (await scrapper.ScrapeListAsync(new RedditScrapperRequest()
         {
             Limit = request.Limit,
-            Depth = request.Depth,
             After = request.After,
             RedditSort = request.RedditSort,
             Subreddit = request.Subreddit
@@ -38,8 +36,19 @@ public class ScrapCommandHandler(TheContentorDbContext context, ISourceScraper<R
             SourcePost = mapper.Map<SourcePost>(post),
         }).ToList();
 
+        var externalIds = mappedItems.Select(i => i.SourcePost.ExternalId).ToList();
+        var existingExternalIds = context.SourcePosts
+            .Where(p => externalIds.Contains(p.ExternalId))
+            .Select(p => p.ExternalId)
+            .ToHashSet();
+
         foreach (var item in mappedItems)
         {
+            if (existingExternalIds.Contains(item.SourcePost.ExternalId))
+            {
+                continue;
+            }
+            
             var postId = Guid.NewGuid();
             item.PostData.Id = postId;
             item.SourcePost.Id = postId;

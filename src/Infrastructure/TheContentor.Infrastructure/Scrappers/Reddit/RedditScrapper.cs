@@ -10,7 +10,7 @@ namespace TheContentor.Infrastructure.Scrappers.Reddit;
 /// <summary>
 /// Reddit implementation of the source scraper.
 /// </summary>
-public class RedditScrapper(RestClient client) : ISourceScraper<RedditPost, RedditScrapperRequest>
+public class RedditScrapper(IRestClient client) : ISourceScraper<RedditPost, RedditScrapperRequest>
 {
     private static readonly Uri RedditUri = new("https://www.reddit.com/");
 
