@@ -63,83 +63,99 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
         logger.LogInformation("TTS Orchestrator started for ProcessedPost: {ProcessedPostId}, InstanceId: {InstanceId}",
             request.ProcessedPostId, instanceId);
 
-        // Fetch processed post data
-        var postData = await context.CallActivityAsync<ProcessedPostData>("FetchProcessedPostData", request.ProcessedPostId);
-
-        // Calculate expected callbacks
-        var expectedCallbacks = 1 + postData.Parts.Count; // 1 for description + N for parts
-
-        // Send TTS commands
-        var tasks = new List<Task>
-        {
-            // Send description command
-            context.CallActivityAsync("SendTtsCommand", new TtsCommandMessage
-            {
-                Text = postData.Description,
-                Voice = request.Settings.Voice,
-                Rate = request.Settings.Rate,
-                Pitch = request.Settings.Pitch,
-                ProcessedPostId = request.ProcessedPostId,
-                PartId = null,
-                OrchestrationInstanceId = instanceId,
-                TextType = "description"
-            }),
-        };
-
-        // Send part commands
-        foreach (var part in postData.Parts)
-        {
-            tasks.Add(context.CallActivityAsync("SendTtsCommand", new TtsCommandMessage
-            {
-                Text = part.ProcessedText,
-                Voice = request.Settings.Voice,
-                Rate = request.Settings.Rate,
-                Pitch = request.Settings.Pitch,
-                ProcessedPostId = request.ProcessedPostId,
-                PartId = part.Id,
-                OrchestrationInstanceId = instanceId,
-                TextType = "part"
-            }));
-        }
-
-        await Task.WhenAll(tasks);
-
-        // Wait for all callbacks
         var state = new TtsOrchestrationState
         {
             ProcessedPostId = request.ProcessedPostId,
-            ExpectedCallbacks = expectedCallbacks,
-            ReceivedCallbacks = 0,
             HasErrors = false
         };
 
-        while (state.ReceivedCallbacks < state.ExpectedCallbacks)
+        try
         {
-            var callback = await context.WaitForExternalEvent<TtsEventCallback>("TtsCallback");
-            state.ReceivedCallbacks++;
+            // Fetch processed post data
+            var postData = await context.CallActivityAsync<ProcessedPostData>("FetchProcessedPostData", request.ProcessedPostId);
 
-            if (callback.Success && !string.IsNullOrEmpty(callback.BlobContainer) && !string.IsNullOrEmpty(callback.BlobPath))
+            // Calculate expected callbacks
+            var expectedCallbacks = 1 + postData.Parts.Count; // 1 for description + N for parts
+            state.ExpectedCallbacks = expectedCallbacks;
+
+            // Send TTS commands
+            var tasks = new List<Task>
             {
-                var key = callback.TextType == "description" ? "description" : $"part-{callback.PartId}";
-                state.CompletedItems[key] = new BlobPathInfo
+                // Send description command
+                context.CallActivityAsync("SendTtsCommand", new TtsCommandMessage
                 {
-                    ContainerName = callback.BlobContainer,
-                    AssetPath = callback.BlobPath,
-                    PartId = callback.PartId,
-                    TextType = callback.TextType
-                };
-            }
-            else
+                    Text = postData.Description,
+                    Voice = request.Settings.Voice,
+                    Rate = request.Settings.Rate,
+                    Pitch = request.Settings.Pitch,
+                    ProcessedPostId = request.ProcessedPostId,
+                    PartId = null,
+                    OrchestrationInstanceId = instanceId,
+                    TextType = "description"
+                }),
+            };
+
+            // Send part commands
+            foreach (var part in postData.Parts)
             {
-                state.HasErrors = true;
-                logger.LogError("TTS generation failed: {ErrorMessage}", callback.ErrorMessage);
+                tasks.Add(context.CallActivityAsync("SendTtsCommand", new TtsCommandMessage
+                {
+                    Text = part.ProcessedText,
+                    Voice = request.Settings.Voice,
+                    Rate = request.Settings.Rate,
+                    Pitch = request.Settings.Pitch,
+                    ProcessedPostId = request.ProcessedPostId,
+                    PartId = part.Id,
+                    OrchestrationInstanceId = instanceId,
+                    TextType = "part"
+                }));
+            }
+
+            await Task.WhenAll(tasks);
+
+            // Wait for all callbacks
+            while (state.ReceivedCallbacks < state.ExpectedCallbacks)
+            {
+                var callback = await context.WaitForExternalEvent<TtsEventCallback>("TtsCallback");
+                state.ReceivedCallbacks++;
+
+                if (callback.Success && !string.IsNullOrEmpty(callback.BlobContainer) && !string.IsNullOrEmpty(callback.BlobPath))
+                {
+                    var key = callback.TextType == "description" ? "description" : $"part-{callback.PartId}";
+                    state.CompletedItems[key] = new BlobPathInfo
+                    {
+                        ContainerName = callback.BlobContainer,
+                        AssetPath = callback.BlobPath,
+                        PartId = callback.PartId,
+                        TextType = callback.TextType
+                    };
+                }
+                else
+                {
+                    state.HasErrors = true;
+                    logger.LogError("TTS generation failed: {ErrorMessage}", callback.ErrorMessage);
+                }
             }
         }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Exception in TTS Orchestrator for ProcessedPost: {ProcessedPostId}", request.ProcessedPostId);
+            state.HasErrors = true;
+        }
+        finally
+        {
+            // Update ProcessedPost with results (either Success or Failed)
+            await context.CallActivityAsync("UpdateProcessedPostTtsStatus", state);
+        }
 
-        // Update ProcessedPost with results
-        await context.CallActivityAsync("UpdateProcessedPostTtsStatus", state);
-
-        logger.LogInformation("TTS Orchestrator completed for ProcessedPost: {ProcessedPostId}", request.ProcessedPostId);
+        if (state.HasErrors)
+        {
+            logger.LogWarning("TTS Orchestrator completed with errors for ProcessedPost: {ProcessedPostId}", request.ProcessedPostId);
+        }
+        else
+        {
+            logger.LogInformation("TTS Orchestrator completed successfully for ProcessedPost: {ProcessedPostId}", request.ProcessedPostId);
+        }
     }
 
     [Function("FetchProcessedPostData")]
