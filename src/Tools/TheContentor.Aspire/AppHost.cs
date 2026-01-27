@@ -41,6 +41,7 @@ builder.AddPythonApp("tts-worker", "../../Modules/TTS", "tts-worker.py")
     .WithReference(serviceBus)
     .WithReference(blobs)
     .WithReference(apiService)
+    .WithEnvironment("TheContentorApiUrl", apiService.GetEndpoint("http"))
     .WaitFor(serviceBus)
     .WaitFor(apiService);
 

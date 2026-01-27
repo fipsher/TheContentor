@@ -31,6 +31,24 @@ public class BlobService(BlobServiceClient blobServiceClient) : IBlobService
         };
     }
 
+    public async Task<BlobPath> UploadToPathAsync(Stream stream, string containerName, string blobPath, string contentType, CancellationToken cancellationToken = default)
+    {
+        var container = blobServiceClient.GetBlobContainerClient(containerName);
+        
+        await container.CreateIfNotExistsAsync(PublicAccessType.Blob, cancellationToken: cancellationToken);
+        await container.SetAccessPolicyAsync(PublicAccessType.Blob, cancellationToken: cancellationToken);
+
+        var blob = container.GetBlobClient(blobPath);
+        
+        await blob.UploadAsync(stream, new BlobHttpHeaders { ContentType = contentType }, cancellationToken: cancellationToken);
+        
+        return new BlobPath
+        {
+            ContainerName = containerName,
+            AssetPath = blobPath
+        };
+    }
+
     public async Task<Uri> GetSasUrl(string containerName, string blobName, CancellationToken cancellationToken = default)
     {
         var container = blobServiceClient.GetBlobContainerClient(containerName);
