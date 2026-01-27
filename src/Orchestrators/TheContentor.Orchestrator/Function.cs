@@ -36,7 +36,7 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
 
     [Function("AssetMetadataTrigger")]
     public async Task OrchestratorTriggerer(
-        [ServiceBusTrigger("trigger-orchestration", Connection = "ContentorServiceBus")] ServiceBusReceivedMessage message,
+        [ServiceBusTrigger("trigger-orchestration-queue", Connection = "ContentorServiceBus")] ServiceBusReceivedMessage message,
         [DurableClient] DurableTaskClient client)
     {
         var queueMessage = JsonSerializer.Deserialize<object>(message.Body.ToString());

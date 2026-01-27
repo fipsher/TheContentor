@@ -40,11 +40,10 @@ void ConfigureServiceBus(IResourceBuilder<AzureServiceBusResource> resourceBuild
     serviceBus.WithAnnotation(new ProxySupportAnnotation { ProxyEnabled = false },
         ResourceAnnotationMutationBehavior.Replace);
     
-    resourceBuilder.AddServiceBusQueue("trigger-orchestration");
+    resourceBuilder.AddServiceBusQueue("trigger-orchestration-queue");
 
     var commandsTopic = serviceBus.AddServiceBusTopic("commands-topic");
-    resourceBuilder.AddServiceBusQueue("asset-metadata-commands-queue");
-    resourceBuilder.AddServiceBusQueue("scrapper-commands-queue");
+    resourceBuilder.AddServiceBusQueue("tts-commands-queue");
     resourceBuilder.AddServiceBusQueue("video-generation-commands-queue");
 
     resourceBuilder.AddServiceBusQueue("events-queue");
@@ -54,39 +53,20 @@ void ConfigureServiceBus(IResourceBuilder<AzureServiceBusResource> resourceBuild
 
 void ConfigureCommandsSubscriptions(IResourceBuilder<AzureServiceBusTopicResource> commandsTopic)
 {
-    commandsTopic.AddServiceBusSubscription("asset-metadata-commands-subscription")
+    commandsTopic.AddServiceBusSubscription("tts-commands-subscription")
         .WithProperties(subscription =>
         {
-            subscription.ForwardTo = "asset-metadata-commands-queue";
+            subscription.ForwardTo = "tts-commands-queue";
             subscription.MaxDeliveryCount = 5;
             subscription.Rules.Add(
-                new AzureServiceBusRule("asset-metadata-commands-subscription-filter")
+                new AzureServiceBusRule("tts-commands-subscription-filter")
                 {
                     FilterType = AzureServiceBusFilterType.CorrelationFilter,
                     CorrelationFilter = new AzureServiceBusCorrelationFilter
                     {
                         Properties = new Dictionary<string, object>()
                         {
-                            { "Type", "asset-metadata" },
-                        },
-                    },
-                });
-        });
-
-    commandsTopic.AddServiceBusSubscription("scrapper-commands-subscription")
-        .WithProperties(subscription =>
-        {
-            subscription.ForwardTo = "scrapper-commands-queue";
-            subscription.MaxDeliveryCount = 5;
-            subscription.Rules.Add(
-                new AzureServiceBusRule("scrapper-commands-subscription-filter")
-                {
-                    FilterType = AzureServiceBusFilterType.CorrelationFilter,
-                    CorrelationFilter = new AzureServiceBusCorrelationFilter
-                    {
-                        Properties = new Dictionary<string, object>()
-                        {
-                            { "Type", "scrapper" },
+                            { "Type", "tts" },
                         },
                     },
                 });
