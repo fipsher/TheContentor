@@ -6,6 +6,7 @@ public class ProcessedPostResponse
     public string Description { get; set; } = string.Empty;
     public List<string> Hashtags { get; set; } = [];
     public List<ProcessedPostPartResponse> Parts { get; set; } = [];
+    public string NarratorGender { get; set; } = "Male";
 }
 
 public class ProcessedPostPartResponse

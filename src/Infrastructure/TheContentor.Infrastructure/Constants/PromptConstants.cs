@@ -19,10 +19,12 @@ public static class PromptConstants
            - For each Part, provide 3-5 specific hashtags.
            - For each part, a 'ProcessedText' should have a small 'pre-history' to set the scene for the segment.
         7. **Ending**: Ensure each segment ends on a 'micro-cliffhanger' to keep viewers watching the next part.
+        7. **Narrator gender**: the script writer has to identify the sex of the narrator and tailor the language accordingly. Male or Female only. If identification is not possible, default to Male.
         
         The output MUST be a valid JSON object matching this structure:
         {
           "Title": "Engaging Title",
+          "NarratorGender": "Male",// Or "Female"
           "Description": "Engaging Description",
           "Hashtags": ["tag1", "tag2"],
           "Parts": [

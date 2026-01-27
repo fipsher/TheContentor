@@ -1,4 +1,5 @@
 using TheContentor.Domain.Common;
+using TheContentor.Domain.Enums;
 
 namespace TheContentor.Domain.Entities;
 
@@ -11,4 +12,5 @@ public class ProcessedPost : BaseEntity
     
     public List<string> Hashtags { get; set; } = [];
     public List<ProcessedPostPart> Parts { get; set; } = [];
+    public NarratorGender NarratorGender { get; set; }
 }
