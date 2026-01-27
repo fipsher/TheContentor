@@ -29,6 +29,7 @@ public class ProcessedPostDto
     public string Description { get; set; } = string.Empty;
     public List<string> Hashtags { get; set; } = [];
     public List<ProcessedPostPartDto> Parts { get; set; } = [];
+    public NarratorGender NarratorGender { get; set; }
 }
 
 public class ProcessedPostPartDto

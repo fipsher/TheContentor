@@ -129,6 +129,22 @@ else
                                     <div class="p-2 border rounded bg-light">@_hashtagsText</div>
                                 }
                             </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Narrator Gender</label>
+                                @if (_isEditing)
+                                {
+                                    <select class="form-select" @bind="Post.ProcessedPost.NarratorGender">
+                                        @foreach (var gender in Enum.GetValues<NarratorGender>())
+                                        {
+                                            <option value="@gender">@gender</option>
+                                        }
+                                    </select>
+                                }
+                                else
+                                {
+                                    <div class="p-2 border rounded bg-light">@Post.ProcessedPost.NarratorGender</div>
+                                }
+                            </div>
                         </div>
                     </div>
 
@@ -278,6 +294,7 @@ else
             Post.ProcessedPost.Title,
             Post.ProcessedPost.Description,
             _hashtagsText.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList(),
+            Post.ProcessedPost.NarratorGender,
             Post.ProcessedPost.Parts.Select(p => new UpdateProcessedPostPartDto(
                 p.Id,
                 p.ProcessedText,

@@ -11,6 +11,7 @@ public record UpdateProcessedPostCommand(
     string Title,
     string Description,
     List<string> Hashtags,
+    NarratorGender NarratorGender,
     List<UpdateProcessedPostPartDto> Parts) : IRequest;
 
 public record UpdateProcessedPostPartDto(
@@ -37,6 +38,7 @@ public class UpdateProcessedPostCommandHandler(TheContentorDbContext context)
         processedPost.Title = request.Title;
         processedPost.Description = request.Description;
         processedPost.Hashtags = request.Hashtags;
+        processedPost.NarratorGender = request.NarratorGender;
 
         // Remove parts that are not in the request
         var partIdsInRequest = request.Parts.Where(p => p.Id.HasValue).Select(p => p.Id!.Value).ToList();

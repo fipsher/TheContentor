@@ -35,7 +35,7 @@ public class ProcessSourcePostCommandHandler(TheContentorDbContext context, IPos
         {
             Id = sourcePost.Id,
             Title = processedData.Title,
-            NarratorGender = Enum.Parse<NarratorGender>(processedData.NarratorGender),
+            NarratorGender = Enum.TryParse<NarratorGender>(processedData.NarratorGender, out var gender) ? gender : NarratorGender.Male,
             Description = processedData.Description,
             Hashtags = processedData.Hashtags,
             Parts = processedData.Parts.Select(p => new ProcessedPostPart

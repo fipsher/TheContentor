@@ -35,6 +35,7 @@ public class GetSourcePostDetailsQueryHandler(TheContentorDbContext dbContext)
                     Title = x.ProcessedPost.Title,
                     Description = x.ProcessedPost.Description,
                     Hashtags = x.ProcessedPost.Hashtags,
+                    NarratorGender = x.ProcessedPost.NarratorGender,
                     Parts = x.ProcessedPost.Parts.Select(p => new ProcessedPostPartDto
                     {
                         Id = p.Id,
