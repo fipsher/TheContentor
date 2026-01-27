@@ -30,6 +30,9 @@ public class ProcessedPostDto
     public List<string> Hashtags { get; set; } = [];
     public List<ProcessedPostPartDto> Parts { get; set; } = [];
     public NarratorGender NarratorGender { get; set; }
+    public TtsStatus TtsStatus { get; set; }
+    public string? TtsSettings { get; set; }
+    public BlobPathDto? DescriptionAudioBlobPath { get; set; }
 }
 
 public class ProcessedPostPartDto
@@ -39,4 +42,11 @@ public class ProcessedPostPartDto
     public List<string> Hashtags { get; set; } = [];
     public List<SocialPlatform> PublishedTo { get; set; } = [];
     public int Part { get; set; }
+    public BlobPathDto? AudioBlobPath { get; set; }
+}
+
+public class BlobPathDto
+{
+    public string ContainerName { get; set; } = string.Empty;
+    public string AssetPath { get; set; } = string.Empty;
 }

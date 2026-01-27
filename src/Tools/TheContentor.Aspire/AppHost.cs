@@ -23,15 +23,26 @@ var serviceBus = builder
     .RunAsMyEmulator(c => { c.WithLifetime(ContainerLifetime.Session); });
 ConfigureServiceBus(serviceBus);
 
+var apiService = builder.AddProject<Projects.TheContentor_API>("the-contentor")
+    .WithReference(postgresDb)
+    .WithReference(blobs)
+    .WithReference(serviceBus)
+    .WaitFor(postgresDb);
+
 builder
     .AddAzureFunctionsProject<Projects.TheContentor_Orchestrator>("Func-Orchestrator")
     .WithReference(serviceBus)
-    .WaitFor(serviceBus);
+    .WithEnvironment("TheContentorApiUrl", apiService.GetEndpoint("http"))
+    .WaitFor(serviceBus)
+    .WaitFor(apiService);
 
-builder.AddProject<Projects.TheContentor_API>("the-contentor")
-    .WithReference(postgresDb)
+// Python TTS Worker
+builder.AddPythonApp("tts-worker", "../../Modules/TTS", "tts-worker.py")
+    .WithReference(serviceBus)
     .WithReference(blobs)
-    .WaitFor(postgresDb);
+    .WithReference(apiService)
+    .WaitFor(serviceBus)
+    .WaitFor(apiService);
 
 builder.Build().Run();
 
@@ -39,7 +50,7 @@ void ConfigureServiceBus(IResourceBuilder<AzureServiceBusResource> resourceBuild
 {
     serviceBus.WithAnnotation(new ProxySupportAnnotation { ProxyEnabled = false },
         ResourceAnnotationMutationBehavior.Replace);
-    
+
     resourceBuilder.AddServiceBusQueue("trigger-orchestration-queue");
 
     var commandsTopic = serviceBus.AddServiceBusTopic("commands-topic");

@@ -27,5 +27,14 @@ public sealed class ProcessedPostConfiguration : IEntityTypeConfiguration<Proces
 
         b.Property(x => x.Hashtags)
             .HasColumnType("text[]");
+
+        b.Property(x => x.TtsSettings)
+            .HasColumnType("text");
+
+        b.OwnsOne(x => x.DescriptionAudioBlobPath, bp =>
+        {
+            bp.Property(p => p.ContainerName).HasColumnName("DescriptionAudioContainer");
+            bp.Property(p => p.AssetPath).HasColumnName("DescriptionAudioPath");
+        });
     }
 }

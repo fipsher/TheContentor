@@ -1,0 +1,57 @@
+using System.Text.Json;
+using Azure.Messaging.ServiceBus;
+using MediatR;
+using Microsoft.EntityFrameworkCore;
+using TheContentor.Application.Features.ProcessedPosts.Models;
+using TheContentor.Domain.Enums;
+using TheContentor.Infrastructure;
+
+namespace TheContentor.Application.Features.ProcessedPosts.Commands;
+
+/// <summary>
+/// Command to trigger TTS generation for a ProcessedPost
+/// </summary>
+public record GenerateTtsCommand(Guid ProcessedPostId, TtsSettingsModel Settings) : IRequest;
+
+public class GenerateTtsCommandHandler(
+    TheContentorDbContext context,
+    ServiceBusClient serviceBusClient) : IRequestHandler<GenerateTtsCommand>
+{
+    public async Task Handle(GenerateTtsCommand request, CancellationToken cancellationToken)
+    {
+        var processedPost = await context.ProcessedPosts
+            .FirstOrDefaultAsync(x => x.Id == request.ProcessedPostId, cancellationToken);
+
+        if (processedPost == null)
+        {
+            throw new InvalidOperationException($"ProcessedPost with ID {request.ProcessedPostId} not found");
+        }
+
+        // Update status and settings
+        processedPost.TtsStatus = TtsStatus.InProgress;
+        processedPost.TtsSettings = JsonSerializer.Serialize(request.Settings);
+        await context.SaveChangesAsync(cancellationToken);
+
+        // Send message to orchestration trigger queue
+        var sender = serviceBusClient.CreateSender("trigger-orchestration-queue");
+        try
+        {
+            var message = new ServiceBusMessage(JsonSerializer.Serialize(new
+            {
+                Type = "tts-generation",
+                ProcessedPostId = request.ProcessedPostId,
+                Settings = request.Settings
+            }))
+            {
+                ContentType = "application/json"
+            };
+            message.ApplicationProperties["Type"] = "tts-generation";
+
+            await sender.SendMessageAsync(message, cancellationToken);
+        }
+        finally
+        {
+            await sender.DisposeAsync();
+        }
+    }
+}

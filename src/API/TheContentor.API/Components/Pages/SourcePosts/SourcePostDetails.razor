@@ -8,6 +8,12 @@
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 
+<TtsDialog IsVisible="_showTtsDialog"
+           ProcessedPostId="Post?.ProcessedPost?.Id"
+           Gender="Post?.ProcessedPost?.NarratorGender ?? NarratorGender.Male"
+           OnClose="CloseTtsDialog"
+           OnGenerated="OnTtsGenerated" />
+
 @if (Post == null)
 {
     <div class="container mt-4">
@@ -85,6 +91,19 @@ else
                             <span>@(Post.Status == SourcePostStatus.Processed ? "Re-process with AI" : "Process with AI")</span>
                         }
                     </button>
+
+                    @if (Post.ProcessedPost != null && Post.Status == SourcePostStatus.Processed)
+                    {
+                        <div class="mt-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <label class="form-label fw-bold mb-0">TTS Status</label>
+                                <span class="badge @GetTtsStatusClass(Post.ProcessedPost.TtsStatus)">@Post.ProcessedPost.TtsStatus</span>
+                            </div>
+                            <button type="button" class="btn btn-info w-100" @onclick="ShowTtsDialog" disabled="@(_isProcessing || _isEditing || Post.ProcessedPost.TtsStatus == TtsStatus.InProgress)">
+                                <span>Generate TTS</span>
+                            </button>
+                        </div>
+                    }
                 </div>
             </div>
 
@@ -238,6 +257,7 @@ else
     private CriteriaEngine _selectedEngine = CriteriaEngine.Gemini;
     private bool _isProcessing = false;
     private bool _isEditing = false;
+    private bool _showTtsDialog = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -359,4 +379,29 @@ else
         SourcePostStatus.Rejected => "bg-danger",
         _ => "bg-secondary"
     };
+
+    private string GetTtsStatusClass(TtsStatus status) => status switch
+    {
+        TtsStatus.NotGenerated => "bg-secondary",
+        TtsStatus.InProgress => "bg-warning",
+        TtsStatus.Generated => "bg-success",
+        TtsStatus.Failed => "bg-danger",
+        _ => "bg-secondary"
+    };
+
+    private void ShowTtsDialog()
+    {
+        _showTtsDialog = true;
+    }
+
+    private async Task CloseTtsDialog()
+    {
+        _showTtsDialog = false;
+        await Task.CompletedTask;
+    }
+
+    private async Task OnTtsGenerated()
+    {
+        await LoadPost();
+    }
 }

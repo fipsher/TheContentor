@@ -27,6 +27,7 @@ public static class DependencyInjection
         builder.Services.Configure<LlmOptions>(configuration.GetSection(LlmOptions.SectionName));
 
         builder.AddAzureBlobServiceClient("blobs");
+        builder.AddAzureServiceBusClient("ContentorServiceBus");
 
         builder.Services.AddScoped<IBlobService, BlobService>();
         builder.Services.AddScoped<IPostProcessor, PostProcessor>();

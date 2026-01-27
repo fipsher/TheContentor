@@ -1,0 +1,108 @@
+@using MediatR
+@using TheContentor.Application.Features.ProcessedPosts.Commands
+@using TheContentor.Application.Features.ProcessedPosts.Models
+@using TheContentor.Domain.Enums
+@inject IMediator Mediator
+
+@if (IsVisible)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Generate TTS</h5>
+                    <button type="button" class="btn-close" @onclick="Close" disabled="@_isGenerating"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Voice</label>
+                        <select class="form-select" @bind="_selectedVoice" disabled="@_isGenerating">
+                            <option value="en-US-GuyNeural">Male (Guy - US English)</option>
+                            <option value="en-US-MichelleNeural">Female (Michelle - US English)</option>
+                            <option value="en-US-ChristopherNeural">Male (Christopher - US English)</option>
+                            <option value="en-US-JennyNeural">Female (Jenny - US English)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Rate: @_rate%</label>
+                        <input type="range" class="form-range" min="-50" max="50" @bind="_rate" @bind:event="oninput" disabled="@_isGenerating" />
+                        <small class="text-muted">Adjust speech speed (-50% slower to +50% faster)</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Pitch: @_pitch Hz</label>
+                        <input type="range" class="form-range" min="-20" max="20" @bind="_pitch" @bind:event="oninput" disabled="@_isGenerating" />
+                        <small class="text-muted">Adjust voice pitch (-20Hz lower to +20Hz higher)</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="Close" disabled="@_isGenerating">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="GenerateTts" disabled="@_isGenerating">
+                        @if (_isGenerating)
+                        {
+                            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                            <span> Generating...</span>
+                        }
+                        else
+                        {
+                            <span>Generate</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public Guid? ProcessedPostId { get; set; }
+    [Parameter] public NarratorGender Gender { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnGenerated { get; set; }
+
+    private string _selectedVoice = string.Empty;
+    private int _rate = 0;
+    private int _pitch = 0;
+    private bool _isGenerating = false;
+
+    protected override void OnParametersSet()
+    {
+        // Set default voice based on gender
+        if (string.IsNullOrEmpty(_selectedVoice))
+        {
+            _selectedVoice = Gender == NarratorGender.Male ? "en-US-GuyNeural" : "en-US-MichelleNeural";
+        }
+    }
+
+    private async Task GenerateTts()
+    {
+        if (ProcessedPostId == null) return;
+
+        _isGenerating = true;
+        try
+        {
+            var settings = new TtsSettingsModel
+            {
+                Voice = _selectedVoice,
+                Rate = _rate,
+                Pitch = _pitch
+            };
+
+            await Mediator.Send(new GenerateTtsCommand(ProcessedPostId.Value, settings));
+            await OnGenerated.InvokeAsync();
+            await Close();
+        }
+        finally
+        {
+            _isGenerating = false;
+        }
+    }
+
+    private async Task Close()
+    {
+        if (!_isGenerating)
+        {
+            await OnClose.InvokeAsync();
+        }
+    }
+}

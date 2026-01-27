@@ -36,13 +36,25 @@ public class GetSourcePostDetailsQueryHandler(TheContentorDbContext dbContext)
                     Description = x.ProcessedPost.Description,
                     Hashtags = x.ProcessedPost.Hashtags,
                     NarratorGender = x.ProcessedPost.NarratorGender,
+                    TtsStatus = x.ProcessedPost.TtsStatus,
+                    TtsSettings = x.ProcessedPost.TtsSettings,
+                    DescriptionAudioBlobPath = x.ProcessedPost.DescriptionAudioBlobPath == null ? null : new BlobPathDto
+                    {
+                        ContainerName = x.ProcessedPost.DescriptionAudioBlobPath.ContainerName,
+                        AssetPath = x.ProcessedPost.DescriptionAudioBlobPath.AssetPath
+                    },
                     Parts = x.ProcessedPost.Parts.Select(p => new ProcessedPostPartDto
                     {
                         Id = p.Id,
                         ProcessedText = p.ProcessedText,
                         Hashtags = p.Hashtags,
                         PublishedTo = p.PublishedTo,
-                        Part = p.Part
+                        Part = p.Part,
+                        AudioBlobPath = p.AudioBlobPath == null ? null : new BlobPathDto
+                        {
+                            ContainerName = p.AudioBlobPath.ContainerName,
+                            AssetPath = p.AudioBlobPath.AssetPath
+                        }
                     }).ToList()
                 }
             })
