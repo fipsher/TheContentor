@@ -2,10 +2,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using RestSharp;
 using RestSharp.Extensions.DependencyInjection;
 using TheContentor.Infrastructure.Interfaces;
 using TheContentor.Infrastructure.Mappings;
+using TheContentor.Infrastructure.Options;
 using TheContentor.Infrastructure.Scrappers.Reddit;
 using TheContentor.Infrastructure.Scrappers.Reddit.Models;
 using TheContentor.Infrastructure.Scrappers.Shared;
@@ -23,6 +23,8 @@ public static class DependencyInjection
 
         builder.Services.AddDbContext<TheContentorDbContext>(options =>
             options.UseNpgsql(connectionString));
+
+        builder.Services.Configure<LlmOptions>(configuration.GetSection(LlmOptions.SectionName));
 
         builder.AddAzureBlobServiceClient("blobs");
 

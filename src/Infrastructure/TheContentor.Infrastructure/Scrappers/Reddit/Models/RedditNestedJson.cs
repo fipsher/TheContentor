@@ -1,5 +1,3 @@
-using TheContentor.Infrastructure.Scrappers.Shared;
-
 namespace TheContentor.Infrastructure.Scrappers.Reddit.Models;
 
 public class RedditNestedJson

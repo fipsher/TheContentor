@@ -1,12 +1,13 @@
 using System.Text.Json;
 using Google.GenAI.Types;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using OpenAI.Chat;
 using TheContentor.Domain.Enums;
 using TheContentor.Infrastructure.Constants;
 using TheContentor.Infrastructure.Interfaces;
 using TheContentor.Infrastructure.Models;
+using TheContentor.Infrastructure.Options;
 
 namespace TheContentor.Infrastructure.Services;
 
@@ -14,10 +15,11 @@ namespace TheContentor.Infrastructure.Services;
 /// Service for processing post content using LLMs (Gemini or ChatGPT).
 /// </summary>
 public class PostProcessor(
-    IConfiguration configuration,
+    IOptions<LlmOptions> llmOptions,
     ILogger<PostProcessor> logger) : IPostProcessor
 {
     private readonly JsonSerializerOptions _jsonOptions = new() { PropertyNameCaseInsensitive = true };
+    private readonly LlmOptions _options = llmOptions.Value;
 
     /// <inheritdoc />
     public async Task<ProcessedPostResponse> ProcessAsync(
@@ -49,7 +51,7 @@ public class PostProcessor(
         string content,
         CancellationToken cancellationToken)
     {
-        var apiKey = configuration["LLM:Gemini:ApiKey"];
+        var apiKey = _options.Gemini.ApiKey;
         if (string.IsNullOrEmpty(apiKey))
         {
             throw new InvalidOperationException("Gemini API Key is not configured in LLM:Gemini:ApiKey");
@@ -90,7 +92,7 @@ public class PostProcessor(
         string content,
         CancellationToken cancellationToken)
     {
-        var apiKey = configuration["LLM:ChatGPT:ApiKey"];
+        var apiKey = _options.ChatGPT.ApiKey;
         if (string.IsNullOrEmpty(apiKey))
         {
             throw new InvalidOperationException("ChatGPT API Key is not configured in LLM:ChatGPT:ApiKey");
