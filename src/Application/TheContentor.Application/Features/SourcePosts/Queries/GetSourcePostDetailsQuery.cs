@@ -2,17 +2,18 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using TheContentor.Application.Features.SourcePosts.Models;
 using TheContentor.Infrastructure;
+using TheContentor.Infrastructure.Interfaces;
 
 namespace TheContentor.Application.Features.SourcePosts.Queries;
 
 public record GetSourcePostDetailsQuery(Guid Id) : IRequest<SourcePostDetailsDto?>;
 
-public class GetSourcePostDetailsQueryHandler(TheContentorDbContext dbContext)
+public class GetSourcePostDetailsQueryHandler(TheContentorDbContext dbContext, IBlobService blobService)
     : IRequestHandler<GetSourcePostDetailsQuery, SourcePostDetailsDto?>
 {
     public async Task<SourcePostDetailsDto?> Handle(GetSourcePostDetailsQuery request, CancellationToken cancellationToken)
     {
-        return await dbContext.SourcePosts
+        var post = await dbContext.SourcePosts
             .AsNoTracking()
             .Where(x => x.Id == request.Id)
             .Select(x => new SourcePostDetailsDto
@@ -59,5 +60,31 @@ public class GetSourcePostDetailsQueryHandler(TheContentorDbContext dbContext)
                 }
             })
             .FirstOrDefaultAsync(cancellationToken);
+
+        if (post?.ProcessedPost != null)
+        {
+            if (post.ProcessedPost.DescriptionAudioBlobPath != null)
+            {
+                var sasUrl = await blobService.GetSasUrl(
+                    post.ProcessedPost.DescriptionAudioBlobPath.ContainerName,
+                    post.ProcessedPost.DescriptionAudioBlobPath.AssetPath,
+                    cancellationToken);
+                post.ProcessedPost.DescriptionAudioBlobPath.SasUrl = sasUrl.ToString();
+            }
+
+            foreach (var part in post.ProcessedPost.Parts)
+            {
+                if (part.AudioBlobPath != null)
+                {
+                    var sasUrl = await blobService.GetSasUrl(
+                        part.AudioBlobPath.ContainerName,
+                        part.AudioBlobPath.AssetPath,
+                        cancellationToken);
+                    part.AudioBlobPath.SasUrl = sasUrl.ToString();
+                }
+            }
+        }
+
+        return post;
     }
 }

@@ -11,13 +11,12 @@
 ---------------
 
 *   **Multi-Source Scraping:** Integrated Reddit API support with expandable module architecture.
-    
-*   **AI Content Scoring:** Automatic "attractiveness" filtering using GenAI to ensure only the best content is produced.
+
+*   **Content Processing:** Automatic content processing and analysis using Gemini API.
     
 *   **Dynamic Video Synthesis:** Automatic merging of background footage, AI voiceovers, and dynamic subtitles.
     
 *   **On-Premise Orchestration:** Powered by .NET Aspire and Azure Durable Functions running locally via Docker.
-    
 
 * * *
 

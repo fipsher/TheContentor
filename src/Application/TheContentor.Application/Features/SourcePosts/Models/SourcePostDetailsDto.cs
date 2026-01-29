@@ -49,4 +49,5 @@ public class BlobPathDto
 {
     public string ContainerName { get; set; } = string.Empty;
     public string AssetPath { get; set; } = string.Empty;
+    public string? SasUrl { get; set; }
 }
