@@ -6,11 +6,14 @@ using TheContentor.Infrastructure;
 
 namespace TheContentor.Application.Features.ProcessedPosts.Queries;
 
+/// <summary>Requests a processed post by identifier.</summary>
 public record GetProcessedPostByIdQuery(Guid Id) : IRequest<ProcessedPostDetailsDto?>;
 
+/// <summary>Loads a processed post projection from storage.</summary>
 public class GetProcessedPostByIdQueryHandler(TheContentorDbContext dbContext)
     : IRequestHandler<GetProcessedPostByIdQuery, ProcessedPostDetailsDto?>
 {
+    /// <summary>Returns the processed post with related data when available.</summary>
     public async Task<ProcessedPostDetailsDto?> Handle(GetProcessedPostByIdQuery request, CancellationToken cancellationToken)
     {
         return await dbContext.ProcessedPosts

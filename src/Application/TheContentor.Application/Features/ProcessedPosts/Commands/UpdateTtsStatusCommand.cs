@@ -6,18 +6,18 @@ using TheContentor.Infrastructure;
 
 namespace TheContentor.Application.Features.ProcessedPosts.Commands;
 
-/// <summary>
-/// Command to update TTS status and blob paths after generation
-/// </summary>
+/// <summary>Updates TTS status and audio blob paths after generation.</summary>
 public record UpdateTtsStatusCommand(
     Guid ProcessedPostId,
     TtsStatus Status,
     BlobPath? DescriptionAudioBlobPath,
     Dictionary<Guid, BlobPath> PartAudioBlobPaths) : IRequest;
 
+/// <summary>Persists TTS status changes for a processed post.</summary>
 public class UpdateTtsStatusCommandHandler(
     TheContentorDbContext context) : IRequestHandler<UpdateTtsStatusCommand>
 {
+    /// <summary>Applies TTS status updates and audio paths.</summary>
     public async Task Handle(UpdateTtsStatusCommand request, CancellationToken cancellationToken)
     {
         var processedPost = await context.ProcessedPosts

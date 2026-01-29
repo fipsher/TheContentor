@@ -1,114 +1,333 @@
+using System.Text.Json.Serialization;
+
 namespace TheContentor.Infrastructure.Scrappers.Reddit.Models;
 
 public class RedditListItem
 {
-    public List<RedditNestedJson>? children { get; set; }
-    public string? after { get; set; }
-    public int? dist { get; set; }
-    public string? modhash { get; set; }
-    public string? geo_filter { get; set; }
-    public object? before { get; set; }
-    public object? approved_at_utc { get; set; }
-    public string? subreddit { get; set; }
-    public string? selftext { get; set; }
-    public string? author_fullname { get; set; }
-    public bool saved { get; set; }
-    public object? mod_reason_title { get; set; }
-    public int? gilded { get; set; }
-    public bool clicked { get; set; }
-    public string? title { get; set; }
-    public List<object> link_flair_richtext { get; set; }
-    public string? subreddit_name_prefixed { get; set; }
-    public bool hidden { get; set; }
-    public int? pwls { get; set; }
-    public string? link_flair_css_class { get; set; }
-    public int? downs { get; set; }
-    public object? top_awarded_type { get; set; }
-    public bool hide_score { get; set; }
-    public string? name { get; set; }
-    public bool quarantine { get; set; }
-    public string? link_flair_text_color { get; set; }
-    public double upvote_ratio { get; set; }
-    public string? author_flair_background_color { get; set; }
-    public string? subreddit_type { get; set; }
-    public int? ups { get; set; }
-    public int? total_awards_received { get; set; }
-    public string? author_flair_template_id { get; set; }
-    public bool is_original_content { get; set; }
-    public List<object> user_reports { get; set; }
-    public object? secure_media { get; set; }
-    public bool is_reddit_media_domain { get; set; }
-    public bool is_meta { get; set; }
-    public object? category { get; set; }
-    public string? link_flair_text { get; set; }
-    public bool can_mod_post { get; set; }
-    public int? score { get; set; }
-    public object? approved_by { get; set; }
-    public bool is_created_from_ads_ui { get; set; }
-    public bool author_premium { get; set; }
-    public string? thumbnail { get; set; }
-    public object? edited { get; set; }
-    public object? author_flair_css_class { get; set; }
-    public List<object> author_flair_richtext { get; set; }
-    public object? content_categories { get; set; }
-    public bool is_self { get; set; }
-    public object? mod_note { get; set; }
-    public double created { get; set; }
-    public string? link_flair_type { get; set; }
-    public int? wls { get; set; }
-    public object? removed_by_category { get; set; }
-    public object? banned_by { get; set; }
-    public string? author_flair_type { get; set; }
-    public string? domain { get; set; }
-    public bool allow_live_comments { get; set; }
-    public string? selftext_html { get; set; }
-    public object? likes { get; set; }
-    public string? suggested_sort { get; set; }
-    public object? banned_at_utc { get; set; }
-    public object? view_count { get; set; }
-    public bool archived { get; set; }
-    public bool no_follow { get; set; }
-    public bool is_crosspostable { get; set; }
-    public bool pinned { get; set; }
-    public bool over_18 { get; set; }
-    public List<object> all_awardings { get; set; }
-    public List<object> awarders { get; set; }
-    public bool media_only { get; set; }
-    public bool can_gild { get; set; }
-    public bool spoiler { get; set; }
-    public bool locked { get; set; }
-    public string? author_flair_text { get; set; }
-    public List<object> treatment_tags { get; set; }
-    public bool visited { get; set; }
-    public object? removed_by { get; set; }
-    public object? num_reports { get; set; }
-    public object? distinguished { get; set; }
-    public string? subreddit_id { get; set; }
-    public bool author_is_blocked { get; set; }
-    public object? mod_reason_by { get; set; }
-    public object? removal_reason { get; set; }
-    public string? link_flair_background_color { get; set; }
-    public string? id { get; set; }
-    public bool is_robot_indexable { get; set; }
-    public object? report_reasons { get; set; }
-    public string? author { get; set; }
-    public string? body { get; set; }
-    public string? body_html { get; set; }
-    public object? replies { get; set; }
-    public object? discussion_type { get; set; }
-    public int num_comments { get; set; }
-    public bool send_replies { get; set; }
-    public bool contest_mode { get; set; }
-    public List<object> mod_reports { get; set; }
-    public bool author_patreon_flair { get; set; }
-    public string? author_flair_text_color { get; set; }
-    public string? permalink { get; set; }
-    public bool stickied { get; set; }
-    public string? url { get; set; }
-    public int? subreddit_subscribers { get; set; }
-    public double created_utc { get; set; }
-    public int? num_crossposts { get; set; }
-    public object? media { get; set; }
-    public bool is_video { get; set; }
-    public string? link_flair_template_id { get; set; }
+    [JsonPropertyName("children")]
+    public List<RedditNestedJson>? Children { get; set; }
+
+    [JsonPropertyName("after")]
+    public string? After { get; set; }
+
+    [JsonPropertyName("dist")]
+    public int? Dist { get; set; }
+
+    [JsonPropertyName("modhash")]
+    public string? Modhash { get; set; }
+
+    [JsonPropertyName("geo_filter")]
+    public string? GeoFilter { get; set; }
+
+    [JsonPropertyName("before")]
+    public object? Before { get; set; }
+
+    [JsonPropertyName("approved_at_utc")]
+    public object? ApprovedAtUtc { get; set; }
+
+    [JsonPropertyName("subreddit")]
+    public string? Subreddit { get; set; }
+
+    [JsonPropertyName("selftext")]
+    public string? SelfText { get; set; }
+
+    [JsonPropertyName("author_fullname")]
+    public string? AuthorFullname { get; set; }
+
+    [JsonPropertyName("saved")]
+    public bool Saved { get; set; }
+
+    [JsonPropertyName("mod_reason_title")]
+    public object? ModReasonTitle { get; set; }
+
+    [JsonPropertyName("gilded")]
+    public int? Gilded { get; set; }
+
+    [JsonPropertyName("clicked")]
+    public bool Clicked { get; set; }
+
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
+
+    [JsonPropertyName("link_flair_richtext")]
+    public List<object>? LinkFlairRichText { get; set; }
+
+    [JsonPropertyName("subreddit_name_prefixed")]
+    public string? SubredditNamePrefixed { get; set; }
+
+    [JsonPropertyName("hidden")]
+    public bool Hidden { get; set; }
+
+    [JsonPropertyName("pwls")]
+    public int? Pwls { get; set; }
+
+    [JsonPropertyName("link_flair_css_class")]
+    public string? LinkFlairCssClass { get; set; }
+
+    [JsonPropertyName("downs")]
+    public int? Downs { get; set; }
+
+    [JsonPropertyName("top_awarded_type")]
+    public object? TopAwardedType { get; set; }
+
+    [JsonPropertyName("hide_score")]
+    public bool HideScore { get; set; }
+
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    [JsonPropertyName("quarantine")]
+    public bool Quarantine { get; set; }
+
+    [JsonPropertyName("link_flair_text_color")]
+    public string? LinkFlairTextColor { get; set; }
+
+    [JsonPropertyName("upvote_ratio")]
+    public double UpvoteRatio { get; set; }
+
+    [JsonPropertyName("author_flair_background_color")]
+    public string? AuthorFlairBackgroundColor { get; set; }
+
+    [JsonPropertyName("subreddit_type")]
+    public string? SubredditType { get; set; }
+
+    [JsonPropertyName("ups")]
+    public int? Ups { get; set; }
+
+    [JsonPropertyName("total_awards_received")]
+    public int? TotalAwardsReceived { get; set; }
+
+    [JsonPropertyName("author_flair_template_id")]
+    public string? AuthorFlairTemplateId { get; set; }
+
+    [JsonPropertyName("is_original_content")]
+    public bool IsOriginalContent { get; set; }
+
+    [JsonPropertyName("user_reports")]
+    public List<object>? UserReports { get; set; }
+
+    [JsonPropertyName("secure_media")]
+    public object? SecureMedia { get; set; }
+
+    [JsonPropertyName("is_reddit_media_domain")]
+    public bool IsRedditMediaDomain { get; set; }
+
+    [JsonPropertyName("is_meta")]
+    public bool IsMeta { get; set; }
+
+    [JsonPropertyName("category")]
+    public object? Category { get; set; }
+
+    [JsonPropertyName("link_flair_text")]
+    public string? LinkFlairText { get; set; }
+
+    [JsonPropertyName("can_mod_post")]
+    public bool CanModPost { get; set; }
+
+    [JsonPropertyName("score")]
+    public int? Score { get; set; }
+
+    [JsonPropertyName("approved_by")]
+    public object? ApprovedBy { get; set; }
+
+    [JsonPropertyName("is_created_from_ads_ui")]
+    public bool IsCreatedFromAdsUi { get; set; }
+
+    [JsonPropertyName("author_premium")]
+    public bool AuthorPremium { get; set; }
+
+    [JsonPropertyName("thumbnail")]
+    public string? Thumbnail { get; set; }
+
+    [JsonPropertyName("edited")]
+    public object? Edited { get; set; }
+
+    [JsonPropertyName("author_flair_css_class")]
+    public object? AuthorFlairCssClass { get; set; }
+
+    [JsonPropertyName("author_flair_richtext")]
+    public List<object>? AuthorFlairRichText { get; set; }
+
+    [JsonPropertyName("content_categories")]
+    public object? ContentCategories { get; set; }
+
+    [JsonPropertyName("is_self")]
+    public bool IsSelf { get; set; }
+
+    [JsonPropertyName("mod_note")]
+    public object? ModNote { get; set; }
+
+    [JsonPropertyName("created")]
+    public double Created { get; set; }
+
+    [JsonPropertyName("link_flair_type")]
+    public string? LinkFlairType { get; set; }
+
+    [JsonPropertyName("wls")]
+    public int? Wls { get; set; }
+
+    [JsonPropertyName("removed_by_category")]
+    public object? RemovedByCategory { get; set; }
+
+    [JsonPropertyName("banned_by")]
+    public object? BannedBy { get; set; }
+
+    [JsonPropertyName("author_flair_type")]
+    public string? AuthorFlairType { get; set; }
+
+    [JsonPropertyName("domain")]
+    public string? Domain { get; set; }
+
+    [JsonPropertyName("allow_live_comments")]
+    public bool AllowLiveComments { get; set; }
+
+    [JsonPropertyName("selftext_html")]
+    public string? SelfTextHtml { get; set; }
+
+    [JsonPropertyName("likes")]
+    public object? Likes { get; set; }
+
+    [JsonPropertyName("suggested_sort")]
+    public string? SuggestedSort { get; set; }
+
+    [JsonPropertyName("banned_at_utc")]
+    public object? BannedAtUtc { get; set; }
+
+    [JsonPropertyName("view_count")]
+    public object? ViewCount { get; set; }
+
+    [JsonPropertyName("archived")]
+    public bool Archived { get; set; }
+
+    [JsonPropertyName("no_follow")]
+    public bool NoFollow { get; set; }
+
+    [JsonPropertyName("is_crosspostable")]
+    public bool IsCrosspostable { get; set; }
+
+    [JsonPropertyName("pinned")]
+    public bool Pinned { get; set; }
+
+    [JsonPropertyName("over_18")]
+    public bool Over18 { get; set; }
+
+    [JsonPropertyName("all_awardings")]
+    public List<object>? AllAwardings { get; set; }
+
+    [JsonPropertyName("awarders")]
+    public List<object>? Awarders { get; set; }
+
+    [JsonPropertyName("media_only")]
+    public bool MediaOnly { get; set; }
+
+    [JsonPropertyName("can_gild")]
+    public bool CanGild { get; set; }
+
+    [JsonPropertyName("spoiler")]
+    public bool Spoiler { get; set; }
+
+    [JsonPropertyName("locked")]
+    public bool Locked { get; set; }
+
+    [JsonPropertyName("author_flair_text")]
+    public string? AuthorFlairText { get; set; }
+
+    [JsonPropertyName("treatment_tags")]
+    public List<object>? TreatmentTags { get; set; }
+
+    [JsonPropertyName("visited")]
+    public bool Visited { get; set; }
+
+    [JsonPropertyName("removed_by")]
+    public object? RemovedBy { get; set; }
+
+    [JsonPropertyName("num_reports")]
+    public object? NumReports { get; set; }
+
+    [JsonPropertyName("distinguished")]
+    public object? Distinguished { get; set; }
+
+    [JsonPropertyName("subreddit_id")]
+    public string? SubredditId { get; set; }
+
+    [JsonPropertyName("author_is_blocked")]
+    public bool AuthorIsBlocked { get; set; }
+
+    [JsonPropertyName("mod_reason_by")]
+    public object? ModReasonBy { get; set; }
+
+    [JsonPropertyName("removal_reason")]
+    public object? RemovalReason { get; set; }
+
+    [JsonPropertyName("link_flair_background_color")]
+    public string? LinkFlairBackgroundColor { get; set; }
+
+    [JsonPropertyName("id")]
+    public string? Id { get; set; }
+
+    [JsonPropertyName("is_robot_indexable")]
+    public bool IsRobotIndexable { get; set; }
+
+    [JsonPropertyName("report_reasons")]
+    public object? ReportReasons { get; set; }
+
+    [JsonPropertyName("author")]
+    public string? Author { get; set; }
+
+    [JsonPropertyName("body")]
+    public string? Body { get; set; }
+
+    [JsonPropertyName("body_html")]
+    public string? BodyHtml { get; set; }
+
+    [JsonPropertyName("replies")]
+    public object? Replies { get; set; }
+
+    [JsonPropertyName("discussion_type")]
+    public object? DiscussionType { get; set; }
+
+    [JsonPropertyName("num_comments")]
+    public int NumComments { get; set; }
+
+    [JsonPropertyName("send_replies")]
+    public bool SendReplies { get; set; }
+
+    [JsonPropertyName("contest_mode")]
+    public bool ContestMode { get; set; }
+
+    [JsonPropertyName("mod_reports")]
+    public List<object>? ModReports { get; set; }
+
+    [JsonPropertyName("author_patreon_flair")]
+    public bool AuthorPatreonFlair { get; set; }
+
+    [JsonPropertyName("author_flair_text_color")]
+    public string? AuthorFlairTextColor { get; set; }
+
+    [JsonPropertyName("permalink")]
+    public string? Permalink { get; set; }
+
+    [JsonPropertyName("stickied")]
+    public bool Stickied { get; set; }
+
+    [JsonPropertyName("url")]
+    public string? Url { get; set; }
+
+    [JsonPropertyName("subreddit_subscribers")]
+    public int? SubredditSubscribers { get; set; }
+
+    [JsonPropertyName("created_utc")]
+    public double CreatedUtc { get; set; }
+
+    [JsonPropertyName("num_crossposts")]
+    public int? NumCrossposts { get; set; }
+
+    [JsonPropertyName("media")]
+    public object? Media { get; set; }
+
+    [JsonPropertyName("is_video")]
+    public bool IsVideo { get; set; }
+
+    [JsonPropertyName("link_flair_template_id")]
+    public string? LinkFlairTemplateId { get; set; }
 }

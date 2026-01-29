@@ -8,15 +8,15 @@ using TheContentor.Infrastructure;
 
 namespace TheContentor.Application.Features.ProcessedPosts.Commands;
 
-/// <summary>
-/// Command to trigger TTS generation for a ProcessedPost
-/// </summary>
+/// <summary>Triggers text-to-speech generation for a processed post.</summary>
 public record GenerateTtsCommand(Guid ProcessedPostId, TtsSettingsModel Settings) : IRequest;
 
+/// <summary>Queues a TTS orchestration message and updates status.</summary>
 public class GenerateTtsCommandHandler(
     TheContentorDbContext context,
     ServiceBusClient serviceBusClient) : IRequestHandler<GenerateTtsCommand>
 {
+    /// <summary>Marks the post as in progress and enqueues the TTS job.</summary>
     public async Task Handle(GenerateTtsCommand request, CancellationToken cancellationToken)
     {
         var processedPost = await context.ProcessedPosts

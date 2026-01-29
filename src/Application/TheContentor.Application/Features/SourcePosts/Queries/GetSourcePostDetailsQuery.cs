@@ -6,11 +6,14 @@ using TheContentor.Infrastructure.Interfaces;
 
 namespace TheContentor.Application.Features.SourcePosts.Queries;
 
+/// <summary>Requests detailed source post data by id.</summary>
 public record GetSourcePostDetailsQuery(Guid Id) : IRequest<SourcePostDetailsDto?>;
 
+/// <summary>Loads source post details and enriches blob paths.</summary>
 public class GetSourcePostDetailsQueryHandler(TheContentorDbContext dbContext, IBlobService blobService)
     : IRequestHandler<GetSourcePostDetailsQuery, SourcePostDetailsDto?>
 {
+    /// <summary>Returns source post details with SAS URLs when available.</summary>
     public async Task<SourcePostDetailsDto?> Handle(GetSourcePostDetailsQuery request, CancellationToken cancellationToken)
     {
         var post = await dbContext.SourcePosts

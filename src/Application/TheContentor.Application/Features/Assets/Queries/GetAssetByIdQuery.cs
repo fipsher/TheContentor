@@ -6,10 +6,13 @@ using TheContentor.Infrastructure.Interfaces;
 
 namespace TheContentor.Application.Features.Assets.Queries;
 
+/// <summary>Requests a single asset by identifier.</summary>
 public record GetAssetByIdQuery(Guid Id) : IRequest<AssetDto?>;
 
+/// <summary>Loads asset metadata and SAS URL by id.</summary>
 public class GetAssetByIdQueryHandler(TheContentorDbContext context, IBlobService blobService) : IRequestHandler<GetAssetByIdQuery, AssetDto?>
 {
+    /// <summary>Returns the asset projection when found.</summary>
     public async Task<AssetDto?> Handle(GetAssetByIdQuery request, CancellationToken cancellationToken)
     {
         var asset = await context.Assets

@@ -5,10 +5,13 @@ using TheContentor.Infrastructure;
 
 namespace TheContentor.Application.Features.Criteria.Queries;
 
+/// <summary>Requests a single analysis criterion by id.</summary>
 public record GetCriteriaByIdQuery(Guid Id) : IRequest<CriteriaDto?>;
 
+/// <summary>Loads an analysis criterion by identifier.</summary>
 public class GetCriteriaByIdQueryHandler(TheContentorDbContext context) : IRequestHandler<GetCriteriaByIdQuery, CriteriaDto?>
 {
+    /// <summary>Returns the requested criterion projection.</summary>
     public async Task<CriteriaDto?> Handle(GetCriteriaByIdQuery request, CancellationToken cancellationToken)
     {
         return await context.AnalysisCriteria

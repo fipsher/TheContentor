@@ -8,6 +8,10 @@
 * Use C# 10 features like file scoped namespaces, top-level statements, and target-typed new expressions.
 * Prefer var over explicit types when possible.
 * Use async/await whenever possible.
-* XML comments are required. But should be minimal.
+* XML comments are required. But should be minimal and meaningful.
+* Use AutoMapper for mapping.
 * Use Automapper library for mappings.
 * If entity relationship is built, it must be added only in one entity. Adding it on both entities will cause a duplicate FK to be added.
+* Use FluentValidation for validation.
+* Use C# 10 features like file scoped namespaces, top-level statements, and target-typed new expressions.
+* Add comments to your code.

@@ -36,12 +36,12 @@ public class RedditScrapper(IRestClient client) : ISourceScraper<RedditPost, Red
 
         var response = await client.ExecuteGetAsync<RedditNestedJson>(ub.Uri.ToString());
 
-        if (response.Data?.Data?.children == null)
+        if (response.Data?.Data?.Children == null)
         {
             return [];
         }
 
-        return response.Data.Data.children
+        return response.Data.Data.Children
             .Where(c => c.Kind == "t3") // t3 is Post
             .Select(c => MapToRedditPost(c.Data));
     }
@@ -70,9 +70,9 @@ public class RedditScrapper(IRestClient client) : ISourceScraper<RedditPost, Red
 
         // The first element in the array is the post itself
         var postListing = response.Data[0];
-        if (postListing.Data?.children is { Count: > 0 })
+        if (postListing.Data?.Children is { Count: > 0 })
         {
-            var updatedPost = MapToRedditPost(postListing.Data.children[0].Data);
+            var updatedPost = MapToRedditPost(postListing.Data.Children[0].Data);
 
             // The second element in the array contains the comments
             if (response.Data.Count > 1)
@@ -90,18 +90,18 @@ public class RedditScrapper(IRestClient client) : ISourceScraper<RedditPost, Red
 
     private static List<RedditComment> ExtractComments(RedditNestedJson? listing)
     {
-        if (listing?.Data?.children == null)
+        if (listing?.Data?.Children == null)
         {
             return [];
         }
 
         var comments = new List<RedditComment>();
-        foreach (var child in listing.Data.children.Where(c => c.Kind == "t1"))
+        foreach (var child in listing.Data.Children.Where(c => c.Kind == "t1"))
         {
             var comment = MapToRedditComment(child.Data);
             
             // Handle replies
-            if (child.Data.replies is JsonElement repliesElement && repliesElement.ValueKind == JsonValueKind.Object)
+            if (child.Data.Replies is JsonElement repliesElement && repliesElement.ValueKind == JsonValueKind.Object)
             {
                 var repliesListing = repliesElement.Deserialize<RedditNestedJson>(new JsonSerializerOptions
                 {
@@ -124,15 +124,15 @@ public class RedditScrapper(IRestClient client) : ISourceScraper<RedditPost, Red
     {
         return new RedditComment
         {
-            ExternalId = item.id ?? string.Empty,
-            AuthorName = item.author ?? string.Empty,
-            Body = item.body ?? string.Empty,
-            BodyHtml = item.body_html,
-            Score = item.score,
-            HideScore = item.hide_score,
-            CreatedUtc = DateTimeOffset.FromUnixTimeSeconds((long)item.created_utc),
-            Permalink = item.permalink ?? string.Empty,
-            FullName = item.name ?? string.Empty,
+            ExternalId = item.Id ?? string.Empty,
+            AuthorName = item.Author ?? string.Empty,
+            Body = item.Body ?? string.Empty,
+            BodyHtml = item.BodyHtml,
+            Score = item.Score,
+            HideScore = item.HideScore,
+            CreatedUtc = DateTimeOffset.FromUnixTimeSeconds((long)item.CreatedUtc),
+            Permalink = item.Permalink ?? string.Empty,
+            FullName = item.Name ?? string.Empty,
             MetadataJson = JsonSerializer.Serialize(item)
         };
     }
@@ -141,36 +141,36 @@ public class RedditScrapper(IRestClient client) : ISourceScraper<RedditPost, Red
     {
         return new RedditPost
         {
-            ExternalId = item.id ?? string.Empty,
-            ExternalUrl = !string.IsNullOrEmpty(item.url) ? new Uri(item.url) : null!,
-            Community = item.subreddit ?? string.Empty,
-            CommunityExternalId = item.subreddit_id,
-            Flairs = item.link_flair_text,
-            AuthorExternalId = item.author_fullname ?? string.Empty,
-            AuthorName = item.author ?? string.Empty,
-            Title = item.title ?? string.Empty,
-            RawText = item.selftext ?? string.Empty,
-            RawHtml = item.selftext_html,
-            WordCount = (item.selftext ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries).Length,
+            ExternalId = item.Id ?? string.Empty,
+            ExternalUrl = !string.IsNullOrEmpty(item.Url) ? new Uri(item.Url) : null!,
+            Community = item.Subreddit ?? string.Empty,
+            CommunityExternalId = item.SubredditId,
+            Flairs = item.LinkFlairText,
+            AuthorExternalId = item.AuthorFullname ?? string.Empty,
+            AuthorName = item.Author ?? string.Empty,
+            Title = item.Title ?? string.Empty,
+            RawText = item.SelfText ?? string.Empty,
+            RawHtml = item.SelfTextHtml,
+            WordCount = (item.SelfText ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries).Length,
             Language = null,
-            Score = item.score,
-            HideScore = item.hide_score,
-            CommentCount = item.num_comments,
-            UpvoteRatio = item.upvote_ratio,
-            IsNsfw = item.over_18,
-            IsSpoiler = item.spoiler,
-            CreatedUtc = DateTimeOffset.FromUnixTimeSeconds((long)item.created_utc),
-            Subreddit = item.subreddit ?? string.Empty,
-            Permalink = item.permalink ?? string.Empty,
-            FullName = item.name ?? string.Empty,
-            IsSelfPost = item.is_self,
-            LinkUrl = item.url,
-            Domain = item.domain,
-            FlairText = item.link_flair_text,
-            IsLocked = item.locked,
-            IsArchived = item.archived,
-            IsStickied = item.stickied,
-            TotalAwardsReceived = item.total_awards_received,
+            Score = item.Score,
+            HideScore = item.HideScore,
+            CommentCount = item.NumComments,
+            UpvoteRatio = item.UpvoteRatio,
+            IsNsfw = item.Over18,
+            IsSpoiler = item.Spoiler,
+            CreatedUtc = DateTimeOffset.FromUnixTimeSeconds((long)item.CreatedUtc),
+            Subreddit = item.Subreddit ?? string.Empty,
+            Permalink = item.Permalink ?? string.Empty,
+            FullName = item.Name ?? string.Empty,
+            IsSelfPost = item.IsSelf,
+            LinkUrl = item.Url,
+            Domain = item.Domain,
+            FlairText = item.LinkFlairText,
+            IsLocked = item.Locked,
+            IsArchived = item.Archived,
+            IsStickied = item.Stickied,
+            TotalAwardsReceived = item.TotalAwardsReceived,
             MetadataJson = JsonSerializer.Serialize(item)
         };
     }

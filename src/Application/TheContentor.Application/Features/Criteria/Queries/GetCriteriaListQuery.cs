@@ -5,10 +5,13 @@ using TheContentor.Infrastructure;
 
 namespace TheContentor.Application.Features.Criteria.Queries;
 
+/// <summary>Requests the list of analysis criteria.</summary>
 public record GetCriteriaListQuery : IRequest<List<CriteriaDto>>;
 
+/// <summary>Loads the analysis criteria list.</summary>
 public class GetCriteriaListQueryHandler(TheContentorDbContext context) : IRequestHandler<GetCriteriaListQuery, List<CriteriaDto>>
 {
+    /// <summary>Returns criteria projections from storage.</summary>
     public async Task<List<CriteriaDto>> Handle(GetCriteriaListQuery request, CancellationToken cancellationToken)
     {
         return await context.AnalysisCriteria

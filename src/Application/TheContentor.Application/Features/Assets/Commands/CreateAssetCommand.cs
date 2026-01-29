@@ -5,18 +5,25 @@ using TheContentor.Infrastructure.Interfaces;
 
 namespace TheContentor.Application.Features.Assets.Commands;
 
+/// <summary>Creates a new asset and uploads its stream.</summary>
 public record CreateAssetCommand : IRequest<Guid>
 {
+    /// <summary>User-facing asset name.</summary>
     public string Name { get; set; } = string.Empty;
+    /// <summary>Tag string for filtering.</summary>
     public string Tags { get; set; } = string.Empty;
+    /// <summary>Stream containing the asset file.</summary>
     public Stream? FileStream { get; set; }
+    /// <summary>Content type for the uploaded file.</summary>
     public string? ContentType { get; set; }
 }
 
+/// <summary>Handles asset uploads and persistence.</summary>
 public class CreateAssetCommandHandler(
     TheContentorDbContext context,
     IBlobService blobService) : IRequestHandler<CreateAssetCommand, Guid>
 {
+    /// <summary>Uploads the asset and stores metadata.</summary>
     public async Task<Guid> Handle(CreateAssetCommand request, CancellationToken cancellationToken)
     {
         BlobPath localPath;

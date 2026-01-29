@@ -6,6 +6,7 @@ using TheContentor.Infrastructure;
 
 namespace TheContentor.Application.Features.SourcePosts.Commands;
 
+/// <summary>Updates a processed post and its parts.</summary>
 public record UpdateProcessedPostCommand(
     Guid ProcessedPostId,
     string Title,
@@ -14,6 +15,7 @@ public record UpdateProcessedPostCommand(
     NarratorGender NarratorGender,
     List<UpdateProcessedPostPartDto> Parts) : IRequest;
 
+/// <summary>Represents a processed post part update request.</summary>
 public record UpdateProcessedPostPartDto(
     Guid? Id,
     string ProcessedText,
@@ -21,9 +23,11 @@ public record UpdateProcessedPostPartDto(
     List<SocialPlatform> PublishedTo,
     int Part);
 
+/// <summary>Handles updates to processed posts and parts.</summary>
 public class UpdateProcessedPostCommandHandler(TheContentorDbContext context)
     : IRequestHandler<UpdateProcessedPostCommand>
 {
+    /// <summary>Applies updates to the processed post and its parts.</summary>
     public async Task Handle(UpdateProcessedPostCommand request, CancellationToken cancellationToken)
     {
         var processedPost = await context.ProcessedPosts

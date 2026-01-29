@@ -7,11 +7,14 @@ using TheContentor.Infrastructure.Interfaces;
 
 namespace TheContentor.Application.Features.SourcePosts.Commands;
 
+/// <summary>Processes a source post into a processed post.</summary>
 public record ProcessSourcePostCommand(Guid SourcePostId, CriteriaEngine Engine = CriteriaEngine.Gemini) : IRequest;
 
+/// <summary>Runs processing for a source post and stores results.</summary>
 public class ProcessSourcePostCommandHandler(TheContentorDbContext context, IPostProcessor postProcessor)
     : IRequestHandler<ProcessSourcePostCommand>
 {
+    /// <summary>Invokes the processor and persists the processed post.</summary>
     public async Task Handle(ProcessSourcePostCommand request, CancellationToken cancellationToken)
     {
         var sourcePost = await context.SourcePosts
