@@ -43,9 +43,12 @@ public class GenerateTtsCommandHandler(
                 Settings = request.Settings
             }))
             {
-                ContentType = "application/json"
+                ContentType = "application/json",
+                ApplicationProperties =
+                {
+                    ["Type"] = "tts-generation",
+                },
             };
-            message.ApplicationProperties["Type"] = "tts-generation";
 
             await sender.SendMessageAsync(message, cancellationToken);
         }

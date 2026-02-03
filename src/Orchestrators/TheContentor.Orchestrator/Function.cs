@@ -74,33 +74,24 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
             // Fetch processed post data
             var postData = await context.CallActivityAsync<ProcessedPostData>("FetchProcessedPostData", request.ProcessedPostId);
 
-            // Calculate expected callbacks
-            var expectedCallbacks = 1 + postData.Parts.Count; // 1 for description + N for parts
+            // Calculate expected callbacks (parts only; description TTS is disabled)
+            var expectedCallbacks = postData.Parts.Count;
             state.ExpectedCallbacks = expectedCallbacks;
 
             // Send TTS commands
-            var tasks = new List<Task>
-            {
-                // Send description command
-                context.CallActivityAsync("SendTtsCommand", new TtsCommandMessage
-                {
-                    Text = postData.Description,
-                    Voice = request.Settings.Voice,
-                    Rate = request.Settings.Rate,
-                    Pitch = request.Settings.Pitch,
-                    ProcessedPostId = request.ProcessedPostId,
-                    PartId = null,
-                    OrchestrationInstanceId = instanceId,
-                    TextType = "description"
-                }),
-            };
+            var tasks = new List<Task>();
 
             // Send part commands
             foreach (var part in postData.Parts)
             {
+                // Part 1 narration should include the post subject/title prefix.
+                var text = part.Part == 1
+                    ? $"{postData.Title} {part.ProcessedText}".Trim()
+                    : part.ProcessedText;
+
                 tasks.Add(context.CallActivityAsync("SendTtsCommand", new TtsCommandMessage
                 {
-                    Text = part.ProcessedText,
+                    Text = text,
                     Voice = request.Settings.Voice,
                     Rate = request.Settings.Rate,
                     Pitch = request.Settings.Pitch,
@@ -117,11 +108,17 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
             while (state.ReceivedCallbacks < state.ExpectedCallbacks)
             {
                 var callback = await context.WaitForExternalEvent<TtsEventCallback>("TtsCallback");
+                if (callback.TextType != "part")
+                {
+                    logger.LogInformation("Ignoring TTS callback for {TextType}", callback.TextType);
+                    continue;
+                }
+
                 state.ReceivedCallbacks++;
 
                 if (callback.Success && !string.IsNullOrEmpty(callback.BlobContainer) && !string.IsNullOrEmpty(callback.BlobPath))
                 {
-                    var key = callback.TextType == "description" ? "description" : $"part-{callback.PartId}";
+                    var key = $"part-{callback.PartId}";
                     state.CompletedItems[key] = new BlobPathInfo
                     {
                         ContainerName = callback.BlobContainer,
@@ -172,11 +169,13 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
 
         return new ProcessedPostData
         {
+            Title = processedPost.Title,
             Description = processedPost.Description,
             Parts = processedPost.Parts.Select(p => new ProcessedPostPartData
             {
                 Id = p.Id!.Value,
-                ProcessedText = p.ProcessedText
+                ProcessedText = p.ProcessedText,
+                Part = p.Part
             }).ToList()
         };
     }
@@ -208,7 +207,6 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
     [Function("UpdateProcessedPostTtsStatus")]
     public async Task UpdateProcessedPostTtsStatus([ActivityTrigger] TtsOrchestrationState state)
     {
-        var descriptionBlobPath = state.CompletedItems.GetValueOrDefault("description");
         var partBlobPaths = state.CompletedItems
             .Where(x => x.Key.StartsWith("part-"))
             .ToDictionary(
@@ -220,11 +218,7 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
         {
             state.ProcessedPostId,
             Status = state.HasErrors ? 4 : 3, // Failed : Generated
-            DescriptionAudioBlobPath = descriptionBlobPath == null ? null : new
-            {
-                descriptionBlobPath.ContainerName,
-                descriptionBlobPath.AssetPath
-            },
+            DescriptionAudioBlobPath = (object?)null,
             PartAudioBlobPaths = partBlobPaths
         };
 
@@ -240,4 +234,3 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
         logger.LogInformation("Updated TTS status for ProcessedPost: {ProcessedPostId}", state.ProcessedPostId);
     }
 }
-
