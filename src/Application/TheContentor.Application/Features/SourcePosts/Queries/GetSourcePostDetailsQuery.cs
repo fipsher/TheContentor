@@ -47,6 +47,13 @@ public class GetSourcePostDetailsQueryHandler(TheContentorDbContext dbContext, I
                         ContainerName = x.ProcessedPost.DescriptionAudioBlobPath.ContainerName,
                         AssetPath = x.ProcessedPost.DescriptionAudioBlobPath.AssetPath
                     },
+                    VideoStatus = x.ProcessedPost.VideoStatus,
+                    VideoSettings = x.ProcessedPost.VideoSettings,
+                    VideoBlobPath = x.ProcessedPost.VideoBlobPath == null ? null : new BlobPathDto
+                    {
+                        ContainerName = x.ProcessedPost.VideoBlobPath.ContainerName,
+                        AssetPath = x.ProcessedPost.VideoBlobPath.AssetPath
+                    },
                     Parts = x.ProcessedPost.Parts.Select(p => new ProcessedPostPartDto
                     {
                         Id = p.Id,
@@ -58,6 +65,16 @@ public class GetSourcePostDetailsQueryHandler(TheContentorDbContext dbContext, I
                         {
                             ContainerName = p.AudioBlobPath.ContainerName,
                             AssetPath = p.AudioBlobPath.AssetPath
+                        },
+                        VideoBlobPath = p.VideoBlobPath == null ? null : new BlobPathDto
+                        {
+                            ContainerName = p.VideoBlobPath.ContainerName,
+                            AssetPath = p.VideoBlobPath.AssetPath
+                        },
+                        SubtitleBlobPath = p.SubtitleBlobPath == null ? null : new BlobPathDto
+                        {
+                            ContainerName = p.SubtitleBlobPath.ContainerName,
+                            AssetPath = p.SubtitleBlobPath.AssetPath
                         }
                     }).ToList()
                 }
@@ -75,6 +92,15 @@ public class GetSourcePostDetailsQueryHandler(TheContentorDbContext dbContext, I
                 post.ProcessedPost.DescriptionAudioBlobPath.SasUrl = sasUrl.ToString();
             }
 
+            if (post.ProcessedPost.VideoBlobPath != null)
+            {
+                var sasUrl = await blobService.GetSasUrl(
+                    post.ProcessedPost.VideoBlobPath.ContainerName,
+                    post.ProcessedPost.VideoBlobPath.AssetPath,
+                    cancellationToken);
+                post.ProcessedPost.VideoBlobPath.SasUrl = sasUrl.ToString();
+            }
+
             foreach (var part in post.ProcessedPost.Parts)
             {
                 if (part.AudioBlobPath != null)
@@ -84,6 +110,24 @@ public class GetSourcePostDetailsQueryHandler(TheContentorDbContext dbContext, I
                         part.AudioBlobPath.AssetPath,
                         cancellationToken);
                     part.AudioBlobPath.SasUrl = sasUrl.ToString();
+                }
+
+                if (part.VideoBlobPath != null)
+                {
+                    var sasUrl = await blobService.GetSasUrl(
+                        part.VideoBlobPath.ContainerName,
+                        part.VideoBlobPath.AssetPath,
+                        cancellationToken);
+                    part.VideoBlobPath.SasUrl = sasUrl.ToString();
+                }
+
+                if (part.SubtitleBlobPath != null)
+                {
+                    var sasUrl = await blobService.GetSasUrl(
+                        part.SubtitleBlobPath.ContainerName,
+                        part.SubtitleBlobPath.AssetPath,
+                        cancellationToken);
+                    part.SubtitleBlobPath.SasUrl = sasUrl.ToString();
                 }
             }
         }

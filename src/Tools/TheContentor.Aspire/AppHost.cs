@@ -45,6 +45,24 @@ builder.AddPythonApp("tts-worker", "../../Modules/TTS", "tts-worker.py")
     .WaitFor(serviceBus)
     .WaitFor(apiService);
 
+// Python Video Worker
+builder.AddPythonApp("video-worker", "../../Modules/Video", "video-worker.py")
+    .WithReference(serviceBus)
+    .WithReference(blobs)
+    .WithReference(apiService)
+    .WithEnvironment("TheContentorApiUrl", apiService.GetEndpoint("http"))
+    .WaitFor(serviceBus)
+    .WaitFor(apiService);
+
+// Python Subtitle Worker
+builder.AddPythonApp("subtitle-worker", "../../Modules/Subtitle", "subtitle-worker.py")
+    .WithReference(serviceBus)
+    .WithReference(blobs)
+    .WithReference(apiService)
+    .WithEnvironment("TheContentorApiUrl", apiService.GetEndpoint("http"))
+    .WaitFor(serviceBus)
+    .WaitFor(apiService);
+
 builder.Build().Run();
 
 void ConfigureServiceBus(IResourceBuilder<AzureServiceBusResource> resourceBuilder)
@@ -56,7 +74,8 @@ void ConfigureServiceBus(IResourceBuilder<AzureServiceBusResource> resourceBuild
 
     var commandsTopic = serviceBus.AddServiceBusTopic("commands-topic");
     resourceBuilder.AddServiceBusQueue("tts-commands-queue");
-    resourceBuilder.AddServiceBusQueue("video-generation-commands-queue");
+    resourceBuilder.AddServiceBusQueue("video-commands-queue");
+    resourceBuilder.AddServiceBusQueue("subtitle-commands-queue");
 
     resourceBuilder.AddServiceBusQueue("events-queue");
 
@@ -79,25 +98,6 @@ void ConfigureCommandsSubscriptions(IResourceBuilder<AzureServiceBusTopicResourc
                         Properties = new Dictionary<string, object>()
                         {
                             { "Type", "tts" },
-                        },
-                    },
-                });
-        });
-
-    commandsTopic.AddServiceBusSubscription("video-generation-commands-subscription")
-        .WithProperties(subscription =>
-        {
-            subscription.ForwardTo = "video-generation-commands-queue";
-            subscription.MaxDeliveryCount = 5;
-            subscription.Rules.Add(
-                new AzureServiceBusRule("video-generation-commands-subscription-filter")
-                {
-                    FilterType = AzureServiceBusFilterType.CorrelationFilter,
-                    CorrelationFilter = new AzureServiceBusCorrelationFilter
-                    {
-                        Properties = new Dictionary<string, object>()
-                        {
-                            { "Type", "video-generation" },
                         },
                     },
                 });

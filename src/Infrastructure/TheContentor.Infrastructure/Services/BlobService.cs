@@ -72,4 +72,13 @@ public class BlobService(BlobServiceClient blobServiceClient) : IBlobService
         var blobClient = blobContainerClient.GetBlobClient(blobName);
         await blobClient.DeleteIfExistsAsync(cancellationToken: cancellationToken);
     }
+
+    public async Task<Stream> DownloadAsync(string containerName, string blobName, CancellationToken cancellationToken = default)
+    {
+        var blobContainerClient = blobServiceClient.GetBlobContainerClient(containerName);
+        var blobClient = blobContainerClient.GetBlobClient(blobName);
+
+        var response = await blobClient.DownloadStreamingAsync(cancellationToken: cancellationToken);
+        return response.Value.Content;
+    }
 }

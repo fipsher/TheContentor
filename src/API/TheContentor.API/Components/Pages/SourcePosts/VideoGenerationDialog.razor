@@ -1,0 +1,166 @@
+@using MediatR
+@using TheContentor.Application.Features.ProcessedPosts.Commands
+@using TheContentor.Application.Features.Assets.Queries
+@using TheContentor.Application.Features.Assets.Models
+@inject IMediator Mediator
+
+@if (IsVisible)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Generate Video</h5>
+                    <button type="button" class="btn-close" @onclick="Close" disabled="@_isGenerating"></button>
+                </div>
+                <div class="modal-body">
+                    @if (_isLoading)
+                    {
+                        <div class="text-center">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">Loading assets...</span>
+                            </div>
+                        </div>
+                    }
+                    else if (_assets.Count == 0)
+                    {
+                        <div class="alert alert-warning">
+                            No active video assets found. Please upload video assets first.
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Select Background Video Assets</label>
+                            <small class="text-muted d-block mb-2">
+                                Select one or more video assets. They will be concatenated and cut to match the audio duration for each part.
+                            </small>
+                            <div class="list-group" style="max-height: 400px; overflow-y: auto;">
+                                @foreach (var asset in _assets)
+                                {
+                                    <div class="list-group-item list-group-item-action" @key="asset.Id">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox"
+                                                   id="@($"asset-{asset.Id}")"
+                                                   checked="@_selectedAssetIds.Contains(asset.Id)"
+                                                   disabled="@_isGenerating"
+                                                   @onchange="@(e => ToggleAsset(asset.Id, e.Value))" />
+                                            <label class="form-check-label w-100" for="@($"asset-{asset.Id}")">
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <div>
+                                                        <strong>@asset.FileName</strong>
+                                                        @if (asset.Duration.HasValue)
+                                                        {
+                                                            <span class="badge bg-secondary ms-2">@asset.Duration.Value.ToString(@"mm\:ss")</span>
+                                                        }
+                                                    </div>
+                                                    @if (!string.IsNullOrEmpty(asset.Tags))
+                                                    {
+                                                        <small class="text-muted">@asset.Tags</small>
+                                                    }
+                                                </div>
+                                            </label>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                            @if (_selectedAssetIds.Count > 0)
+                            {
+                                <div class="mt-2">
+                                    <small class="text-success">@_selectedAssetIds.Count asset(s) selected</small>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="Close" disabled="@_isGenerating">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="GenerateVideo"
+                            disabled="@(_isGenerating || _selectedAssetIds.Count == 0 || _isLoading)">
+                        @if (_isGenerating)
+                        {
+                            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                            <span> Generating...</span>
+                        }
+                        else
+                        {
+                            <span>Generate</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public Guid? ProcessedPostId { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnGenerated { get; set; }
+
+    private List<AssetDto> _assets = new();
+    private HashSet<Guid> _selectedAssetIds = new();
+    private bool _isGenerating = false;
+    private bool _isLoading = false;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (IsVisible && !_isLoading && _assets.Count == 0)
+        {
+            await LoadAssets();
+        }
+    }
+
+    private async Task LoadAssets()
+    {
+        _isLoading = true;
+        try
+        {
+            var allAssets = await Mediator.Send(new GetAssetListQuery());
+            _assets = allAssets.Where(a => a.IsActive).ToList();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void ToggleAsset(Guid assetId, object? isChecked)
+    {
+        if (isChecked is true)
+        {
+            _selectedAssetIds.Add(assetId);
+        }
+        else
+        {
+            _selectedAssetIds.Remove(assetId);
+        }
+    }
+
+    private async Task GenerateVideo()
+    {
+        if (ProcessedPostId == null || _selectedAssetIds.Count == 0) return;
+
+        _isGenerating = true;
+        try
+        {
+            await Mediator.Send(new GenerateVideoCommand(ProcessedPostId.Value, _selectedAssetIds.ToList()));
+            await OnGenerated.InvokeAsync();
+            await Close();
+        }
+        finally
+        {
+            _isGenerating = false;
+        }
+    }
+
+    private async Task Close()
+    {
+        if (!_isGenerating)
+        {
+            _selectedAssetIds.Clear();
+            await OnClose.InvokeAsync();
+        }
+    }
+}

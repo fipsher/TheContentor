@@ -8,6 +8,7 @@ using Microsoft.Extensions.Options;
 using RestSharp;
 using TheContentor.Orchestrator.Models.ProcessedPost;
 using TheContentor.Orchestrator.Models.TTS;
+using TheContentor.Orchestrator.Models.Video;
 using TheContentor.Orchestrator.Options;
 
 namespace TheContentor.Orchestrator;
@@ -20,7 +21,23 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
         [ServiceBusTrigger("events-queue", Connection = "ContentorServiceBus")] ServiceBusReceivedMessage message,
         [DurableClient] DurableTaskClient client)
     {
-        var eventCallback = JsonSerializer.Deserialize<TtsEventCallback>(message.Body.ToString());
+        var messageBody = message.Body.ToString();
+        var messageType = message.ApplicationProperties.TryGetValue("Type", out var type) ? type?.ToString() : null;
+
+        // Try to parse as video event first if type suggests it
+        if (messageType?.StartsWith("video") == true)
+        {
+            var videoCallback = JsonSerializer.Deserialize<VideoEventCallback>(messageBody);
+            if (videoCallback != null)
+            {
+                logger.LogInformation("Raising event VideoCallback for instance {InstanceId}", videoCallback.OrchestrationInstanceId);
+                await client.RaiseEventAsync(videoCallback.OrchestrationInstanceId, "VideoCallback", videoCallback);
+                return;
+            }
+        }
+
+        // Otherwise try TTS callback
+        var eventCallback = JsonSerializer.Deserialize<TtsEventCallback>(messageBody);
         if (eventCallback == null)
         {
             logger.LogWarning("Received null event callback");
@@ -45,6 +62,15 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
             {
                 logger.LogInformation("Triggering TTS orchestration for ProcessedPost: {ProcessedPostId}", ttsRequest.ProcessedPostId);
                 await client.ScheduleNewOrchestrationInstanceAsync(nameof(TtsOrchestrator), ttsRequest);
+            }
+        }
+        else if (messageType == "video-generation")
+        {
+            var videoRequest = JsonSerializer.Deserialize<VideoOrchestratorRequest>(message.Body.ToString());
+            if (videoRequest != null)
+            {
+                logger.LogInformation("Triggering Video orchestration for ProcessedPost: {ProcessedPostId}", videoRequest.ProcessedPostId);
+                await client.ScheduleNewOrchestrationInstanceAsync(nameof(VideoOrchestrator), videoRequest);
             }
         }
         else
@@ -232,5 +258,310 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
         }
 
         logger.LogInformation("Updated TTS status for ProcessedPost: {ProcessedPostId}", state.ProcessedPostId);
+    }
+
+    // ==================== Video Orchestration ====================
+
+    [Function(nameof(VideoOrchestrator))]
+    public async Task VideoOrchestrator([OrchestrationTrigger] TaskOrchestrationContext context)
+    {
+        var request = context.GetInput<VideoOrchestratorRequest>()!;
+        var instanceId = context.InstanceId;
+
+        logger.LogInformation("Video Orchestrator started for ProcessedPost: {ProcessedPostId}, InstanceId: {InstanceId}",
+            request.ProcessedPostId, instanceId);
+
+        var state = new VideoOrchestrationState
+        {
+            ProcessedPostId = request.ProcessedPostId,
+            HasErrors = false
+        };
+
+        try
+        {
+            // Fetch video generation data (parts with audio, assets)
+            var videoData = await context.CallActivityAsync<VideoGenerationData>("FetchVideoGenerationData",
+                new { request.ProcessedPostId, request.Settings.AssetIds });
+
+            // For each part: concat/cut video -> generate subtitles -> compose final video
+            // Expected callbacks: (concat-cut + subtitles + compose) * parts.Count
+            state.ExpectedCallbacks = videoData.Parts.Count * 3;
+
+            var tasks = new List<Task>();
+
+            foreach (var part in videoData.Parts)
+            {
+                // Step 1: Concat and cut video to match audio duration
+                tasks.Add(context.CallActivityAsync("SendVideoConcatCommand", new VideoCommandMessage
+                {
+                    CommandType = "concat-cut",
+                    ProcessedPostId = request.ProcessedPostId,
+                    PartId = part.Id,
+                    OrchestrationInstanceId = instanceId,
+                    AssetBlobPaths = videoData.Assets.Select(a => a.BlobPath).ToList(),
+                    TargetDuration = part.AudioDuration
+                }));
+            }
+
+            await Task.WhenAll(tasks);
+
+            // Process callbacks sequentially: concat-cut -> subtitles -> compose for each part
+            var concatCutCompleted = 0;
+            var subtitlesCompleted = 0;
+            var composeCompleted = 0;
+            var partVideos = new Dictionary<Guid, BlobPathInfo>();
+            var partSubtitles = new Dictionary<Guid, BlobPathInfo>();
+
+            while (state.ReceivedCallbacks < state.ExpectedCallbacks)
+            {
+                var callback = await context.WaitForExternalEvent<VideoEventCallback>("VideoCallback");
+                state.ReceivedCallbacks++;
+
+                if (!callback.Success)
+                {
+                    state.HasErrors = true;
+                    logger.LogError("Video processing failed: {ErrorMessage}", callback.ErrorMessage);
+                    continue;
+                }
+
+                var partId = callback.PartId!.Value;
+
+                if (callback.CommandType == "concat-cut")
+                {
+                    concatCutCompleted++;
+                    partVideos[partId] = new BlobPathInfo
+                    {
+                        ContainerName = callback.BlobContainer!,
+                        AssetPath = callback.BlobPath!,
+                        PartId = partId
+                    };
+
+                    // Trigger subtitle generation
+                    var part = videoData.Parts.First(p => p.Id == partId);
+                    await context.CallActivityAsync("SendSubtitleGenerationCommand", new VideoCommandMessage
+                    {
+                        CommandType = "generate-subtitles",
+                        ProcessedPostId = request.ProcessedPostId,
+                        PartId = partId,
+                        OrchestrationInstanceId = instanceId,
+                        AudioBlobPath = part.AudioBlobPath
+                    });
+                }
+                else if (callback.CommandType == "generate-subtitles")
+                {
+                    subtitlesCompleted++;
+                    partSubtitles[partId] = new BlobPathInfo
+                    {
+                        ContainerName = callback.BlobContainer!,
+                        AssetPath = callback.BlobPath!,
+                        PartId = partId
+                    };
+
+                    // Trigger video composition
+                    await context.CallActivityAsync("SendVideoComposeCommand", new VideoCommandMessage
+                    {
+                        CommandType = "compose",
+                        ProcessedPostId = request.ProcessedPostId,
+                        PartId = partId,
+                        OrchestrationInstanceId = instanceId,
+                        VideoBlobPath = partVideos[partId],
+                        SubtitleBlobPath = partSubtitles[partId],
+                        AudioBlobPath = videoData.Parts.First(p => p.Id == partId).AudioBlobPath
+                    });
+                }
+                else if (callback.CommandType == "compose")
+                {
+                    composeCompleted++;
+                    var key = $"part-{partId}";
+                    state.CompletedItems[key] = new BlobPathInfo
+                    {
+                        ContainerName = callback.BlobContainer!,
+                        AssetPath = callback.BlobPath!,
+                        PartId = partId
+                    };
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Exception in Video Orchestrator for ProcessedPost: {ProcessedPostId}", request.ProcessedPostId);
+            state.HasErrors = true;
+        }
+        finally
+        {
+            await context.CallActivityAsync("UpdateProcessedPostVideoStatus", state);
+        }
+
+        if (state.HasErrors)
+        {
+            logger.LogWarning("Video Orchestrator completed with errors for ProcessedPost: {ProcessedPostId}", request.ProcessedPostId);
+        }
+        else
+        {
+            logger.LogInformation("Video Orchestrator completed successfully for ProcessedPost: {ProcessedPostId}", request.ProcessedPostId);
+        }
+    }
+
+    [Function("FetchVideoGenerationData")]
+    public async Task<VideoGenerationData> FetchVideoGenerationData([ActivityTrigger] dynamic input)
+    {
+        Guid processedPostId = input.ProcessedPostId;
+        List<Guid> assetIds = ((IEnumerable<dynamic>)input.AssetIds).Select(x => (Guid)x).ToList();
+
+        var response = await client.ExecuteGetAsync<dynamic>($"{_apiUrl}/api/ProcessedPost/{processedPostId}");
+        if (response.Data == null)
+        {
+            throw new InvalidOperationException($"ProcessedPost not found for ID: {processedPostId}");
+        }
+
+        var processedPost = response.Data;
+
+        // Map parts from API response
+        var parts = new List<VideoPartData>();
+        foreach (var part in processedPost.parts)
+        {
+            if (part.audioBlobPath != null)
+            {
+                parts.Add(new VideoPartData
+                {
+                    Id = Guid.Parse((string)part.id),
+                    Part = (int)part.part,
+                    AudioBlobPath = new BlobPathInfo
+                    {
+                        ContainerName = (string)part.audioBlobPath.containerName,
+                        AssetPath = (string)part.audioBlobPath.assetPath
+                    },
+                    AudioDuration = TimeSpan.FromSeconds(30) // TODO: Get actual duration from blob metadata or DB
+                });
+            }
+        }
+
+        // Fetch selected assets
+        var assets = new List<AssetData>();
+        foreach (var assetId in assetIds)
+        {
+            var assetResponse = await client.ExecuteGetAsync<dynamic>($"{_apiUrl}/api/Asset/{assetId}");
+            if (assetResponse.Data != null)
+            {
+                var asset = assetResponse.Data;
+                assets.Add(new AssetData
+                {
+                    Id = assetId,
+                    BlobPath = new BlobPathInfo
+                    {
+                        ContainerName = asset.blobPath.containerName,
+                        AssetPath = asset.blobPath.assetPath
+                    },
+                    Duration = asset.duration != null ? TimeSpan.Parse((string)asset.duration) : null
+                });
+            }
+        }
+
+        return new VideoGenerationData
+        {
+            Parts = parts,
+            Assets = assets
+        };
+    }
+
+    [Function("SendVideoConcatCommand")]
+    public async Task SendVideoConcatCommand([ActivityTrigger] VideoCommandMessage command)
+    {
+        var sender = serviceBusClient.CreateSender("video-commands-queue");
+        try
+        {
+            var message = new ServiceBusMessage(JsonSerializer.Serialize(command))
+            {
+                ContentType = "application/json",
+                ApplicationProperties =
+                {
+                    ["Type"] = "video-concat-cut",
+                },
+            };
+
+            await sender.SendMessageAsync(message);
+            logger.LogInformation("Sent video concat-cut command for Part: {PartId}", command.PartId);
+        }
+        finally
+        {
+            await sender.DisposeAsync();
+        }
+    }
+
+    [Function("SendSubtitleGenerationCommand")]
+    public async Task SendSubtitleGenerationCommand([ActivityTrigger] VideoCommandMessage command)
+    {
+        var sender = serviceBusClient.CreateSender("subtitle-commands-queue");
+        try
+        {
+            var message = new ServiceBusMessage(JsonSerializer.Serialize(command))
+            {
+                ContentType = "application/json",
+                ApplicationProperties =
+                {
+                    ["Type"] = "subtitle-generation",
+                },
+            };
+
+            await sender.SendMessageAsync(message);
+            logger.LogInformation("Sent subtitle generation command for Part: {PartId}", command.PartId);
+        }
+        finally
+        {
+            await sender.DisposeAsync();
+        }
+    }
+
+    [Function("SendVideoComposeCommand")]
+    public async Task SendVideoComposeCommand([ActivityTrigger] VideoCommandMessage command)
+    {
+        var sender = serviceBusClient.CreateSender("video-commands-queue");
+        try
+        {
+            var message = new ServiceBusMessage(JsonSerializer.Serialize(command))
+            {
+                ContentType = "application/json",
+                ApplicationProperties =
+                {
+                    ["Type"] = "video-compose",
+                },
+            };
+
+            await sender.SendMessageAsync(message);
+            logger.LogInformation("Sent video compose command for Part: {PartId}", command.PartId);
+        }
+        finally
+        {
+            await sender.DisposeAsync();
+        }
+    }
+
+    [Function("UpdateProcessedPostVideoStatus")]
+    public async Task UpdateProcessedPostVideoStatus([ActivityTrigger] VideoOrchestrationState state)
+    {
+        var partBlobPaths = state.CompletedItems
+            .Where(x => x.Key.StartsWith("part-"))
+            .ToDictionary(
+                x => x.Value.PartId!.Value,
+                x => new { x.Value.ContainerName, x.Value.AssetPath }
+            );
+
+        var updatePayload = new
+        {
+            state.ProcessedPostId,
+            Status = state.HasErrors ? 4 : 3, // Failed : Generated
+            PartVideoBlobPaths = partBlobPaths
+        };
+
+        var request = new RestRequest($"{_apiUrl}/api/ProcessedPost/video-status", Method.Put);
+        request.AddJsonBody(updatePayload);
+
+        var response = await client.ExecuteAsync(request);
+        if (!response.IsSuccessful)
+        {
+            throw new Exception($"Failed to update video status: {response.ErrorMessage}");
+        }
+
+        logger.LogInformation("Updated video status for ProcessedPost: {ProcessedPostId}", state.ProcessedPostId);
     }
 }

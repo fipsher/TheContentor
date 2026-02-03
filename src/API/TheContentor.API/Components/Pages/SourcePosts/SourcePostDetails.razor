@@ -14,6 +14,11 @@
            OnClose="CloseTtsDialog"
            OnGenerated="OnTtsGenerated" />
 
+<VideoGenerationDialog IsVisible="_showVideoDialog"
+                       ProcessedPostId="Post?.ProcessedPost?.Id"
+                       OnClose="CloseVideoDialog"
+                       OnGenerated="OnVideoGenerated" />
+
 @if (Post == null)
 {
     <div class="container mt-4">
@@ -101,6 +106,17 @@ else
                             </div>
                             <button type="button" class="btn btn-info w-100" @onclick="ShowTtsDialog" disabled="@(_isProcessing || _isEditing || Post.ProcessedPost.TtsStatus == TtsStatus.InProgress)">
                                 <span>Generate TTS</span>
+                            </button>
+                        </div>
+
+                        <div class="mt-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <label class="form-label fw-bold mb-0">Video Status</label>
+                                <span class="badge @GetVideoStatusClass(Post.ProcessedPost.VideoStatus)">@Post.ProcessedPost.VideoStatus</span>
+                            </div>
+                            <button type="button" class="btn btn-success w-100" @onclick="ShowVideoDialog"
+                                    disabled="@(_isProcessing || _isEditing || Post.ProcessedPost.TtsStatus != TtsStatus.Generated || Post.ProcessedPost.VideoStatus == VideoStatus.InProgress)">
+                                <span>Generate Video</span>
                             </button>
                         </div>
                     }
@@ -276,6 +292,7 @@ else
     private bool _isProcessing = false;
     private bool _isEditing = false;
     private bool _showTtsDialog = false;
+    private bool _showVideoDialog = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -419,6 +436,31 @@ else
     }
 
     private async Task OnTtsGenerated()
+    {
+        await LoadPost();
+    }
+
+    private string GetVideoStatusClass(VideoStatus status) => status switch
+    {
+        VideoStatus.NotGenerated => "bg-secondary",
+        VideoStatus.InProgress => "bg-warning",
+        VideoStatus.Generated => "bg-success",
+        VideoStatus.Failed => "bg-danger",
+        _ => "bg-secondary"
+    };
+
+    private void ShowVideoDialog()
+    {
+        _showVideoDialog = true;
+    }
+
+    private async Task CloseVideoDialog()
+    {
+        _showVideoDialog = false;
+        await Task.CompletedTask;
+    }
+
+    private async Task OnVideoGenerated()
     {
         await LoadPost();
     }

@@ -8,4 +8,5 @@ public interface IBlobService
     Task<BlobPath> UploadToPathAsync(Stream stream, string containerName, string blobPath, string contentType, CancellationToken cancellationToken = default);
     Task<Uri> GetSasUrl(string containerName, string blobName, CancellationToken cancellationToken = default);
     Task DeleteAsync(string containerName, string blobName, CancellationToken cancellationToken = default);
+    Task<Stream> DownloadAsync(string containerName, string blobName, CancellationToken cancellationToken = default);
 }

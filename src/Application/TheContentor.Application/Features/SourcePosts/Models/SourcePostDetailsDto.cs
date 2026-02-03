@@ -54,6 +54,12 @@ public class ProcessedPostDto
     public string? TtsSettings { get; set; }
     /// <summary>Audio blob path for the description narration.</summary>
     public BlobPathDto? DescriptionAudioBlobPath { get; set; }
+    /// <summary>Current video generation status.</summary>
+    public VideoStatus VideoStatus { get; set; }
+    /// <summary>Serialized video settings payload.</summary>
+    public string? VideoSettings { get; set; }
+    /// <summary>Video blob path for the final composed video.</summary>
+    public BlobPathDto? VideoBlobPath { get; set; }
 }
 
 /// <summary>Processed post segment details.</summary>
@@ -71,6 +77,10 @@ public class ProcessedPostPartDto
     public int Part { get; set; }
     /// <summary>Audio blob path for the part narration.</summary>
     public BlobPathDto? AudioBlobPath { get; set; }
+    /// <summary>Video blob path for the part's final video.</summary>
+    public BlobPathDto? VideoBlobPath { get; set; }
+    /// <summary>Subtitle blob path for the part's subtitles.</summary>
+    public BlobPathDto? SubtitleBlobPath { get; set; }
 }
 
 /// <summary>Blob location and access info for media.</summary>

@@ -18,4 +18,9 @@ public class ProcessedPost : BaseEntity
     public TtsStatus TtsStatus { get; set; } = TtsStatus.NotGenerated;
     public string? TtsSettings { get; set; }
     public BlobPath? DescriptionAudioBlobPath { get; set; }
+
+    // Video
+    public VideoStatus VideoStatus { get; set; } = VideoStatus.NotGenerated;
+    public BlobPath? VideoBlobPath { get; set; }
+    public string? VideoSettings { get; set; }
 }

@@ -73,6 +73,31 @@ public class ProcessedPostController(IMediator mediator) : ControllerBase
 
         return Ok();
     }
+
+    /// <summary>
+    /// Update video status (called by orchestrator)
+    /// </summary>
+    [HttpPut("video-status")]
+    public async Task<IActionResult> UpdateVideoStatus([FromBody] UpdateVideoStatusRequest request)
+    {
+        var partBlobPaths = request.PartVideoBlobPaths?
+            .ToDictionary(
+                x => x.Key,
+                x => new BlobPath
+                {
+                    ContainerName = x.Value.ContainerName,
+                    AssetPath = x.Value.AssetPath
+                }
+            ) ?? new Dictionary<Guid, BlobPath>();
+
+        await mediator.Send(new UpdateVideoStatusCommand(
+            request.ProcessedPostId,
+            (VideoStatus)request.Status,
+            partBlobPaths
+        ));
+
+        return Ok();
+    }
 }
 
 /// <summary>
@@ -90,4 +115,14 @@ public class BlobPathRequest
 {
     public string ContainerName { get; set; } = string.Empty;
     public string AssetPath { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Request model for updating video status
+/// </summary>
+public class UpdateVideoStatusRequest
+{
+    public Guid ProcessedPostId { get; set; }
+    public int Status { get; set; }
+    public Dictionary<Guid, BlobPathRequest>? PartVideoBlobPaths { get; set; }
 }

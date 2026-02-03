@@ -28,5 +28,17 @@ public sealed class ProcessedPostPartConfiguration : IEntityTypeConfiguration<Pr
             bp.Property(p => p.ContainerName).HasColumnName("AudioContainer");
             bp.Property(p => p.AssetPath).HasColumnName("AudioPath");
         });
+
+        b.OwnsOne(x => x.VideoBlobPath, bp =>
+        {
+            bp.Property(p => p.ContainerName).HasColumnName("VideoContainer");
+            bp.Property(p => p.AssetPath).HasColumnName("VideoPath");
+        });
+
+        b.OwnsOne(x => x.SubtitleBlobPath, bp =>
+        {
+            bp.Property(p => p.ContainerName).HasColumnName("SubtitleContainer");
+            bp.Property(p => p.AssetPath).HasColumnName("SubtitlePath");
+        });
     }
 }
