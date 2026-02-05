@@ -5,17 +5,16 @@ This track aims to implement a new feature allowing users to upload video assets
 
 ## Phases
 
-### Phase 1: UI Integration for YouTube Link Input
-- [ ] **Task:** Implement YouTube URL Input Field and Button
-    - [ ] Write Tests: Create UI component tests for the asset management/library page to verify the correct rendering and basic functionality of the new YouTube URL input field and its associated submission button.
-    - [ ] Implement Feature: Modify the Blazor component for the asset management/library page to include a designated text input field for YouTube URLs and a clear "Upload from YouTube" or "Extract Video" button.
-    - [ ] Implement Feature: Integrate basic client-side validation for the YouTube URL format to provide immediate feedback to the user and prevent invalid submissions.
-    - [ ] Refactor: Review and refactor the UI code related to the asset management page to ensure the new components integrate seamlessly and adhere to established design principles and code standards.
-    - [ ] Verify Coverage: Ensure adequate test coverage for all newly introduced and modified UI components.
-    - [ ] Commit Code Changes: Commit all code changes related to the UI integration for YouTube link input with a descriptive message.
-    - [ ] Attach Task Summary with Git Notes: Attach a detailed summary of the task, including changes and rationale, to the commit using Git Notes.
-    - [ ] Get and Record Task Commit SHA: Update `plan.md` with the commit SHA for this task.
-- [ ] Task: Conductor - User Manual Verification 'UI Integration for YouTube Link Input' (Protocol in workflow.md)
+### Phase 1: UI Integration for YouTube Link Input (Modal Approach)
+- [x] **Task:** Implement YouTube URL Input Field and Button (Now a popup/modal)
+    - [x] Write Tests: Update UI component tests for the AssetList page to verify the new popup trigger. Create new UI component tests for the YouTube upload popup, covering its rendering, input, and button.
+    - [x] Implement Feature: Revert the direct embedding of the YouTube URL input and button on `AssetList.razor`. Instead, add a new button on `AssetList.razor` (e.g., "Upload YouTube Asset") that triggers a modal/popup.
+    - [x] Implement Feature: Create a new Blazor component (e.g., `YouTubeUploadModal.razor`) that contains the YouTube URL input field, the "Upload from YouTube" button, and its internal validation logic. This component should be a modal.
+    - [x] Implement Feature: Adjust the validation logic within `YouTubeUploadModal.razor` so that validation messages appear only after the user has edited the form field or attempted to submit.
+    - [x] Refactor: Review and refactor the UI code to ensure clean separation of concerns between `AssetList.razor` and `YouTubeUploadModal.razor`.
+    - [x] Verify Coverage: Ensure adequate test coverage for both `AssetList.razor` (triggering the modal) and `YouTubeUploadModal.razor` (its internal functionality and validation).
+    - [x] Get and Record Task Commit SHA: Update `plan.md` with the commit SHA for this task. [65d5798]
+- [x] Task: Conductor - User Manual Verification 'UI Integration for YouTube Link Input' (Protocol in workflow.md)
 
 ### Phase 2: Backend Service for YouTube Video Extraction
 - [ ] **Task:** Implement .NET Backend Service for YouTube Extraction
