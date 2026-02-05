@@ -39,6 +39,7 @@ internal static class ServiceBusExtensions
 
         builder
             .WithEndpoint(name: "emulator", targetPort: 5672)
+            .WithEndpoint(name: "emulator-amqps", targetPort: 5671)
             .WithHttpEndpoint(name: EmulatorHealthEndpointName, targetPort: 5300)
             .WithAnnotation(new ContainerImageAnnotation
             {

@@ -15,3 +15,4 @@
 * Use FluentValidation for validation.
 * Use C# 10 features like file scoped namespaces, top-level statements, and target-typed new expressions.
 * Add comments to your code.
+* do not use dynamic

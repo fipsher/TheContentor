@@ -281,7 +281,7 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
         {
             // Fetch video generation data (parts with audio, assets)
             var videoData = await context.CallActivityAsync<VideoGenerationData>("FetchVideoGenerationData",
-                new { request.ProcessedPostId, request.Settings.AssetIds });
+                new FetchVideoGenerationDataInput { ProcessedPostId = request.ProcessedPostId, AssetIds = request.Settings.AssetIds });
 
             // For each part: concat/cut video -> generate subtitles -> compose final video
             // Expected callbacks: (concat-cut + subtitles + compose) * parts.Count
@@ -403,10 +403,10 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
     }
 
     [Function("FetchVideoGenerationData")]
-    public async Task<VideoGenerationData> FetchVideoGenerationData([ActivityTrigger] dynamic input)
+    public async Task<VideoGenerationData> FetchVideoGenerationData([ActivityTrigger] FetchVideoGenerationDataInput input)
     {
         Guid processedPostId = input.ProcessedPostId;
-        List<Guid> assetIds = ((IEnumerable<dynamic>)input.AssetIds).Select(x => (Guid)x).ToList();
+        List<Guid> assetIds = input.AssetIds;
 
         var response = await client.ExecuteGetAsync<dynamic>($"{_apiUrl}/api/ProcessedPost/{processedPostId}");
         if (response.Data == null)

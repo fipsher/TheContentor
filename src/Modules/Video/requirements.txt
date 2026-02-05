@@ -1,3 +1,3 @@
-azure-servicebus==7.12.0
+azure-servicebus>=7.14.3
 aiohttp==3.9.1
 moviepy==1.0.3
