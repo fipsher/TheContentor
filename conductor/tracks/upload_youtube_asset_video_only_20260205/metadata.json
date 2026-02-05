@@ -1,0 +1,8 @@
+{
+  "track_id": "upload_youtube_asset_video_only_20260205",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-02-05T00:00:00Z",
+  "updated_at": "2026-02-05T00:00:00Z",
+  "description": "Upload asset to the asset library via the youtube link (video track only)"
+}
