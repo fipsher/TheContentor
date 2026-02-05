@@ -7,7 +7,6 @@ This track aims to enhance the video generation and settings page by reducing vi
 
 ### Phase 1: UI Cleanup and Collapsible Elements
 - [ ] **Task:** Implement Collapsible UI Sections
-    - [ ] Write Tests: Create UI component tests to verify the correct functionality of collapsible elements, including their expand/collapse states and proper rendering of content.
     - [ ] Implement Feature: Identify logical groupings of settings and data on the video generation and settings page suitable for collapsing.
     - [ ] Implement Feature: Modify the identified UI components (e.g., Blazor components) to integrate collapsible functionality, utilizing existing design patterns or creating new, reusable components.
     - [ ] Implement Feature: Conduct a general refactoring of existing UI elements on the page to improve layout, align with design principles, and minimize visual noise.
@@ -20,8 +19,6 @@ This track aims to enhance the video generation and settings page by reducing vi
 
 ### Phase 2: Real-time Progress Tracking Implementation
 - [ ] **Task:** Implement Real-time Progress Tracking
-    - [ ] Write Tests: Create integration tests for the real-time communication mechanism (e.g., SignalR hub) to verify that progress updates are correctly sent, received, and processed by the UI.
-    - [ ] Write Tests: Develop UI component tests to ensure progress indicators and displays (e.g., status messages, progress bars) update dynamically and accurately upon receiving real-time data.
     - [ ] Implement Feature: Establish a robust real-time communication channel (e.g., configure SignalR hub, WebSockets) between the backend services and the Blazor UI for efficient progress updates.
     - [ ] Implement Feature: Modify relevant backend services (e.g., Orchestrator, API) to emit granular progress updates (e.g., current stage, percentage complete, timestamps) through the real-time channel during the video generation process.
     - [ ] Implement Feature: Update the video generation and settings page UI to subscribe to the real-time updates and dynamically display progress indicators without requiring manual page reloads.
@@ -34,7 +31,6 @@ This track aims to enhance the video generation and settings page by reducing vi
 
 ### Phase 3: End-to-End UI/UX Verification
 - [ ] **Task:** Conduct End-to-End UI/UX Verification
-    - [ ] Write Tests: Develop end-to-end UI tests (e.g., using Playwright, Selenium) to simulate typical user flows, verifying the functionality of collapsible elements and the accuracy of real-time progress updates.
     - [ ] Execute Tests: Run a combination of automated and manual end-to-end tests to confirm that all implemented features work seamlessly, the UI is intuitive, responsive, and visually consistent across various scenarios and devices.
     - [ ] Manual Verification: Perform comprehensive manual verification, paying close attention to user experience aspects, visual consistency, and overall intuitiveness of the redesigned page.
     - [ ] Commit Code Changes: Commit all code changes related to end-to-end UI/UX verification with a descriptive message.

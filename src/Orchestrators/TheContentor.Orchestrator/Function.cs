@@ -16,6 +16,8 @@ namespace TheContentor.Orchestrator;
 public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClient, IRestClient client, IOptions<ApiOptions> apiOptions)
 {
     private readonly string _apiUrl = apiOptions.Value.BaseUrl;
+    private static string GetVideoInstanceId(Guid processedPostId) => $"video-{processedPostId}";
+
     [Function(nameof(EventHandler))]
     public async Task EventHandler(
         [ServiceBusTrigger("events-queue", Connection = "ContentorServiceBus")] ServiceBusReceivedMessage message,
@@ -70,7 +72,30 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
             if (videoRequest != null)
             {
                 logger.LogInformation("Triggering Video orchestration for ProcessedPost: {ProcessedPostId}", videoRequest.ProcessedPostId);
-                await client.ScheduleNewOrchestrationInstanceAsync(nameof(VideoOrchestrator), videoRequest);
+                var instanceId = GetVideoInstanceId(videoRequest.ProcessedPostId);
+                await client.ScheduleNewOrchestrationInstanceAsync(
+                    nameof(VideoOrchestrator),
+                    videoRequest,
+                    new StartOrchestrationOptions { InstanceId = instanceId });
+            }
+        }
+        else if (messageType == "video-cancel")
+        {
+            var cancelRequest = JsonSerializer.Deserialize<VideoCancelRequest>(message.Body.ToString());
+            if (cancelRequest != null)
+            {
+                var instanceId = GetVideoInstanceId(cancelRequest.ProcessedPostId);
+                logger.LogInformation("Terminating Video orchestration for ProcessedPost: {ProcessedPostId}, InstanceId: {InstanceId}",
+                    cancelRequest.ProcessedPostId, instanceId);
+                try
+                {
+                    await client.TerminateInstanceAsync(instanceId, "Canceled by user");
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to terminate Video orchestration for ProcessedPost: {ProcessedPostId}, InstanceId: {InstanceId}",
+                        cancelRequest.ProcessedPostId, instanceId);
+                }
             }
         }
         else

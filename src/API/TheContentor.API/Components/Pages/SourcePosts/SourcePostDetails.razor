@@ -3,6 +3,7 @@
 @using TheContentor.Application.Features.SourcePosts.Models
 @using TheContentor.Application.Features.SourcePosts.Commands
 @using TheContentor.Application.Features.SourcePosts.Queries
+@using TheContentor.Application.Features.ProcessedPosts.Commands
 @using TheContentor.Domain.Enums
 @inject IMediator Mediator
 @inject NavigationManager NavigationManager
@@ -118,6 +119,20 @@ else
                                     disabled="@(_isProcessing || _isEditing || Post.ProcessedPost.TtsStatus != TtsStatus.Generated || Post.ProcessedPost.VideoStatus == VideoStatus.InProgress)">
                                 <span>Generate Video</span>
                             </button>
+                            @if (Post.ProcessedPost.VideoStatus == VideoStatus.InProgress)
+                            {
+                                <button type="button" class="btn btn-outline-danger w-100 mt-2" @onclick="CancelVideoGeneration" disabled="@(_isProcessing || _isEditing || _isCancelingVideo)">
+                                    @if (_isCancelingVideo)
+                                    {
+                                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                        <span> Canceling...</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Cancel Video Generation</span>
+                                    }
+                                </button>
+                            }
                         </div>
                     }
                 </div>
@@ -291,6 +306,7 @@ else
     private CriteriaEngine _selectedEngine = CriteriaEngine.Gemini;
     private bool _isProcessing = false;
     private bool _isEditing = false;
+    private bool _isCancelingVideo = false;
     private bool _showTtsDialog = false;
     private bool _showVideoDialog = false;
 
@@ -463,5 +479,20 @@ else
     private async Task OnVideoGenerated()
     {
         await LoadPost();
+    }
+
+    private async Task CancelVideoGeneration()
+    {
+        if (Post?.ProcessedPost == null) return;
+        _isCancelingVideo = true;
+        try
+        {
+            await Mediator.Send(new CancelVideoCommand(Post.ProcessedPost.Id));
+            await LoadPost();
+        }
+        finally
+        {
+            _isCancelingVideo = false;
+        }
     }
 }

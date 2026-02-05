@@ -4,10 +4,9 @@
 
 1. **The Plan is the Source of Truth:** All work must be tracked in `plan.md`
 2. **The Tech Stack is Deliberate:** Changes to the tech stack must be documented in `tech-stack.md` *before* implementation
-3. **Test-Driven Development:** Write unit tests before implementing functionality
-4. **High Code Coverage:** Aim for >80% code coverage for all modules
-5. **User Experience First:** Every decision should prioritize user experience
-6. **Non-Interactive & CI-Aware:** Prefer non-interactive commands. Use `CI=true` for watch-mode tools (tests, linters) to ensure single execution.
+3. **Code Coverage:** not needed
+4. **User Experience First:** Every decision should prioritize user experience
+5. **Non-Interactive & CI-Aware:** Prefer non-interactive commands. Use `CI=true` for watch-mode tools (tests, linters) to ensure single execution.
 
 ## Task Workflow
 
@@ -173,27 +172,6 @@ Before marking any task complete, verify:
 # e.g., for a Go project: make check (if a Makefile exists)
 ```
 
-## Testing Requirements
-
-### Unit Testing
-- Every module must have corresponding tests.
-- Use appropriate test setup/teardown mechanisms (e.g., fixtures, beforeEach/afterEach).
-- Mock external dependencies.
-- Test both success and failure cases.
-
-### Integration Testing
-- Test complete user flows
-- Verify database transactions
-- Test authentication and authorization
-- Check form submissions
-
-### Mobile Testing
-- Test on actual iPhone when possible
-- Use Safari developer tools
-- Test touch interactions
-- Verify responsive layouts
-- Check performance on 3G/4G
-
 ## Code Review Process
 
 ### Self-Review Checklist
@@ -211,9 +189,7 @@ Before requesting review:
    - Appropriate comments
 
 3. **Testing**
-   - Unit tests comprehensive
-   - Integration tests pass
-   - Coverage adequate (>80%)
+   - not needed
 
 4. **Security**
    - No hardcoded secrets
@@ -225,12 +201,6 @@ Before requesting review:
    - Database queries optimized
    - Images optimized
    - Caching implemented where needed
-
-6. **Mobile Experience**
-   - Touch targets adequate (44x44px)
-   - Text readable without zooming
-   - Performance acceptable on mobile
-   - Interactions feel native
 
 ## Commit Guidelines
 

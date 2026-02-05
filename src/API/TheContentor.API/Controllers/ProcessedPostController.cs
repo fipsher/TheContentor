@@ -41,6 +41,16 @@ public class ProcessedPostController(IMediator mediator) : ControllerBase
     }
 
     /// <summary>
+    /// Cancel video generation for a ProcessedPost
+    /// </summary>
+    [HttpPost("{id:guid}/cancel-video")]
+    public async Task<IActionResult> CancelVideo(Guid id)
+    {
+        await mediator.Send(new CancelVideoCommand(id));
+        return Accepted();
+    }
+
+    /// <summary>
     /// Update TTS status (called by orchestrator)
     /// </summary>
     [HttpPut("tts-status")]
