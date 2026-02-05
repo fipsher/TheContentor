@@ -3,7 +3,6 @@
 @using TheContentor.Application.Features.Assets.Models
 @using TheContentor.Application.Features.Assets.Queries
 @using TheContentor.Application.Features.Assets.Commands
-@using System.Text.RegularExpressions
 @inject IMediator Mediator
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
@@ -15,20 +14,10 @@
     <button class="btn btn-primary" @onclick="CreateNew">
         <i class="bi bi-plus-lg"></i> Add New Asset
     </button>
-</div>
-
-<div class="d-flex align-items-center mb-2">
-    <input type="text" class="form-control me-2" @bind-value="YouTubeUrl" placeholder="YouTube Video URL" />
-    <button class="btn btn-secondary" @onclick="UploadFromYouTube" disabled="@(!_isYouTubeUrlValid)">
-        <i class="bi bi-youtube"></i> Upload from YouTube
+    <button class="btn btn-secondary" @onclick="ShowYouTubeUploadModal">
+        <i class="bi bi-youtube"></i> Upload YouTube Asset
     </button>
 </div>
-@if (!string.IsNullOrWhiteSpace(_youTubeUrlError))
-{
-    <div class="alert alert-danger mt-2" role="alert">
-        @_youTubeUrlError
-    </div>
-}
 
 @if (_assets == null)
 {
@@ -110,58 +99,66 @@ else
     </div>
 }
 
+@if (_showYouTubeUploadModal)
+{
+    <YouTubeUploadModal ShowModal="_showYouTubeUploadModal" OnClose="HideYouTubeUploadModal" OnUpload="HandleYouTubeUpload"></YouTubeUploadModal>
+}
+
 @code {
     private List<AssetDto>? _assets;
     private AssetDto? _selectedAsset;
-
-    private string _youTubeUrl = string.Empty;
-    private bool _isYouTubeUrlValid = false;
-    private string _youTubeUrlError = string.Empty;
-
-    private string YouTubeUrl
-    {
-        get => _youTubeUrl;
-        set
-        {
-            _youTubeUrl = value;
-            ValidateYouTubeUrl();
-        }
-    }
+    private bool _showYouTubeUploadModal = false;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadAssets();
-        ValidateYouTubeUrl(); // Initial validation
     }
 
-    private void ValidateYouTubeUrl()
+    private async Task LoadAssets()
     {
-        _isYouTubeUrlValid = false;
-        _youTubeUrlError = string.Empty;
-
-        if (string.IsNullOrWhiteSpace(_youTubeUrl))
-        {
-            _youTubeUrlError = "URL cannot be empty.";
-        }
-        else if (!Regex.IsMatch(_youTubeUrl, @"^(https?://)?(www\.)?(youtube\.com|youtu\.be)/.+$"))
-        {
-            _youTubeUrlError = "Invalid YouTube URL format.";
-        }
-        else
-        {
-            _isYouTubeUrlValid = true;
-        }
-        // StateHasChanged(); // Only call if needed to force re-render, @bind-value usually handles this
+        _assets = await Mediator.Send(new GetAssetListQuery());
     }
 
-    private async Task UploadFromYouTube()
+    private void CreateNew()
     {
-        // TODO: Implement actual YouTube upload logic via API/Mediator
-        if (_isYouTubeUrlValid && !string.IsNullOrWhiteSpace(_youTubeUrl))
+        NavigationManager.NavigateTo("/assets/create");
+    }
+
+    private void ViewAsset(AssetDto asset)
+    {
+        _selectedAsset = asset;
+    }
+
+    private void CloseModal()
+    {
+        _selectedAsset = null;
+    }
+
+    private async Task ToggleStatus(Guid id)
+    {
+        var result = await Mediator.Send(new ToggleAssetStatusCommand(id));
+        if (result)
         {
-            Console.WriteLine($"Attempting to upload from YouTube URL: {_youTubeUrl}");
-            // Clear the input after "upload" attempt
-            YouTubeUrl = string.Empty; // Use the property to trigger validation
+            await LoadAssets();
         }
+    }
+
+    private void ShowYouTubeUploadModal()
+    {
+        _showYouTubeUploadModal = true;
+    }
+
+    private void HideYouTubeUploadModal()
+    {
+        _showYouTubeUploadModal = false;
+        // Optionally, reload assets after closing the modal if a new asset might have been added
+        // await LoadAssets();
+    }
+
+    private async Task HandleYouTubeUpload(string youTubeUrl)
+    {
+        // TODO: Implement actual upload logic to backend
+        Console.WriteLine($"YouTube URL received from modal: {youTubeUrl}");
+        await LoadAssets(); // Reload assets after a successful upload
     }
 }

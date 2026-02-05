@@ -1,0 +1,105 @@
+@using System.Text.RegularExpressions
+
+<div class="modal fade @(ShowModal ? "show d-block" : "")" tabindex="-1" role="dialog" style="background-color: rgba(0,0,0,0.5);">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Upload YouTube Asset</h5>
+                <button type="button" class="btn-close" @onclick="OnClose"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="youTubeUrlInput" class="form-label">YouTube Video URL</label>
+                    <input type="text" class="form-control" id="youTubeUrlInput" @bind-value="YouTubeUrl" @bind-value:event="oninput" @onblur="ValidateYouTubeUrl" placeholder="Enter YouTube URL here" />
+                    @if (!string.IsNullOrWhiteSpace(_youTubeUrlError))
+                    {
+                        <div class="text-danger mt-1">@_youTubeUrlError</div>
+                    }
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="OnClose">Cancel</button>
+                <button type="button" class="btn btn-primary" @onclick="UploadFromYouTube" disabled="@(!_isYouTubeUrlValid)">Upload</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public bool ShowModal { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnUpload { get; set; }
+
+    private string _youTubeUrl = string.Empty;
+    private bool _isYouTubeUrlValid = false;
+    private string _youTubeUrlError = string.Empty;
+    private bool _hasInteracted = false; // Flag to track user interaction
+
+    private string YouTubeUrl
+    {
+        get => _youTubeUrl;
+        set
+        {
+            _youTubeUrl = value;
+            _hasInteracted = true; // User has interacted with the field
+            ValidateYouTubeUrl();
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        // Initial state, no validation error shown until interaction
+        _isYouTubeUrlValid = false;
+        _youTubeUrlError = string.Empty;
+        _youTubeUrl = string.Empty;
+        _hasInteracted = false;
+    }
+
+    private void ValidateYouTubeUrl()
+    {
+        if (!_hasInteracted)
+        {
+            _isYouTubeUrlValid = false;
+            _youTubeUrlError = string.Empty;
+            return;
+        }
+
+        _isYouTubeUrlValid = false;
+        _youTubeUrlError = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(_youTubeUrl))
+        {
+            _youTubeUrlError = "URL cannot be empty.";
+        }
+        else if (!Regex.IsMatch(_youTubeUrl, @"^(https?://)?(www\.)?(youtube\.com|youtu\.be)/.+$"))
+        {
+            _youTubeUrlError = "Invalid YouTube URL format.";
+        }
+        else
+        {
+            _isYouTubeUrlValid = true;
+        }
+    }
+
+    private async Task UploadFromYouTube()
+    {
+        _hasInteracted = true; // Ensure validation is shown if button is clicked
+        ValidateYouTubeUrl();
+
+        if (_isYouTubeUrlValid && !string.IsNullOrWhiteSpace(_youTubeUrl))
+        {
+            await OnUpload.InvokeAsync(_youTubeUrl);
+            // After successful upload, clear and close modal
+            _youTubeUrl = string.Empty;
+            _isYouTubeUrlValid = false;
+            _youTubeUrlError = string.Empty;
+            _hasInteracted = false;
+            await OnClose.InvokeAsync();
+        }
+    }
+}

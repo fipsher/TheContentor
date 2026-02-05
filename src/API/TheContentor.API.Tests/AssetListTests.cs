@@ -46,6 +46,9 @@ public class AssetListTests : Bunit.BunitContext
                 <button class=""btn btn-primary"">
                     <i class=""bi bi-plus-lg""></i> Add New Asset
                 </button>
+                <button class=""btn btn-secondary"">
+                    <i class=""bi bi-youtube""></i> Upload YouTube Asset
+                </button>
             </div>
             <div class=""alert alert-info"">
                 No assets found. Click ""Add New Asset"" to get started.
@@ -93,6 +96,9 @@ public class AssetListTests : Bunit.BunitContext
                 <h1>Asset Library</h1>
                 <button class=""btn btn-primary"">
                     <i class=""bi bi-plus-lg""></i> Add New Asset
+                </button>
+                <button class=""btn btn-secondary"">
+                    <i class=""bi bi-youtube""></i> Upload YouTube Asset
                 </button>
             </div>
             <table class=""table table-hover"">
