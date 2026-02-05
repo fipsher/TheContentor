@@ -306,9 +306,6 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
             await Task.WhenAll(tasks);
 
             // Process callbacks sequentially: concat-cut -> subtitles -> compose for each part
-            var concatCutCompleted = 0;
-            var subtitlesCompleted = 0;
-            var composeCompleted = 0;
             var partVideos = new Dictionary<Guid, BlobPathInfo>();
             var partSubtitles = new Dictionary<Guid, BlobPathInfo>();
 
@@ -328,7 +325,6 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
 
                 if (callback.CommandType == "concat-cut")
                 {
-                    concatCutCompleted++;
                     partVideos[partId] = new BlobPathInfo
                     {
                         ContainerName = callback.BlobContainer!,
@@ -349,7 +345,6 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
                 }
                 else if (callback.CommandType == "generate-subtitles")
                 {
-                    subtitlesCompleted++;
                     partSubtitles[partId] = new BlobPathInfo
                     {
                         ContainerName = callback.BlobContainer!,
@@ -371,7 +366,6 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
                 }
                 else if (callback.CommandType == "compose")
                 {
-                    composeCompleted++;
                     var key = $"part-{partId}";
                     state.CompletedItems[key] = new BlobPathInfo
                     {
@@ -408,7 +402,7 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
         Guid processedPostId = input.ProcessedPostId;
         List<Guid> assetIds = input.AssetIds;
 
-        var response = await client.ExecuteGetAsync<dynamic>($"{_apiUrl}/api/ProcessedPost/{processedPostId}");
+        var response = await client.ExecuteGetAsync<ProcessedPostDetailsResponse>($"{_apiUrl}/api/ProcessedPost/{processedPostId}");
         if (response.Data == null)
         {
             throw new InvalidOperationException($"ProcessedPost not found for ID: {processedPostId}");
@@ -418,18 +412,23 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
 
         // Map parts from API response
         var parts = new List<VideoPartData>();
-        foreach (var part in processedPost.parts)
+        foreach (var part in processedPost.Parts)
         {
-            if (part.audioBlobPath != null)
+            if (part.AudioBlobPath != null)
             {
+                if (!part.Id.HasValue)
+                {
+                    throw new InvalidOperationException($"ProcessedPost part is missing an ID for ProcessedPost: {processedPostId}");
+                }
+
                 parts.Add(new VideoPartData
                 {
-                    Id = Guid.Parse((string)part.id),
-                    Part = (int)part.part,
+                    Id = part.Id.Value,
+                    Part = part.Part,
                     AudioBlobPath = new BlobPathInfo
                     {
-                        ContainerName = (string)part.audioBlobPath.containerName,
-                        AssetPath = (string)part.audioBlobPath.assetPath
+                        ContainerName = part.AudioBlobPath.ContainerName,
+                        AssetPath = part.AudioBlobPath.AssetPath
                     },
                     AudioDuration = TimeSpan.FromSeconds(30) // TODO: Get actual duration from blob metadata or DB
                 });
@@ -440,19 +439,24 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
         var assets = new List<AssetData>();
         foreach (var assetId in assetIds)
         {
-            var assetResponse = await client.ExecuteGetAsync<dynamic>($"{_apiUrl}/api/Asset/{assetId}");
+            var assetResponse = await client.ExecuteGetAsync<AssetDetailsResponse>($"{_apiUrl}/api/Asset/{assetId}");
             if (assetResponse.Data != null)
             {
                 var asset = assetResponse.Data;
+                if (asset.BlobPath == null)
+                {
+                    throw new InvalidOperationException($"Asset blob path missing for Asset ID: {assetId}");
+                }
+
                 assets.Add(new AssetData
                 {
                     Id = assetId,
                     BlobPath = new BlobPathInfo
                     {
-                        ContainerName = asset.blobPath.containerName,
-                        AssetPath = asset.blobPath.assetPath
+                        ContainerName = asset.BlobPath.ContainerName,
+                        AssetPath = asset.BlobPath.AssetPath
                     },
-                    Duration = asset.duration != null ? TimeSpan.Parse((string)asset.duration) : null
+                    Duration = asset.Duration != null ? TimeSpan.Parse(asset.Duration) : null
                 });
             }
         }

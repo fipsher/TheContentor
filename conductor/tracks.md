@@ -6,3 +6,8 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 - [ ] **Track: Implement dynamic audio duration handling in video generation to remove the hardcoded 30-second limit.**
   *Link: [./tracks/implement_dynamic_audio_duration_20260205/](./tracks/implement_dynamic_audio_duration_20260205/)*
+
+---
+
+- [ ] **Track: Rework UI to be more user friendly**
+  *Link: [./tracks/rework_ui_20260205/](./tracks/rework_ui_20260205/)*
