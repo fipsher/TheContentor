@@ -207,21 +207,6 @@ else
                         </div>
                     </div>
 
-                    @if (!string.IsNullOrEmpty(Post.ProcessedPost.VideoBlobPath?.SasUrl))
-                    {
-                        <div class="card mb-4 border-success shadow-sm">
-                            <div class="card-header bg-success text-white fw-bold">
-                                Generated Video
-                            </div>
-                            <div class="card-body">
-                                <video controls class="w-100" preload="metadata">
-                                    <source src="@Post.ProcessedPost.VideoBlobPath.SasUrl" type="video/mp4" />
-                                    Your browser does not support the video element.
-                                </video>
-                            </div>
-                        </div>
-                    }
-
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h4 class="mb-0">Content Parts</h4>
                         @if (_isEditing)
@@ -268,6 +253,15 @@ else
                                                     <source src="@part.AudioBlobPath.SasUrl" type="audio/mpeg">
                                                     Your browser does not support the audio element.
                                                 </audio>
+                                            </div>
+                                        }
+                                        @if (!string.IsNullOrEmpty(part.VideoBlobPath?.SasUrl))
+                                        {
+                                            <div class="mt-2">
+                                                <video controls class="w-100" preload="metadata">
+                                                    <source src="@part.VideoBlobPath.SasUrl" type="video/mp4" />
+                                                    Your browser does not support the video element.
+                                                </video>
                                             </div>
                                         }
                                     }
