@@ -66,6 +66,8 @@ async def send_event_callback(sender, callback_data):
 
     message = ServiceBusMessage(json.dumps(callback_data))
     message.content_type = "application/json"
+    if message.application_properties is None:
+        message.application_properties = {}
     message.application_properties["Type"] = "video-generate-subtitles"
     await sender.send_messages(message)
 

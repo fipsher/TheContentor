@@ -11,3 +11,8 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 - [ ] **Track: Rework UI to be more user friendly**
   *Link: [./tracks/rework_ui_20260205/](./tracks/rework_ui_20260205/)*
+
+---
+
+- [ ] **Track: Upload asset to the asset library via the youtube link (video track only)**
+  *Link: [./tracks/upload_youtube_asset_video_only_20260205/](./tracks/upload_youtube_asset_video_only_20260205/)*
