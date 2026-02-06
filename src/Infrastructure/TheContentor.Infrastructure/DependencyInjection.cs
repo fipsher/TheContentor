@@ -11,8 +11,6 @@ using TheContentor.Infrastructure.Scrappers.Reddit.Models;
 using TheContentor.Infrastructure.Scrappers.Shared;
 using TheContentor.Infrastructure.Services;
 
-using TheContentor.Infrastructure.YouTube;
-
 namespace TheContentor.Infrastructure;
 
 public static class DependencyInjection

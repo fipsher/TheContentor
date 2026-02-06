@@ -1,5 +1,5 @@
 using Moq;
-using TheContentor.Infrastructure.YouTube;
+using TheContentor.Infrastructure.Services;
 using YoutubeExplode;
 
 namespace TheContentor.Infrastructure.Tests;

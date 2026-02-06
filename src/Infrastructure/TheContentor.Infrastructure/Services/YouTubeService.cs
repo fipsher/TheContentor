@@ -1,17 +1,16 @@
-using YoutubeExplode;
-using YoutubeExplode.Videos.Streams;
-using YoutubeExplode.Videos;
 using TheContentor.Infrastructure.Interfaces;
+using YoutubeExplode;
+using YoutubeExplode.Videos;
 
-namespace TheContentor.Infrastructure.YouTube;
+namespace TheContentor.Infrastructure.Services;
 
 public class YouTubeService : IYouTubeService
 {
     private readonly YoutubeClient _youtube = new();
 
-    public async Task<bool> IsValidYouTubeUrlAsync(string url)
+    public Task<bool> IsValidYouTubeUrlAsync(string url)
     {
-        return VideoId.TryParse(url) != null;
+        return Task.FromResult(VideoId.TryParse(url) != null);
     }
 
     public async Task<(TimeSpan Duration, int Width, int Height, DateTime UploadDate, string OriginalUrl, string Title)?> GetVideoMetadataAsync(string url)
