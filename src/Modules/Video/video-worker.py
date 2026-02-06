@@ -8,7 +8,14 @@ import tempfile
 import aiohttp
 from azure.servicebus.aio import ServiceBusClient, AutoLockRenewer
 from azure.servicebus.exceptions import MessageLockLostError
-from moviepy.editor import VideoFileClip, concatenate_videoclips, AudioFileClip, CompositeVideoClip, TextClip
+import re
+from moviepy.editor import VideoFileClip, concatenate_videoclips, AudioFileClip, CompositeVideoClip, TextClip, ColorClip, ImageClip
+import numpy as np
+try:
+    from PIL import Image, ImageDraw, ImageFont
+    PIL_AVAILABLE = True
+except Exception:
+    PIL_AVAILABLE = False
 from moviepy.video.fx import crop
 
 # Configuration
@@ -117,17 +124,173 @@ async def compose_final_video(video_blob_path, audio_blob_path, subtitle_blob_pa
         await download_blob(audio_blob_path['ContainerName'], audio_blob_path['AssetPath'], audio_file)
         await download_blob(subtitle_blob_path['ContainerName'], subtitle_blob_path['AssetPath'], subtitle_file)
 
-        def _build_and_write_final(video_path, audio_path, out_path):
+        def srt_time_to_seconds(time_str):
+            """Convert SRT timestamp (HH:MM:SS,mmm) to seconds"""
+            match = re.match(r'(\d+):(\d+):(\d+),(\d+)', time_str)
+            if not match:
+                return 0
+            h, m, s, ms = map(int, match.groups())
+            return h * 3600 + m * 60 + s + ms / 1000.0
+
+        def parse_srt(srt_path):
+            """Parse SRT file into a list of subtitle dictionaries"""
+            subtitles = []
+            with open(srt_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # Simple SRT regex
+            # Handle both \r\n and \n
+            content = content.replace('\r\n', '\n')
+            pattern = re.compile(r'(\d+)\n(\d{2}:\d{2}:\d{2},\d{3}) --> (\d{2}:\d{2}:\d{2},\d{3})\n(.*?)(?=\n\d+\n|\Z)', re.DOTALL)
+            for match in pattern.finditer(content):
+                index, start, end, text = match.groups()
+                subtitles.append({
+                    'start': srt_time_to_seconds(start),
+                    'end': srt_time_to_seconds(end),
+                    'text': text.strip()
+                })
+            return subtitles
+
+        def _build_and_write_final(video_path, audio_path, subtitle_path, out_path):
             video_clip = None
             audio_clip = None
             final_clip = None
+            subtitle_clips = []
             try:
                 video_clip = VideoFileClip(video_path)
                 audio_clip = AudioFileClip(audio_path)
-                final_clip = video_clip.set_audio(audio_clip)
-                # Add subtitles (MoviePy doesn't have great subtitle support, we'll use ffmpeg directly)
-                # For now, write without subtitles and use ffmpeg in next iteration
-                # TODO: Implement word-level highlighting with custom subtitle rendering
+                
+                # Add subtitles
+                subtitles = parse_srt(subtitle_path)
+                
+                def _make_pil_subtitle_image(text, video_w, video_h):
+                    max_width = int(video_w * 0.9)
+                    base_font_size = max(24, int(video_h * 0.055))
+
+                    # Try to find a truetype font; fall back to default if not found
+                    font = None
+                    if PIL_AVAILABLE:
+                        font_candidates = [
+                            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                            "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+                            "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+                            "/System/Library/Fonts/Supplemental/Arial.ttf",
+                            "/Library/Fonts/Arial.ttf",
+                        ]
+                        for fp in font_candidates:
+                            if os.path.exists(fp):
+                                try:
+                                    font = ImageFont.truetype(fp, base_font_size)
+                                    break
+                                except Exception:
+                                    continue
+                        if font is None:
+                            try:
+                                font = ImageFont.load_default()
+                            except Exception:
+                                font = None
+
+                    if not PIL_AVAILABLE or font is None:
+                        return None
+
+                    # Prepare for measuring text and wrapping
+                    dummy_img = Image.new("RGBA", (max_width, 10), (0, 0, 0, 0))
+                    draw = ImageDraw.Draw(dummy_img)
+
+                    # Word-wrap the text to fit the max_width
+                    words = text.split()
+                    lines = []
+                    current = ""
+                    for w in words:
+                        test = (current + " " + w).strip()
+                        bbox = draw.textbbox((0, 0), test, font=font, stroke_width=2)
+                        if bbox[2] > max_width and current:
+                            lines.append(current)
+                            current = w
+                        else:
+                            current = test
+                    if current:
+                        lines.append(current)
+
+                    # Compute resulting image size
+                    line_spacing = int(base_font_size * 0.2)
+                    text_width = 0
+                    text_height = 0
+                    line_heights = []
+                    for ln in lines:
+                        bbox = draw.textbbox((0, 0), ln, font=font, stroke_width=2)
+                        w = bbox[2] - bbox[0]
+                        h = bbox[3] - bbox[1]
+                        text_width = max(text_width, w)
+                        line_heights.append(h)
+                    text_height = sum(line_heights) + (len(lines) - 1) * line_spacing
+
+                    padding_x = 20
+                    padding_y = 8
+                    img_w = text_width + 2 * padding_x
+                    img_h = text_height + 2 * padding_y
+
+                    img = Image.new("RGBA", (img_w, img_h), (0, 0, 0, 0))
+                    draw = ImageDraw.Draw(img)
+
+                    # Semi-transparent black box background
+                    draw.rectangle([0, 0, img_w, img_h], fill=(0, 0, 0, 160))
+
+                    # Draw each line centered with a thin black stroke
+                    y = padding_y
+                    for i, ln in enumerate(lines):
+                        bbox = draw.textbbox((0, 0), ln, font=font, stroke_width=2)
+                        w = bbox[2] - bbox[0]
+                        h = bbox[3] - bbox[1]
+                        x = (img_w - w) // 2 - bbox[0]
+                        draw.text((x, y - bbox[1]), ln, font=font, fill=(255, 255, 255, 255),
+                                  stroke_width=2, stroke_fill=(0, 0, 0, 255))
+                        y += h + line_spacing
+
+                    return np.array(img)
+
+                for sub in subtitles:
+                    start = sub['start']
+                    end = sub['end']
+                    text = sub['text']
+
+                    made = False
+
+                    # Preferred: PIL-based rendering (no ImageMagick dependency)
+                    try:
+                        pil_img = _make_pil_subtitle_image(text, video_clip.w, video_clip.h)
+                        if pil_img is not None:
+                            img_clip = ImageClip(pil_img).set_start(start).set_end(end).set_position(('center', int(video_clip.h * 0.75)))
+                            subtitle_clips.append(img_clip)
+                            made = True
+                    except Exception as e:
+                        print(f"Warning: PIL subtitle rendering failed for '{text}': {e}")
+
+                    # Fallback: MoviePy TextClip (may require ImageMagick)
+                    if not made:
+                        try:
+                            txt_clip = TextClip(
+                                text,
+                                fontsize=max(24, int(video_clip.h * 0.055)),
+                                color='white',
+                                stroke_color='black',
+                                stroke_width=2,
+                                method='caption',
+                                size=(int(video_clip.w * 0.9), None)
+                            ).set_start(start).set_end(end).set_position(('center', int(video_clip.h * 0.75)))
+                            subtitle_clips.append(txt_clip)
+                            made = True
+                        except Exception as e:
+                            print(f"Warning: Failed to create TextClip for subtitle '{text}': {e}")
+
+                    if not made:
+                        print(f"Warning: Skipped subtitle due to rendering issues: '{text}'")
+
+                if subtitle_clips:
+                    final_clip = CompositeVideoClip([video_clip] + subtitle_clips).set_audio(audio_clip)
+                else:
+                    final_clip = video_clip.set_audio(audio_clip)
+                
                 final_clip.write_videofile(
                     out_path,
                     codec='libx264',
@@ -142,8 +305,10 @@ async def compose_final_video(video_blob_path, audio_blob_path, subtitle_blob_pa
                     video_clip.close()
                 if audio_clip is not None:
                     audio_clip.close()
+                for sc in subtitle_clips:
+                    sc.close()
 
-        await asyncio.to_thread(_build_and_write_final, video_file, audio_file, output_path)
+        await asyncio.to_thread(_build_and_write_final, video_file, audio_file, subtitle_file, output_path)
 
 async def process_video_command(command, events_sender):
     """Process a single video command"""

@@ -35,7 +35,7 @@ public class YouTubeService(YoutubeClient youtube, YoutubeDL ytdl) : IYouTubeSer
         {
             var options = new OptionSet
             {
-                Format = "bestvideo",
+                Format = "worstvideo[ext=mp4]",
                 WriteInfoJson = false,
             };
             
