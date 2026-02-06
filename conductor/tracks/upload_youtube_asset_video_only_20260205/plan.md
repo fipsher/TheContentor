@@ -27,7 +27,7 @@ This track aims to implement a new feature allowing users to upload video assets
 - [ ] Task: Conductor - User Manual Verification 'Backend Service for YouTube Video Extraction' (Protocol in workflow.md)
 
 ### Phase 3: API Endpoint and Integration
-- [ ] **Task:** Create API Endpoint and Integrate with UI
+- [x] **Task:** Create API Endpoint and Integrate with UI [d53ad23]
     - [ ] Implement Feature: Design and implement a new API endpoint (e.g., within `AssetController`) in `TheContentor.API` to receive the YouTube URL submission from the UI.
     - [ ] Implement Feature: Ensure the API endpoint correctly invokes the new command/handler in `TheContentor.API` responsible for YouTube video extraction and metadata capture.
     - [ ] Implement Feature: Implement robust logic within the API endpoint to handle responses from the backend service, translating them into appropriate HTTP status codes and user-friendly messages for the UI (e.g., 200 OK, 400 Bad Request, 500 Internal Server Error).
