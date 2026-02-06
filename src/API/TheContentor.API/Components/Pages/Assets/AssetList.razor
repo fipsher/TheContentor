@@ -157,8 +157,28 @@ else
 
     private async Task HandleYouTubeUpload(string youTubeUrl)
     {
-        // TODO: Implement actual upload logic to backend
-        Console.WriteLine($"YouTube URL received from modal: {youTubeUrl}");
-        await LoadAssets(); // Reload assets after a successful upload
+        try
+        {
+            var command = new UploadYouTubeAssetCommand(youTubeUrl);
+            var newAssetId = await Mediator.Send(command);
+            // Optionally, do something with newAssetId, like navigating to the new asset's detail page
+            // Or just reload the assets list
+            await LoadAssets(); 
+        }
+        catch (ArgumentException ex)
+        {
+            // Handle invalid URL (e.g., show error message to user)
+            Console.WriteLine($"Error: {ex.Message}");
+        }
+        catch (InvalidOperationException ex)
+        {
+            // Handle backend processing failure
+            Console.WriteLine($"Error: {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            // General error handling
+            Console.WriteLine($"An unexpected error occurred: {ex.Message}");
+        }
     }
 }
