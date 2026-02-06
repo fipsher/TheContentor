@@ -58,6 +58,9 @@ namespace TheContentor.Infrastructure.Migrations
                     b.Property<TimeSpan?>("Duration")
                         .HasColumnType("interval");
 
+                    b.Property<int?>("Height")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
@@ -77,6 +80,12 @@ namespace TheContentor.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<int>("Type")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UploadDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("Width")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");

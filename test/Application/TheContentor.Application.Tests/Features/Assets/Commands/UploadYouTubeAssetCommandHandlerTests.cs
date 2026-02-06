@@ -50,13 +50,9 @@ public class UploadYouTubeAssetCommandHandlerTests
 
         _mockYouTubeService.Setup(s => s.IsValidYouTubeUrlAsync(youtubeUrl)).ReturnsAsync(true);
         _mockYouTubeService.Setup(s => s.GetVideoMetadataAsync(youtubeUrl))
-            .ReturnsAsync((TimeSpan.FromMinutes(2), youtubeUrl, "Test YouTube Video")); // Updated tuple
-        
-        // Create a dummy temporary file for the mock to return
-        var tempFilePath = Path.GetTempFileName();
-        File.WriteAllBytes(tempFilePath, new byte[] { 1, 2, 3 });
+            .ReturnsAsync((TimeSpan.FromMinutes(2), 1920, 1080, DateTime.UtcNow, youtubeUrl, "Test YouTube Video"));
         _mockYouTubeService.Setup(s => s.DownloadVideoStreamAsync(youtubeUrl))
-            .ReturnsAsync(new FileInfo(tempFilePath)); // Returns FileInfo?
+            .ReturnsAsync(new MemoryStream(new byte[] { 1, 2, 3 })); // Mock a video stream
 
         _mockBlobService.Setup(s => s.UploadAsync(
                 It.IsAny<Stream>(),
@@ -93,9 +89,11 @@ public class UploadYouTubeAssetCommandHandlerTests
             a.OriginalUrl == youtubeUrl &&
             a.Title == "Test YouTube Video" &&
             a.Duration == TimeSpan.FromMinutes(2) &&
+            a.Width == 1920 &&
+            a.Height == 1080 &&
             a.Type == AssetType.YouTube &&
             a.BlobPath.ContainerName == expectedBlobPath.ContainerName && // Verify BlobPath properties
-            a.BlobPath.AssetPath == expectedBlobPath.AssetPath)), Times.Once); // Removed Width, Height, UploadDate assertions
+            a.BlobPath.AssetPath == expectedBlobPath.AssetPath)), Times.Once); // Verify BlobPath properties
         _mockContext.Verify(c => c.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -128,7 +126,7 @@ public class UploadYouTubeAssetCommandHandlerTests
         var youtubeUrl = "https://www.youtube.com/watch?v=testVideoId";
         _mockYouTubeService.Setup(s => s.IsValidYouTubeUrlAsync(youtubeUrl)).ReturnsAsync(true);
         _mockYouTubeService.Setup(s => s.GetVideoMetadataAsync(youtubeUrl)).ReturnsAsync((
-            (TimeSpan Duration, string OriginalUrl, string Title)?)null); // Simulate failure, updated tuple type
+            (TimeSpan Duration, int Width, int Height, DateTime UploadDate, string OriginalUrl, string Title)?)null); // Simulate failure
         var command = new UploadYouTubeAssetCommand(youtubeUrl);
 
         // Act & Assert
@@ -148,8 +146,8 @@ public class UploadYouTubeAssetCommandHandlerTests
         var youtubeUrl = "https://www.youtube.com/watch?v=testVideoId";
         _mockYouTubeService.Setup(s => s.IsValidYouTubeUrlAsync(youtubeUrl)).ReturnsAsync(true);
         _mockYouTubeService.Setup(s => s.GetVideoMetadataAsync(youtubeUrl))
-            .ReturnsAsync((TimeSpan.FromMinutes(2), youtubeUrl, "Test YouTube Video")); // Updated tuple
-        _mockYouTubeService.Setup(s => s.DownloadVideoStreamAsync(youtubeUrl)).ReturnsAsync((FileInfo?)null); // Simulate failure, returns FileInfo?
+            .ReturnsAsync((TimeSpan.FromMinutes(2), 1920, 1080, DateTime.UtcNow, youtubeUrl, "Test YouTube Video"));
+        _mockYouTubeService.Setup(s => s.DownloadVideoStreamAsync(youtubeUrl)).ReturnsAsync((Stream?)null); // Simulate failure
         var command = new UploadYouTubeAssetCommand(youtubeUrl);
 
         // Act & Assert
@@ -171,14 +169,9 @@ public class UploadYouTubeAssetCommandHandlerTests
         var youtubeUrl = "https://www.youtube.com/watch?v=testVideoId";
         _mockYouTubeService.Setup(s => s.IsValidYouTubeUrlAsync(youtubeUrl)).ReturnsAsync(true);
         _mockYouTubeService.Setup(s => s.GetVideoMetadataAsync(youtubeUrl))
-            .ReturnsAsync((TimeSpan.FromMinutes(2), youtubeUrl, "Test YouTube Video")); // Updated tuple
-        
-        // Create a dummy temporary file for the mock to return
-        var tempFilePath = Path.GetTempFileName();
-        File.WriteAllBytes(tempFilePath, new byte[] { 1, 2, 3 });
+            .ReturnsAsync((TimeSpan.FromMinutes(2), 1920, 1080, DateTime.UtcNow, youtubeUrl, "Test YouTube Video"));
         _mockYouTubeService.Setup(s => s.DownloadVideoStreamAsync(youtubeUrl))
-            .ReturnsAsync(new FileInfo(tempFilePath)); // Returns FileInfo?
-
+            .ReturnsAsync(new MemoryStream(new byte[] { 1, 2, 3 })); // Mock a video stream
         _mockBlobService.Setup(s => s.UploadAsync(
                 It.IsAny<Stream>(),
                 It.IsAny<string>(),
