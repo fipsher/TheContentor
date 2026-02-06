@@ -10,6 +10,8 @@ using TheContentor.Infrastructure.Scrappers.Reddit;
 using TheContentor.Infrastructure.Scrappers.Reddit.Models;
 using TheContentor.Infrastructure.Scrappers.Shared;
 using TheContentor.Infrastructure.Services;
+using YoutubeDLSharp;
+using YoutubeExplode;
 
 namespace TheContentor.Infrastructure;
 
@@ -31,6 +33,13 @@ public static class DependencyInjection
 
         builder.Services.AddScoped<IBlobService, BlobService>();
         builder.Services.AddScoped<IPostProcessor, PostProcessor>();
+        builder.Services.AddScoped<YoutubeClient>(_ => new YoutubeClient());
+        builder.Services.AddScoped<YoutubeDL>(_ => new YoutubeDL
+        {
+            YoutubeDLPath = "/opt/homebrew/bin/yt-dlp",
+            FFmpegPath = "/opt/homebrew/bin/ffmpeg",
+            OutputFolder = AppDomain.CurrentDomain.BaseDirectory,
+        });
         builder.Services.AddScoped<IYouTubeService, YouTubeService>();
 
         builder.Services.AddRestClient();

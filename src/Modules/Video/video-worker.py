@@ -6,7 +6,8 @@ import json
 import os
 import tempfile
 import aiohttp
-from azure.servicebus.aio import ServiceBusClient
+from azure.servicebus.aio import ServiceBusClient, AutoLockRenewer
+from azure.servicebus.exceptions import MessageLockLostError
 from moviepy.editor import VideoFileClip, concatenate_videoclips, AudioFileClip, CompositeVideoClip, TextClip
 from moviepy.video.fx import crop
 
@@ -82,25 +83,27 @@ async def concat_and_cut_video(asset_blob_paths, target_duration, output_path):
             await download_blob(blob_path['ContainerName'], blob_path['AssetPath'], asset_file)
             asset_files.append(asset_file)
 
-        # Load video clips
-        clips = [VideoFileClip(f) for f in asset_files]
-
-        # Concatenate
-        concatenated = concatenate_videoclips(clips, method="compose")
-
-        # Cut to target duration
         target_seconds = target_duration.total_seconds() if hasattr(target_duration, 'total_seconds') else target_duration
-        final_clip = concatenated.subclip(0, min(target_seconds, concatenated.duration))
 
-        # Write output
-        final_clip.write_videofile(output_path, codec='libx264', audio=False, fps=30, preset='medium')
+        def _build_and_write_video(files, max_seconds, out_path):
+            clips = []
+            concatenated = None
+            final_clip = None
+            try:
+                clips = [VideoFileClip(f) for f in files]
+                concatenated = concatenate_videoclips(clips, method="compose")
+                final_clip = concatenated.subclip(0, min(max_seconds, concatenated.duration))
+                final_clip.write_videofile(out_path, codec='libx264', audio=False, fps=30, preset='medium')
+                return final_clip.duration
+            finally:
+                if final_clip is not None:
+                    final_clip.close()
+                if concatenated is not None:
+                    concatenated.close()
+                for clip in clips:
+                    clip.close()
 
-        # Clean up
-        final_clip.close()
-        for clip in clips:
-            clip.close()
-
-        return final_clip.duration
+        return await asyncio.to_thread(_build_and_write_video, asset_files, target_seconds, output_path)
 
 async def compose_final_video(video_blob_path, audio_blob_path, subtitle_blob_path, output_path):
     """Compose final video with audio and subtitles"""
@@ -114,30 +117,33 @@ async def compose_final_video(video_blob_path, audio_blob_path, subtitle_blob_pa
         await download_blob(audio_blob_path['ContainerName'], audio_blob_path['AssetPath'], audio_file)
         await download_blob(subtitle_blob_path['ContainerName'], subtitle_blob_path['AssetPath'], subtitle_file)
 
-        # Load video and audio
-        video_clip = VideoFileClip(video_file)
-        audio_clip = AudioFileClip(audio_file)
+        def _build_and_write_final(video_path, audio_path, out_path):
+            video_clip = None
+            audio_clip = None
+            final_clip = None
+            try:
+                video_clip = VideoFileClip(video_path)
+                audio_clip = AudioFileClip(audio_path)
+                final_clip = video_clip.set_audio(audio_clip)
+                # Add subtitles (MoviePy doesn't have great subtitle support, we'll use ffmpeg directly)
+                # For now, write without subtitles and use ffmpeg in next iteration
+                # TODO: Implement word-level highlighting with custom subtitle rendering
+                final_clip.write_videofile(
+                    out_path,
+                    codec='libx264',
+                    audio_codec='aac',
+                    fps=30,
+                    preset='medium'
+                )
+            finally:
+                if final_clip is not None:
+                    final_clip.close()
+                if video_clip is not None:
+                    video_clip.close()
+                if audio_clip is not None:
+                    audio_clip.close()
 
-        # Set audio
-        final_clip = video_clip.set_audio(audio_clip)
-
-        # Add subtitles (MoviePy doesn't have great subtitle support, we'll use ffmpeg directly)
-        # For now, write without subtitles and use ffmpeg in next iteration
-        # TODO: Implement word-level highlighting with custom subtitle rendering
-
-        # Write output
-        final_clip.write_videofile(
-            output_path,
-            codec='libx264',
-            audio_codec='aac',
-            fps=30,
-            preset='medium'
-        )
-
-        # Clean up
-        final_clip.close()
-        video_clip.close()
-        audio_clip.close()
+        await asyncio.to_thread(_build_and_write_final, video_file, audio_file, output_path)
 
 async def process_video_command(command, events_sender):
     """Process a single video command"""
@@ -248,9 +254,10 @@ async def main():
         receiver = client.get_queue_receiver(queue_name=COMMANDS_QUEUE_NAME)
         events_sender = client.get_queue_sender(queue_name=EVENTS_QUEUE_NAME)
 
-        async with receiver, events_sender:
+        async with receiver, events_sender, AutoLockRenewer(max_lock_renewal_duration=60 * 30) as auto_lock_renewer:
             print(f"Listening on queue: {COMMANDS_QUEUE_NAME}")
             async for msg in receiver:
+                auto_lock_renewer.register(receiver, msg, max_lock_renewal_duration=60 * 30)
                 try:
                     body_bytes = b"".join(msg.body)
                     body_str = body_bytes.decode('utf-8')
@@ -262,7 +269,14 @@ async def main():
                     print(f"Error handling message: {type(e).__name__}: {e}")
                     import traceback
                     traceback.print_exc()
-                    await receiver.dead_letter_message(msg, reason="ProcessingError", error_description=str(e))
+                    try:
+                        await receiver.dead_letter_message(
+                            msg,
+                            reason="ProcessingError",
+                            error_description=str(e),
+                        )
+                    except MessageLockLostError:
+                        print("Message lock lost before dead-letter; skipping settlement.")
 
 if __name__ == "__main__":
     asyncio.run(main())

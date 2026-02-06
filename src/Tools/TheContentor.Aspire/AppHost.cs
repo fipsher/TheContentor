@@ -95,7 +95,7 @@ void ConfigureCommandsSubscriptions(IResourceBuilder<AzureServiceBusTopicResourc
                     FilterType = AzureServiceBusFilterType.CorrelationFilter,
                     CorrelationFilter = new AzureServiceBusCorrelationFilter
                     {
-                        Properties = new Dictionary<string, object>()
+                        Properties = new Dictionary<string, object>
                         {
                             { "Type", "tts" },
                         },

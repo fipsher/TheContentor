@@ -1,18 +1,24 @@
-﻿using RestSharp;
-using TheContentor.Infrastructure.Scrappers.Reddit;
-using TheContentor.Infrastructure.Scrappers.Reddit.Models;
+﻿using YoutubeDLSharp;
+using YoutubeDLSharp.Options;
 
-var client = new RestClient();
 
-var scrapper = new RedditScrapper(client);
-
-var result = await scrapper.ScrapeListAsync(new RedditScrapperRequest()
+var ytdl = new YoutubeDL
 {
-    Limit = 5,
-    RedditSort = RedditSort.Top,
-    Subreddit = "python"
-});
+    YoutubeDLPath = "/opt/homebrew/bin/yt-dlp",
+    FFmpegPath = "/opt/homebrew/bin/ffmpeg",
+    OutputFolder = AppDomain.CurrentDomain.BaseDirectory,
+};
 
-var post = await scrapper.ScrapeItemAsync(result.First());
+var options = new OptionSet
+{
+    Format = "bestvideo",
+    WriteInfoJson = true,
+};
+
+var res = await ytdl.RunVideoDownload("https://www.youtube.com/watch?v=u7kdVe8q5zs", overrideOptions: options);
+
+
+// this is a path to the file. don't forget to clean it up. webm extension
+string path = res.Data;
 
 Console.ReadLine();

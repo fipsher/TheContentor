@@ -14,12 +14,12 @@ public interface IYouTubeService
     /// </summary>
     /// <param name="url">The YouTube video URL.</param>
     /// <returns>A tuple containing video duration, resolution, upload date, original URL, and title, or null if extraction fails.</returns>
-    Task<(TimeSpan Duration, int Width, int Height, DateTime UploadDate, string OriginalUrl, string Title)?> GetVideoMetadataAsync(string url);
+    Task<(TimeSpan Duration, string OriginalUrl, string Title)?> GetVideoMetadataAsync(string url);
 
     /// <summary>
     /// Downloads the video stream from a YouTube video URL.
     /// </summary>
     /// <param name="url">The YouTube video URL.</param>
     /// <returns>A stream of the video content, or null if download fails.</returns>
-    Task<Stream?> DownloadVideoStreamAsync(string url);
+    Task<FileInfo?> DownloadVideoStreamAsync(string url);
 }

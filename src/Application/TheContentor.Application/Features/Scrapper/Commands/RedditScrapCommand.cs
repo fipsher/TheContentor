@@ -27,7 +27,7 @@ public class ScrapCommandHandler(TheContentorDbContext context, ISourceScraper<R
     /// <summary>Runs the scrape and saves new posts.</summary>
     public async Task Handle(RedditScrapCommand request, CancellationToken cancellationToken)
     {
-        var result = (await scrapper.ScrapeListAsync(new RedditScrapperRequest()
+        var result = (await scrapper.ScrapeListAsync(new RedditScrapperRequest
         {
             Limit = request.Limit,
             After = request.After,

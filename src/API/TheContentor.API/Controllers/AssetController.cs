@@ -46,26 +46,6 @@ public class AssetController(IMediator mediator) : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id }, id);
     }
 
-    [HttpPost("youtube-upload")]
-    public async Task<ActionResult<Guid>> UploadYouTubeAsset([FromBody] YouTubeAssetUploadModel model)
-    {
-        try
-        {
-            var command = new UploadYouTubeAssetCommand(model.YouTubeUrl);
-            var id = await mediator.Send(command);
-            return CreatedAtAction(nameof(GetById), new { id }, id);
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(ex.Message);
-        }
-        catch (InvalidOperationException ex)
-        {
-            // This would catch failures from metadata retrieval, stream download, or blob storage upload
-            return StatusCode(StatusCodes.Status500InternalServerError, ex.Message);
-        }
-    }
-
     [HttpPatch("{id:guid}/toggle-status")]
     public async Task<ActionResult> ToggleStatus(Guid id)
     {
