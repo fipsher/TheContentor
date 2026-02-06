@@ -13,8 +13,8 @@ using TheContentor.Infrastructure;
 namespace TheContentor.Infrastructure.Migrations
 {
     [DbContext(typeof(TheContentorDbContext))]
-    [Migration("20260206113558_AddYouTubeAssetProperties")]
-    partial class AddYouTubeAssetProperties
+    [Migration("20260206144027_AddYouTubeAssetPropertiesV2")]
+    partial class AddYouTubeAssetPropertiesV2
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -61,9 +61,6 @@ namespace TheContentor.Infrastructure.Migrations
                     b.Property<TimeSpan?>("Duration")
                         .HasColumnType("interval");
 
-                    b.Property<int?>("Height")
-                        .HasColumnType("integer");
-
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
@@ -83,12 +80,6 @@ namespace TheContentor.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<int>("Type")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("UploadDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("Width")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
