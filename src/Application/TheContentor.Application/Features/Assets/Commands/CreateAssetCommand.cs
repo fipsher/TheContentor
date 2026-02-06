@@ -26,7 +26,7 @@ public class CreateAssetCommandHandler(
     /// <summary>Uploads the asset and stores metadata.</summary>
     public async Task<Guid> Handle(CreateAssetCommand request, CancellationToken cancellationToken)
     {
-        BlobPath localPath;
+        BlobPath? localPath = null;
         var duration = TimeSpan.Zero;
 
         if (request.FileStream == null)
@@ -36,7 +36,7 @@ public class CreateAssetCommandHandler(
 
         // We need to copy the stream if it's not seekable, because GetDurationAsync consumes it
         // and blobService.UploadAsync needs it from the start.
-        var uploadStream = request.FileStream;
+        var uploadStream = request.FileStream!;
         var shouldDisposeUploadStream = false;
 
         if (!request.FileStream.CanSeek)
@@ -57,6 +57,11 @@ public class CreateAssetCommandHandler(
 
             localPath = await blobService.UploadAsync(uploadStream, "assets", request.Name,
                 request.ContentType ?? "video/mp4", cancellationToken);
+            
+            if (localPath == null)
+            {
+                throw new InvalidOperationException("Failed to upload file to blob storage.");
+            }
         }
         finally
         {

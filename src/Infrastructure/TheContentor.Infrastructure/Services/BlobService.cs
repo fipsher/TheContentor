@@ -8,45 +8,35 @@ namespace TheContentor.Infrastructure.Services;
 
 public class BlobService(BlobServiceClient blobServiceClient) : IBlobService
 {
-    public async Task<BlobPath> UploadAsync(Stream stream, string containerName, string fileName, string contentType, CancellationToken cancellationToken = default)
+    public async Task<BlobPath?> UploadAsync(Stream stream, string containerName, string fileName, string contentType, CancellationToken cancellationToken = default)
     {
-        var container = blobServiceClient.GetBlobContainerClient(containerName);
-        
-        await container.CreateIfNotExistsAsync(PublicAccessType.Blob, cancellationToken: cancellationToken);
-        await container.SetAccessPolicyAsync(PublicAccessType.Blob, cancellationToken: cancellationToken);
-
-        var fileAndExt = fileName.Split('.');
-        fileName = fileAndExt.Length > 1 
-            ? $"{string.Join('.', fileAndExt[..^2])}-{Guid.NewGuid()}.{fileAndExt[^1]}" 
-            : $"{fileName}-{Guid.NewGuid()}";
-        
-        var blob = container.GetBlobClient(fileName);
-        
-        await blob.UploadAsync(stream, new BlobHttpHeaders { ContentType = contentType }, cancellationToken: cancellationToken);
-        
-        return new BlobPath
+        try
         {
-            ContainerName = containerName,
-            AssetPath = fileName
-        };
-    }
+            var container = blobServiceClient.GetBlobContainerClient(containerName);
+            
+            await container.CreateIfNotExistsAsync(PublicAccessType.Blob, cancellationToken: cancellationToken);
+            await container.SetAccessPolicyAsync(PublicAccessType.Blob, cancellationToken: cancellationToken);
 
-    public async Task<BlobPath> UploadToPathAsync(Stream stream, string containerName, string blobPath, string contentType, CancellationToken cancellationToken = default)
-    {
-        var container = blobServiceClient.GetBlobContainerClient(containerName);
-        
-        await container.CreateIfNotExistsAsync(PublicAccessType.Blob, cancellationToken: cancellationToken);
-        await container.SetAccessPolicyAsync(PublicAccessType.Blob, cancellationToken: cancellationToken);
-
-        var blob = container.GetBlobClient(blobPath);
-        
-        await blob.UploadAsync(stream, new BlobHttpHeaders { ContentType = contentType }, cancellationToken: cancellationToken);
-        
-        return new BlobPath
+            var fileAndExt = fileName.Split('.');
+            fileName = fileAndExt.Length > 1 
+                ? $"{string.Join('.', fileAndExt[..^2])}-{Guid.NewGuid()}.{fileAndExt[^1]}" 
+                : $"{fileName}-{Guid.NewGuid()}";
+            
+            var blob = container.GetBlobClient(fileName);
+            
+            await blob.UploadAsync(stream, new BlobHttpHeaders { ContentType = contentType }, cancellationToken: cancellationToken);
+            
+            return new BlobPath
+            {
+                ContainerName = containerName,
+                AssetPath = fileName
+            };
+        }
+        catch (Exception)
         {
-            ContainerName = containerName,
-            AssetPath = blobPath
-        };
+            // Log the exception if needed
+            return null;
+        }
     }
 
     public async Task<Uri> GetSasUrl(string containerName, string blobName, CancellationToken cancellationToken = default)
