@@ -15,7 +15,7 @@ This track aims to implement a new feature allowing users to upload video assets
 - [x] Task: Conductor - User Manual Verification 'UI Integration for YouTube Link Input' (Protocol in workflow.md)
 
 ### Phase 2: Backend Service for YouTube Video Extraction
-- [~] **Task:** Implement .NET Backend Service for YouTube Extraction
+- [x] **Task:** Implement .NET Backend Service for YouTube Extraction [99e5275]
     - [ ] Implement Feature: Integrate `YoutubeExplode` or a similar .NET library into the backend solution (e.g., create a new project `TheContentor.Infrastructure.Youtube` or integrate within `TheContentor.Application` depending on architecture).
     - [ ] Implement Feature: Create a new command and corresponding handler in `TheContentor.Application` to encapsulate the logic for processing a YouTube URL, orchestrating the video content extraction, and capturing all required metadata (duration, resolution, upload date, original URL, title).
     - [ ] Implement Feature: Develop the necessary logic to store the extracted video content securely and efficiently in Azure Blob Storage, utilizing existing infrastructure components.
@@ -28,8 +28,8 @@ This track aims to implement a new feature allowing users to upload video assets
 
 ### Phase 3: API Endpoint and Integration
 - [ ] **Task:** Create API Endpoint and Integrate with UI
-    - [ ] Implement Feature: Design and implement a new API endpoint (e.g., within `AssetController` or a dedicated `YouTubeController`) in `TheContentor.API` to receive the YouTube URL submission from the UI.
-    - [ ] Implement Feature: Ensure the API endpoint correctly invokes the new command/handler in `TheContentor.Application` responsible for YouTube video extraction and metadata capture.
+    - [ ] Implement Feature: Design and implement a new API endpoint (e.g., within `AssetController`) in `TheContentor.API` to receive the YouTube URL submission from the UI.
+    - [ ] Implement Feature: Ensure the API endpoint correctly invokes the new command/handler in `TheContentor.API` responsible for YouTube video extraction and metadata capture.
     - [ ] Implement Feature: Implement robust logic within the API endpoint to handle responses from the backend service, translating them into appropriate HTTP status codes and user-friendly messages for the UI (e.g., 200 OK, 400 Bad Request, 500 Internal Server Error).
     - [ ] Implement Feature: Connect the UI's "Upload from YouTube" button or equivalent action to the newly created API endpoint, ensuring seamless communication.
     - [ ] Refactor: Refactor the API and integration code to ensure consistency with existing API design patterns and maintainability.
