@@ -11,6 +11,8 @@ using TheContentor.Infrastructure.Scrappers.Reddit.Models;
 using TheContentor.Infrastructure.Scrappers.Shared;
 using TheContentor.Infrastructure.Services;
 
+using TheContentor.Infrastructure.YouTube;
+
 namespace TheContentor.Infrastructure;
 
 public static class DependencyInjection
@@ -31,6 +33,7 @@ public static class DependencyInjection
 
         builder.Services.AddScoped<IBlobService, BlobService>();
         builder.Services.AddScoped<IPostProcessor, PostProcessor>();
+        builder.Services.AddScoped<IYouTubeService, YouTubeService>();
 
         builder.Services.AddRestClient();
         builder.Services.AddScoped<ISourceScraper<RedditPost, RedditScrapperRequest>, RedditScrapper>();
