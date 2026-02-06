@@ -45,6 +45,25 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TheContentor.Infrastructure
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TheContentor.Application.Tests", "test\Application\TheContentor.Application.Tests\TheContentor.Application.Tests.csproj", "{0D915550-82AC-430C-9521-DCBE10BF8681}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Modules", "Modules", "{4515D94F-0B64-4AA9-A2BD-FEABA23C8916}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "TTS", "TTS", "{B46D2CBC-0FFE-4D09-9264-DE43B6A4C133}"
+	ProjectSection(SolutionItems) = preProject
+		src\Modules\TTS\tts-worker.py = src\Modules\TTS\tts-worker.py
+		src\Modules\TTS\requirements.txt = src\Modules\TTS\requirements.txt
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Subtitle", "Subtitle", "{A293FD3B-6A2E-44AA-BB37-E5BE35C64E78}"
+	ProjectSection(SolutionItems) = preProject
+		src\Modules\Subtitle\requirements.txt = src\Modules\Subtitle\requirements.txt
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Video", "Video", "{19E4C8C0-BA1D-486C-BDE7-5739B3CE6401}"
+	ProjectSection(SolutionItems) = preProject
+		src\Modules\Video\video-worker.py = src\Modules\Video\video-worker.py
+		src\Modules\Video\requirements.txt = src\Modules\Video\requirements.txt
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -197,5 +216,9 @@ Global
 		{6D07057B-5E92-4589-8A0C-190BDB51BBDC} = {A09827A9-4079-4703-B08C-3AAB1BA35C6D}
 		{D6221142-D059-46F8-904C-E92B57F247E8} = {6D07057B-5E92-4589-8A0C-190BDB51BBDC}
 		{0D915550-82AC-430C-9521-DCBE10BF8681} = {6D07057B-5E92-4589-8A0C-190BDB51BBDC}
+		{4515D94F-0B64-4AA9-A2BD-FEABA23C8916} = {DDEE5021-AB97-419B-B7A3-B1B5CA76E3C7}
+		{B46D2CBC-0FFE-4D09-9264-DE43B6A4C133} = {4515D94F-0B64-4AA9-A2BD-FEABA23C8916}
+		{A293FD3B-6A2E-44AA-BB37-E5BE35C64E78} = {4515D94F-0B64-4AA9-A2BD-FEABA23C8916}
+		{19E4C8C0-BA1D-486C-BDE7-5739B3CE6401} = {4515D94F-0B64-4AA9-A2BD-FEABA23C8916}
 	EndGlobalSection
 EndGlobal
