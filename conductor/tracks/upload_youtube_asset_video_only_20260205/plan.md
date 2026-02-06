@@ -14,7 +14,7 @@ This track aims to implement a new feature allowing users to upload video assets
     - [x] Get and Record Task Commit SHA: Update `plan.md` with the commit SHA for this task. [65d5798]
 - [x] Task: Conductor - User Manual Verification 'UI Integration for YouTube Link Input' (Protocol in workflow.md)
 
-### Phase 2: Backend Service for YouTube Video Extraction
+### Phase 2: Backend Service for YouTube Video Extraction [checkpoint: 20b53db]
 - [x] **Task:** Implement .NET Backend Service for YouTube Extraction [99e5275]
     - [ ] Implement Feature: Integrate `YoutubeExplode` or a similar .NET library into the backend solution (e.g., create a new project `TheContentor.Infrastructure.Youtube` or integrate within `TheContentor.Application` depending on architecture).
     - [ ] Implement Feature: Create a new command and corresponding handler in `TheContentor.Application` to encapsulate the logic for processing a YouTube URL, orchestrating the video content extraction, and capturing all required metadata (duration, resolution, upload date, original URL, title).
