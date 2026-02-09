@@ -29,13 +29,15 @@ public class YouTubeService(YoutubeClient youtube, YoutubeDL ytdl) : IYouTubeSer
         }
     }
 
-    public async Task<FileInfo?> DownloadVideoStreamAsync(string url)
+    public async Task<FileInfo?> DownloadVideoStreamAsync(DownloadMergeQuality quality, string url)
     {
         try
         {
             var options = new OptionSet
             {
-                Format = "worstvideo[ext=mp4]",
+                Format = GetFormat(quality),//"worstvideo[ext=mp4]",
+                MergeOutputFormat = DownloadMergeFormat.Mp4,
+                RestrictFilenames = true,
                 WriteInfoJson = false,
             };
             
@@ -46,5 +48,20 @@ public class YouTubeService(YoutubeClient youtube, YoutubeDL ytdl) : IYouTubeSer
         {
             return null;
         }
+    }
+
+    private string GetFormat(DownloadMergeQuality quality, string extension = "mp4")
+    {
+        var maxHeight = quality switch
+        {
+            DownloadMergeQuality.Quality144 => 144,
+            DownloadMergeQuality.Quality360 => 360,
+            DownloadMergeQuality.Quality480 => 480,
+            DownloadMergeQuality.Quality720 => 720,
+            DownloadMergeQuality.Quality1080 => 1080,
+            _ => 480
+        };
+
+        return $"bestvideo[height<={maxHeight}][ext={extension}]";
     }
 }

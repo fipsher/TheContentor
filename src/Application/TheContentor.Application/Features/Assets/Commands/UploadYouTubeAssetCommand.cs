@@ -1,10 +1,8 @@
-using Google.GenAI.Types;
 using MediatR;
 using TheContentor.Domain.Entities;
 using TheContentor.Domain.Enums;
 using TheContentor.Infrastructure;
 using TheContentor.Infrastructure.Interfaces;
-using File = System.IO.File;
 
 namespace TheContentor.Application.Features.Assets.Commands;
 
@@ -34,7 +32,7 @@ public class UploadYouTubeAssetCommandHandler(
         }
 
         // 3. Download Video Stream
-        var fileInfo = await youtubeService.DownloadVideoStreamAsync(request.YouTubeUrl);
+        var fileInfo = await youtubeService.DownloadVideoStreamAsync(DownloadMergeQuality.Quality480, request.YouTubeUrl);
         if (fileInfo == null)
         {
             throw new InvalidOperationException("Could not download video stream from the provided URL.");

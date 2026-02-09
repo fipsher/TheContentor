@@ -23,4 +23,8 @@
       <ProjectReference Include="..\..\..\src\Infrastructure\TheContentor.Infrastructure\TheContentor.Infrastructure.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Folder Include="Features\Assets\Commands\" />
+    </ItemGroup>
+
 </Project>

@@ -19,7 +19,17 @@ public interface IYouTubeService
     /// <summary>
     /// Downloads the video stream from a YouTube video URL.
     /// </summary>
+    /// <param name="quality">Quality of the downloaded video</param>
     /// <param name="url">The YouTube video URL.</param>
     /// <returns>A stream of the video content, or null if download fails.</returns>
-    Task<FileInfo?> DownloadVideoStreamAsync(string url);
+    Task<FileInfo?> DownloadVideoStreamAsync(DownloadMergeQuality quality, string url);
+}
+
+public enum DownloadMergeQuality
+{
+    Quality144 = 1,
+    Quality360 = 2,
+    Quality480 = 3,
+    Quality720 = 4,
+    Quality1080 = 5
 }
