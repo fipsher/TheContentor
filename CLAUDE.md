@@ -54,9 +54,13 @@ src/
 SourcePost → ProcessedPost → ProcessedPostPart (audio/subtitle/video segments)
 Asset (background videos), AnalysisCriteria, VideoProject, BlobPath
 
+## File Storage
+
+Local file system at `storage/` (configurable via `LocalStorage:BasePath`). Container names = subdirectories (e.g. `storage/assets/`, `storage/tts-audio/`). Served to the browser via static file middleware at `/storage/...`. Both .NET and Python workers read/write files directly — no Azure Blob Storage.
+
 ## Python Workers
 
-Located in `src/Modules/`. Listen on Azure Service Bus, send status via callback events.
+Located in `src/Modules/`. Listen on Azure Service Bus, send status via callback events. Read/write files directly to local storage via `STORAGE_BASE_PATH` env var.
 - **TTS**: Edge-TTS (primary), Bark/Tortoise fallback
 - **Subtitle**: OpenAI Whisper
 - **Video**: MoviePy + FFmpeg composition

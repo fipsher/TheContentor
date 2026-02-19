@@ -4,8 +4,9 @@ warnings.filterwarnings("ignore", message=".*OpenSSL.*")
 import asyncio
 import json
 import os
+import shutil
 import tempfile
-import aiohttp
+import uuid
 import edge_tts
 from azure.servicebus.aio import ServiceBusClient
 
@@ -15,12 +16,21 @@ SERVICE_BUS_CONNECTION_STRING = os.environ.get("ConnectionStrings__ContentorServ
 if not SERVICE_BUS_CONNECTION_STRING:
     raise ValueError("SERVICE_BUS_CONNECTION_STRING is not set (checked 'ConnectionStrings__ContentorServiceBus' and 'SERVICE_BUS_CONNECTION_STRING')")
 
-API_BASE_URL = os.environ.get("TheContentorApiUrl") or os.environ.get("THE_CONTENTOR_API_URL")
-if not API_BASE_URL:
-    raise ValueError("API_BASE_URL is not set (checked 'TheContentorApiUrl' and 'THE_CONTENTOR_API_URL')")
+STORAGE_BASE_PATH = os.environ.get("STORAGE_BASE_PATH")
+if not STORAGE_BASE_PATH:
+    raise ValueError("STORAGE_BASE_PATH is not set")
 
 COMMANDS_QUEUE_NAME = "tts-commands-queue"
 EVENTS_QUEUE_NAME = "events-queue"
+
+def save_to_local_storage(file_path, container_name):
+    """Save file to local storage, return (containerName, assetPath)"""
+    name, ext = os.path.splitext(os.path.basename(file_path))
+    unique_name = f"{name}-{uuid.uuid4()}{ext}"
+    container_dir = os.path.join(STORAGE_BASE_PATH, container_name)
+    os.makedirs(container_dir, exist_ok=True)
+    shutil.copy2(file_path, os.path.join(container_dir, unique_name))
+    return container_name, unique_name
 
 async def generate_audio(text, voice, rate, pitch, output_path):
     """Generate audio using Edge-TTS with rate and pitch settings"""
@@ -31,26 +41,6 @@ async def generate_audio(text, voice, rate, pitch, output_path):
 
     communicate = edge_tts.Communicate(text, voice, rate=rate_str, pitch=pitch_str)
     await communicate.save(output_path)
-
-async def upload_to_blob_storage(file_path, container_name):
-    """Upload file to API which then uploads to Azure Blob Storage"""
-    url = f"{API_BASE_URL}/api/Blob/upload"
-    
-    data = aiohttp.FormData()
-    data.add_field('containerName', container_name)
-    data.add_field('file',
-                   open(file_path, 'rb'),
-                   filename=os.path.basename(file_path),
-                   content_type='audio/mpeg')
-
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, data=data) as response:
-            if response.status not in [200, 201]:
-                error_text = await response.text()
-                raise Exception(f"Failed to upload to API: {response.status} - {error_text}")
-            
-            result = await response.json()
-            return result.get("containerName"), result.get("assetPath")
 
 async def send_event_callback(sender, callback_data):
     """Send callback event to orchestrator"""
@@ -83,11 +73,11 @@ async def process_tts_command(command, events_sender):
             audio_file = os.path.join(temp_dir, f"{text_type}_{processed_post_id}.mp3")
             await generate_audio(text, voice, rate, pitch, audio_file)
 
-            # Upload to blob storage
+            # Save to local storage
             container_name = "tts-audio"
 
             try:
-                container, blob_path = await upload_to_blob_storage(audio_file, container_name)
+                container, blob_path = save_to_local_storage(audio_file, container_name)
 
                 # Send success callback
                 callback = {
@@ -119,7 +109,7 @@ async def process_tts_command(command, events_sender):
                 }
 
                 await send_event_callback(events_sender, callback)
-                print(f"Failed to upload audio: {upload_error}")
+                print(f"Failed to save audio: {upload_error}")
 
     except Exception as e:
         print(f"Error processing TTS command: {e}")
@@ -150,10 +140,10 @@ async def main():
     # Hide connection string but log its presence
     if SERVICE_BUS_CONNECTION_STRING:
         print(f"Connection string found (length: {len(SERVICE_BUS_CONNECTION_STRING)})")
-    
+
     print(f"Commands Queue: {COMMANDS_QUEUE_NAME}")
     print(f"Events Queue: {EVENTS_QUEUE_NAME}")
-    print(f"API Base URL: {API_BASE_URL}")
+    print(f"Storage Base Path: {STORAGE_BASE_PATH}")
 
     client = ServiceBusClient.from_connection_string(SERVICE_BUS_CONNECTION_STRING)
     async with client:

@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.StaticFiles;
+using Microsoft.Extensions.FileProviders;
 using TheContentor.API.Components;
 using TheContentor.Application;
 using TheContentor.Infrastructure;
@@ -45,6 +47,32 @@ var app = builder.Build();
 
 // Apply migrations on startup
 await app.Services.ApplyMigrations();
+
+// Serve local blob storage files at /storage
+var storagePath = app.Configuration["LocalStorage:BasePath"] ?? "./storage";
+var storageFullPath = Path.GetFullPath(storagePath);
+Directory.CreateDirectory(storageFullPath);
+
+var contentTypeProvider = new FileExtensionContentTypeProvider(
+    new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        { ".mp4", "video/mp4" },
+        { ".mp3", "audio/mpeg" },
+        { ".wav", "audio/wav" },
+        { ".srt", "application/x-subrip" },
+        { ".vtt", "text/vtt" },
+        { ".mov", "video/quicktime" },
+        { ".webm", "video/webm" },
+        { ".ogg", "audio/ogg" }
+    });
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(storageFullPath),
+    RequestPath = "/storage",
+    ContentTypeProvider = contentTypeProvider,
+    ServeUnknownFileTypes = false
+});
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

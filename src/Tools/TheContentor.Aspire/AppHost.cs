@@ -12,10 +12,9 @@ var postgres = builder.AddPostgres("the-contentor-postgres", port: 5433)
 
 var postgresDb = postgres.AddDatabase("the-contentor-db");
 
-var storage = builder.AddAzureStorage("storage")
-    .RunAsEmulator(cfg => cfg.WithDataVolume("the-contentor-storage"));
-
-var blobs = storage.AddBlobs("blobs");
+// Local file storage (replaces Azure Blob Storage emulator)
+var storageBasePath = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..", "storage"));
+Directory.CreateDirectory(storageBasePath);
 
 // Service Bus & Queues
 var serviceBus = builder
@@ -25,8 +24,8 @@ ConfigureServiceBus(serviceBus);
 
 var apiService = builder.AddProject<Projects.TheContentor_API>("the-contentor")
     .WithReference(postgresDb)
-    .WithReference(blobs)
     .WithReference(serviceBus)
+    .WithEnvironment("LocalStorage__BasePath", storageBasePath)
     .WaitFor(postgresDb);
 
 builder
@@ -39,27 +38,21 @@ builder
 // Python TTS Worker
 builder.AddPythonApp("tts-worker", "../../Modules/TTS", "tts-worker.py")
     .WithReference(serviceBus)
-    .WithReference(blobs)
-    .WithReference(apiService)
-    .WithEnvironment("TheContentorApiUrl", apiService.GetEndpoint("http"))
+    .WithEnvironment("STORAGE_BASE_PATH", storageBasePath)
     .WaitFor(serviceBus)
     .WaitFor(apiService);
 
 // Python Video Worker
 builder.AddPythonApp("video-worker", "../../Modules/Video", "video-worker.py")
     .WithReference(serviceBus)
-    .WithReference(blobs)
-    .WithReference(apiService)
-    .WithEnvironment("TheContentorApiUrl", apiService.GetEndpoint("http"))
+    .WithEnvironment("STORAGE_BASE_PATH", storageBasePath)
     .WaitFor(serviceBus)
     .WaitFor(apiService);
 
 // Python Subtitle Worker
 builder.AddPythonApp("subtitle-worker", "../../Modules/Subtitle", "subtitle-worker.py")
     .WithReference(serviceBus)
-    .WithReference(blobs)
-    .WithReference(apiService)
-    .WithEnvironment("TheContentorApiUrl", apiService.GetEndpoint("http"))
+    .WithEnvironment("STORAGE_BASE_PATH", storageBasePath)
     .WaitFor(serviceBus)
     .WaitFor(apiService);
 

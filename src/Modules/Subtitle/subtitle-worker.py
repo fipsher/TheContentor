@@ -4,8 +4,9 @@ warnings.filterwarnings("ignore", message=".*OpenSSL.*")
 import asyncio
 import json
 import os
+import shutil
 import tempfile
-import aiohttp
+import uuid
 import whisper
 from azure.servicebus.aio import ServiceBusClient
 
@@ -14,9 +15,9 @@ SERVICE_BUS_CONNECTION_STRING = os.environ.get("ConnectionStrings__ContentorServ
 if not SERVICE_BUS_CONNECTION_STRING:
     raise ValueError("SERVICE_BUS_CONNECTION_STRING is not set")
 
-API_BASE_URL = os.environ.get("TheContentorApiUrl") or os.environ.get("THE_CONTENTOR_API_URL")
-if not API_BASE_URL:
-    raise ValueError("API_BASE_URL is not set")
+STORAGE_BASE_PATH = os.environ.get("STORAGE_BASE_PATH")
+if not STORAGE_BASE_PATH:
+    raise ValueError("STORAGE_BASE_PATH is not set")
 
 COMMANDS_QUEUE_NAME = "subtitle-commands-queue"
 EVENTS_QUEUE_NAME = "events-queue"
@@ -26,39 +27,21 @@ print("Loading Whisper model...")
 whisper_model = whisper.load_model("base")  # Options: tiny, base, small, medium, large
 print("Whisper model loaded successfully")
 
-async def download_blob(container_name, asset_path, output_path):
-    """Download blob file from API"""
-    url = f"{API_BASE_URL}/api/Blob/download"
-    params = {"containerName": container_name, "blobPath": asset_path}
+def save_to_local_storage(file_path, container_name):
+    """Save file to local storage, return (containerName, assetPath)"""
+    name, ext = os.path.splitext(os.path.basename(file_path))
+    unique_name = f"{name}-{uuid.uuid4()}{ext}"
+    container_dir = os.path.join(STORAGE_BASE_PATH, container_name)
+    os.makedirs(container_dir, exist_ok=True)
+    shutil.copy2(file_path, os.path.join(container_dir, unique_name))
+    return container_name, unique_name
 
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, params=params) as response:
-            if response.status not in [200, 201]:
-                error_text = await response.text()
-                raise Exception(f"Failed to download blob: {response.status} - {error_text}")
-
-            with open(output_path, 'wb') as f:
-                f.write(await response.read())
-
-async def upload_to_blob_storage(file_path, container_name):
-    """Upload file to API which uploads to Azure Blob Storage"""
-    url = f"{API_BASE_URL}/api/Blob/upload"
-
-    data = aiohttp.FormData()
-    data.add_field('containerName', container_name)
-    data.add_field('file',
-                   open(file_path, 'rb'),
-                   filename=os.path.basename(file_path),
-                   content_type='application/x-subrip')
-
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, data=data) as response:
-            if response.status not in [200, 201]:
-                error_text = await response.text()
-                raise Exception(f"Failed to upload to API: {response.status} - {error_text}")
-
-            result = await response.json()
-            return result.get("containerName"), result.get("assetPath")
+def read_from_local_storage(container_name, asset_path, output_path):
+    """Copy file from local storage to output_path"""
+    src = os.path.join(STORAGE_BASE_PATH, container_name, asset_path)
+    if not os.path.exists(src):
+        raise FileNotFoundError(f"Blob not found: {container_name}/{asset_path}")
+    shutil.copy2(src, output_path)
 
 async def send_event_callback(sender, callback_data):
     """Send callback event to orchestrator"""
@@ -119,9 +102,9 @@ def generate_srt_with_word_timing(result):
 async def generate_subtitles(audio_blob_path, output_path):
     """Generate subtitles from audio using Whisper"""
     with tempfile.TemporaryDirectory() as temp_dir:
-        # Download audio
+        # Read audio from local storage
         audio_file = os.path.join(temp_dir, "audio.mp3")
-        await download_blob(audio_blob_path['ContainerName'], audio_blob_path['AssetPath'], audio_file)
+        read_from_local_storage(audio_blob_path['ContainerName'], audio_blob_path['AssetPath'], audio_file)
 
         # Transcribe with word-level timestamps
         print("Transcribing audio with Whisper...")
@@ -158,8 +141,8 @@ async def process_subtitle_command(command, events_sender):
                 # Generate subtitles
                 await generate_subtitles(audio_blob_path, subtitle_file)
 
-                # Upload to blob storage
-                container, blob_path = await upload_to_blob_storage(subtitle_file, "subtitles")
+                # Save to local storage
+                container, blob_path = save_to_local_storage(subtitle_file, "subtitles")
 
                 # Send success callback
                 callback = {
@@ -198,7 +181,7 @@ async def main():
     print(f"Connecting to Service Bus...")
     print(f"Commands Queue: {COMMANDS_QUEUE_NAME}")
     print(f"Events Queue: {EVENTS_QUEUE_NAME}")
-    print(f"API Base URL: {API_BASE_URL}")
+    print(f"Storage Base Path: {STORAGE_BASE_PATH}")
 
     client = ServiceBusClient.from_connection_string(SERVICE_BUS_CONNECTION_STRING)
     async with client:

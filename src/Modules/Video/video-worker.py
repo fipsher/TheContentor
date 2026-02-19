@@ -4,8 +4,9 @@ warnings.filterwarnings("ignore", message=".*OpenSSL.*")
 import asyncio
 import json
 import os
+import shutil
 import tempfile
-import aiohttp
+import uuid
 from azure.servicebus.aio import ServiceBusClient, AutoLockRenewer
 from azure.servicebus.exceptions import MessageLockLostError
 import re
@@ -23,51 +24,28 @@ SERVICE_BUS_CONNECTION_STRING = os.environ.get("ConnectionStrings__ContentorServ
 if not SERVICE_BUS_CONNECTION_STRING:
     raise ValueError("SERVICE_BUS_CONNECTION_STRING is not set")
 
-API_BASE_URL = os.environ.get("TheContentorApiUrl") or os.environ.get("THE_CONTENTOR_API_URL")
-if not API_BASE_URL:
-    raise ValueError("API_BASE_URL is not set")
+STORAGE_BASE_PATH = os.environ.get("STORAGE_BASE_PATH")
+if not STORAGE_BASE_PATH:
+    raise ValueError("STORAGE_BASE_PATH is not set")
 
 COMMANDS_QUEUE_NAME = "video-commands-queue"
 EVENTS_QUEUE_NAME = "events-queue"
 
-async def download_blob(container_name, asset_path, output_path):
-    """Download blob file from API"""
-    url = f"{API_BASE_URL}/api/Blob/download"
-    params = {"containerName": container_name, "blobPath": asset_path}
+def save_to_local_storage(file_path, container_name):
+    """Save file to local storage, return (containerName, assetPath)"""
+    name, ext = os.path.splitext(os.path.basename(file_path))
+    unique_name = f"{name}-{uuid.uuid4()}{ext}"
+    container_dir = os.path.join(STORAGE_BASE_PATH, container_name)
+    os.makedirs(container_dir, exist_ok=True)
+    shutil.copy2(file_path, os.path.join(container_dir, unique_name))
+    return container_name, unique_name
 
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, params=params) as response:
-            if response.status not in [200, 201]:
-                error_text = await response.text()
-                raise Exception(f"Failed to download blob: {response.status} - {error_text}")
-
-            with open(output_path, 'wb') as f:
-                f.write(await response.read())
-
-async def upload_to_blob_storage(file_path, container_name):
-    """Upload file to API which uploads to Azure Blob Storage"""
-    url = f"{API_BASE_URL}/api/Blob/upload"
-
-    data = aiohttp.FormData()
-    data.add_field('containerName', container_name)
-
-    # Determine content type based on extension
-    ext = os.path.splitext(file_path)[1].lower()
-    content_type = 'video/mp4' if ext in ['.mp4', '.mov'] else 'application/octet-stream'
-
-    data.add_field('file',
-                   open(file_path, 'rb'),
-                   filename=os.path.basename(file_path),
-                   content_type=content_type)
-
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, data=data) as response:
-            if response.status not in [200, 201]:
-                error_text = await response.text()
-                raise Exception(f"Failed to upload to API: {response.status} - {error_text}")
-
-            result = await response.json()
-            return result.get("containerName"), result.get("assetPath")
+def read_from_local_storage(container_name, asset_path, output_path):
+    """Copy file from local storage to output_path"""
+    src = os.path.join(STORAGE_BASE_PATH, container_name, asset_path)
+    if not os.path.exists(src):
+        raise FileNotFoundError(f"Blob not found: {container_name}/{asset_path}")
+    shutil.copy2(src, output_path)
 
 async def send_event_callback(sender, callback_data):
     """Send callback event to orchestrator"""
@@ -83,11 +61,11 @@ async def send_event_callback(sender, callback_data):
 async def concat_and_cut_video(asset_blob_paths, target_duration, output_path):
     """Concatenate video assets and cut to target duration"""
     with tempfile.TemporaryDirectory() as temp_dir:
-        # Download all assets
+        # Download all assets from local storage
         asset_files = []
         for i, blob_path in enumerate(asset_blob_paths):
             asset_file = os.path.join(temp_dir, f"asset_{i}.mp4")
-            await download_blob(blob_path['ContainerName'], blob_path['AssetPath'], asset_file)
+            read_from_local_storage(blob_path['ContainerName'], blob_path['AssetPath'], asset_file)
             asset_files.append(asset_file)
 
         target_seconds = target_duration.total_seconds() if hasattr(target_duration, 'total_seconds') else target_duration
@@ -115,14 +93,14 @@ async def concat_and_cut_video(asset_blob_paths, target_duration, output_path):
 async def compose_final_video(video_blob_path, audio_blob_path, subtitle_blob_path, output_path):
     """Compose final video with audio and subtitles"""
     with tempfile.TemporaryDirectory() as temp_dir:
-        # Download files
+        # Read files from local storage
         video_file = os.path.join(temp_dir, "video.mp4")
         audio_file = os.path.join(temp_dir, "audio.mp3")
         subtitle_file = os.path.join(temp_dir, "subtitles.srt")
 
-        await download_blob(video_blob_path['ContainerName'], video_blob_path['AssetPath'], video_file)
-        await download_blob(audio_blob_path['ContainerName'], audio_blob_path['AssetPath'], audio_file)
-        await download_blob(subtitle_blob_path['ContainerName'], subtitle_blob_path['AssetPath'], subtitle_file)
+        read_from_local_storage(video_blob_path['ContainerName'], video_blob_path['AssetPath'], video_file)
+        read_from_local_storage(audio_blob_path['ContainerName'], audio_blob_path['AssetPath'], audio_file)
+        read_from_local_storage(subtitle_blob_path['ContainerName'], subtitle_blob_path['AssetPath'], subtitle_file)
 
         def srt_time_to_seconds(time_str):
             """Convert SRT timestamp (HH:MM:SS,mmm) to seconds"""
@@ -137,7 +115,7 @@ async def compose_final_video(video_blob_path, audio_blob_path, subtitle_blob_pa
             subtitles = []
             with open(srt_path, 'r', encoding='utf-8') as f:
                 content = f.read()
-            
+
             # Simple SRT regex
             # Handle both \r\n and \n
             content = content.replace('\r\n', '\n')
@@ -159,10 +137,10 @@ async def compose_final_video(video_blob_path, audio_blob_path, subtitle_blob_pa
             try:
                 video_clip = VideoFileClip(video_path)
                 audio_clip = AudioFileClip(audio_path)
-                
+
                 # Add subtitles
                 subtitles = parse_srt(subtitle_path)
-                
+
                 def _make_pil_subtitle_image(text, video_w, video_h):
                     max_width = int(video_w * 0.9)
                     base_font_size = max(24, int(video_h * 0.055))
@@ -290,7 +268,7 @@ async def compose_final_video(video_blob_path, audio_blob_path, subtitle_blob_pa
                     final_clip = CompositeVideoClip([video_clip] + subtitle_clips).set_audio(audio_clip)
                 else:
                     final_clip = video_clip.set_audio(audio_clip)
-                
+
                 final_clip.write_videofile(
                     out_path,
                     codec='libx264',
@@ -345,8 +323,8 @@ async def process_video_command(command, events_sender):
                     output_file = os.path.join(temp_dir, f"video_part_{part_id}.mp4")
                     duration = await concat_and_cut_video(asset_blob_paths, target_duration, output_file)
 
-                    # Upload to blob storage
-                    container, blob_path = await upload_to_blob_storage(output_file, "generated-videos")
+                    # Save to local storage
+                    container, blob_path = save_to_local_storage(output_file, "generated-videos")
 
                     # Send success callback
                     callback = {
@@ -372,8 +350,8 @@ async def process_video_command(command, events_sender):
                     output_file = os.path.join(temp_dir, f"final_video_part_{part_id}.mp4")
                     await compose_final_video(video_blob_path, audio_blob_path, subtitle_blob_path, output_file)
 
-                    # Upload to blob storage
-                    container, blob_path = await upload_to_blob_storage(output_file, "final-videos")
+                    # Save to local storage
+                    container, blob_path = save_to_local_storage(output_file, "final-videos")
 
                     # Send success callback
                     callback = {
@@ -412,7 +390,7 @@ async def main():
     print(f"Connecting to Service Bus...")
     print(f"Commands Queue: {COMMANDS_QUEUE_NAME}")
     print(f"Events Queue: {EVENTS_QUEUE_NAME}")
-    print(f"API Base URL: {API_BASE_URL}")
+    print(f"Storage Base Path: {STORAGE_BASE_PATH}")
 
     client = ServiceBusClient.from_connection_string(SERVICE_BUS_CONNECTION_STRING)
     async with client:

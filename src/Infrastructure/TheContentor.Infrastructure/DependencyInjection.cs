@@ -28,10 +28,10 @@ public static class DependencyInjection
 
         builder.Services.Configure<LlmOptions>(configuration.GetSection(LlmOptions.SectionName));
 
-        builder.AddAzureBlobServiceClient("blobs");
+        builder.Services.Configure<LocalStorageOptions>(configuration.GetSection(LocalStorageOptions.SectionName));
         builder.AddAzureServiceBusClient("ContentorServiceBus");
 
-        builder.Services.AddScoped<IBlobService, BlobService>();
+        builder.Services.AddScoped<IBlobService, LocalFileSystemBlobService>();
         builder.Services.AddScoped<IPostProcessor, PostProcessor>();
         builder.Services.AddScoped<YoutubeClient>(_ => new YoutubeClient());
         builder.Services.AddScoped<YoutubeDL>(_ => new YoutubeDL
