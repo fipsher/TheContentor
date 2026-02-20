@@ -32,7 +32,7 @@ public class UploadYouTubeAssetCommandHandler(
         }
 
         // 3. Download Video Stream
-        var fileInfo = await youtubeService.DownloadVideoStreamAsync(DownloadMergeQuality.Quality1080, request.YouTubeUrl);
+        var fileInfo = await youtubeService.DownloadVideoStreamAsync(DownloadMergeQuality.Quality2160, request.YouTubeUrl);
         if (fileInfo == null)
         {
             throw new InvalidOperationException("Could not download video stream from the provided URL.");

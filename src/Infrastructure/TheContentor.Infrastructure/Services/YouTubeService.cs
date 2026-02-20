@@ -59,6 +59,8 @@ public class YouTubeService(YoutubeClient youtube, YoutubeDL ytdl) : IYouTubeSer
             DownloadMergeQuality.Quality480 => 480,
             DownloadMergeQuality.Quality720 => 720,
             DownloadMergeQuality.Quality1080 => 1080,
+            DownloadMergeQuality.Quality1440 => 1440,
+            DownloadMergeQuality.Quality2160 => 2160,
             _ => 480
         };
 

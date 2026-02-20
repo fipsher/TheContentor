@@ -31,5 +31,7 @@ public enum DownloadMergeQuality
     Quality360 = 2,
     Quality480 = 3,
     Quality720 = 4,
-    Quality1080 = 5
+    Quality1080 = 5,
+    Quality1440 = 6,
+    Quality2160 = 7
 }
