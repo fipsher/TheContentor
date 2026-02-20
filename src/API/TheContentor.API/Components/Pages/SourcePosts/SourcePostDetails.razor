@@ -10,6 +10,7 @@
 @using TheContentor.Domain.Enums
 @inject IMediator Mediator
 @inject NavigationManager NavigationManager
+@inject IJSRuntime JS
 @implements IAsyncDisposable
 @rendermode InteractiveServer
 
@@ -65,8 +66,17 @@ else
                             <span class="badge bg-dark me-1">@Post.WordCount words</span>
                             <span class="badge @GetStatusClass(Post.Status) me-1">@Post.Status</span>
                         </div>
-                        <div class="mb-3">
-                             <a href="@Post.ExternalUrl" target="_blank" class="btn btn-sm btn-outline-primary">View on @Post.Platform</a>
+                        <div class="mb-3 d-flex gap-2 flex-wrap">
+                            <a href="@Post.ExternalUrl" target="_blank" class="btn btn-sm btn-outline-primary">View on @Post.Platform</a>
+                            @if (Post.ProcessedPost != null)
+                            {
+                                <button class="btn btn-sm @(Post.ProcessedPost.IsPosted ? "btn-success" : "btn-outline-success")"
+                                        @onclick="TogglePostedStatus"
+                                        disabled="@_isEditing">
+                                    <i class="bi @(Post.ProcessedPost.IsPosted ? "bi-check2-circle" : "bi-circle")"></i>
+                                    @(Post.ProcessedPost.IsPosted ? "Posted" : "Mark as Posted")
+                                </button>
+                            }
                         </div>
                         <hr/>
                         <div class="post-content" style="white-space: pre-wrap; max-height: 500px; overflow-y: auto; font-size: 0.9rem;">
@@ -255,12 +265,22 @@ else
                                         </div>
                                     }
                                 </div>
-                                @if (_isEditing)
-                                {
-                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => RemovePart(part)">
-                                        Remove
-                                    </button>
-                                }
+                                <div class="d-flex gap-1">
+                                    @if (!_isEditing)
+                                    {
+                                        <button class="btn btn-outline-secondary btn-sm"
+                                                @onclick="() => CopyPartToClipboard(part)"
+                                                title="Copy part content to clipboard">
+                                            <i class="bi bi-clipboard"></i>
+                                        </button>
+                                    }
+                                    @if (_isEditing)
+                                    {
+                                        <button class="btn btn-outline-danger btn-sm" @onclick="() => RemovePart(part)">
+                                            Remove
+                                        </button>
+                                    }
+                                </div>
                             </div>
                             <div class="card-body">
                                 <div class="mb-3">
@@ -305,15 +325,31 @@ else
                                 </div>
                                 <div class="mb-0">
                                     <label class="form-label fw-bold d-block">Publish To</label>
-                                    @foreach (var platform in Enum.GetValues<SocialPlatform>())
+                                    @if (_isEditing)
                                     {
-                                        <div class="form-check form-check-inline">
-                                            <input class="form-check-input" type="checkbox"
-                                                   id="@($"platform-{part.GetHashCode()}-{platform}")"
-                                                   checked="@part.PublishedTo.Contains(platform)"
-                                                   disabled="@(!_isEditing)"
-                                                   @onchange="@(e => TogglePlatform(part, platform, e.Value))" />
-                                            <label class="form-check-label" for="@($"platform-{part.GetHashCode()}-{platform}")">@platform</label>
+                                        @foreach (var platform in Enum.GetValues<SocialPlatform>())
+                                        {
+                                            <div class="form-check form-check-inline">
+                                                <input class="form-check-input" type="checkbox"
+                                                       id="@($"platform-{part.GetHashCode()}-{platform}")"
+                                                       checked="@part.PublishedTo.Contains(platform)"
+                                                       @onchange="@(e => TogglePlatform(part, platform, e.Value))" />
+                                                <label class="form-check-label" for="@($"platform-{part.GetHashCode()}-{platform}")">@platform</label>
+                                            </div>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <div class="d-flex flex-wrap gap-1 mt-1">
+                                            @foreach (var platform in Enum.GetValues<SocialPlatform>())
+                                            {
+                                                var isActive = part.PublishedTo.Contains(platform);
+                                                <button class="btn btn-sm @(isActive ? "btn-success" : "btn-outline-secondary")"
+                                                        @onclick="() => QuickTogglePlatform(part, platform)"
+                                                        title="@(isActive ? $"Remove {platform}" : $"Mark as posted to {platform}")">
+                                                    @platform
+                                                </button>
+                                            }
                                         </div>
                                     }
                                 </div>
@@ -529,6 +565,50 @@ else
         {
             _isCanceling = false;
         }
+    }
+
+    private async Task CopyPartToClipboard(ProcessedPostPartDto part)
+    {
+        if (Post?.ProcessedPost == null) return;
+
+        var hashtags = _partHashtags.TryGetValue(part, out var h) && !string.IsNullOrWhiteSpace(h)
+            ? string.Join(" ", h.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                  .Select(t => t.Trim().StartsWith('#') ? t.Trim() : $"#{t.Trim()}"))
+            : string.Empty;
+
+        var text = $"[Part {part.Part}] {Post.ProcessedPost.Title}\n\n{part.ProcessedText}";
+        if (!string.IsNullOrWhiteSpace(hashtags))
+            text += $"\n\n{hashtags}";
+
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", text);
+    }
+
+    private async Task TogglePostedStatus()
+    {
+        if (Post?.ProcessedPost == null) return;
+        var newValue = !Post.ProcessedPost.IsPosted;
+        await Mediator.Send(new MarkProcessedPostAsPostedCommand(Post.ProcessedPost.Id, newValue));
+        Post.ProcessedPost.IsPosted = newValue;
+        StateHasChanged();
+    }
+
+    private async Task QuickTogglePlatform(ProcessedPostPartDto part, SocialPlatform platform)
+    {
+        if (part.Id == null) return;
+
+        var newValue = !part.PublishedTo.Contains(platform);
+        await Mediator.Send(new TogglePartPlatformCommand(part.Id.Value, platform, newValue));
+
+        if (newValue)
+        {
+            if (!part.PublishedTo.Contains(platform))
+                part.PublishedTo.Add(platform);
+        }
+        else
+        {
+            part.PublishedTo.Remove(platform);
+        }
+        StateHasChanged();
     }
 
     public async ValueTask DisposeAsync()

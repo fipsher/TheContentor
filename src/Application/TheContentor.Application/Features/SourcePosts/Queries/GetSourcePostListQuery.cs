@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using TheContentor.Application.Features.SourcePosts.Models;
+using TheContentor.Domain.Enums;
 using TheContentor.Infrastructure;
 
 namespace TheContentor.Application.Features.SourcePosts.Queries;
@@ -29,7 +30,10 @@ public class GetSourcePostListQueryHandler(TheContentorDbContext dbContext)
                 CreatedUtc = x.CreatedUtc,
                 IngestedUtc = x.IngestedUtc,
                 Status = x.Status,
-                ExternalUrl = x.ExternalUrl
+                ExternalUrl = x.ExternalUrl,
+                TtsStatus = x.ProcessedPost != null ? (TtsStatus?)x.ProcessedPost.TtsStatus : null,
+                VideoStatus = x.ProcessedPost != null ? (VideoStatus?)x.ProcessedPost.VideoStatus : null,
+                IsPosted = x.ProcessedPost != null ? (bool?)x.ProcessedPost.IsPosted : null
             })
             .OrderByDescending(x => x.IngestedUtc)
             .ToListAsync(cancellationToken);

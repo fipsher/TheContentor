@@ -54,6 +54,7 @@ public class GetSourcePostDetailsQueryHandler(TheContentorDbContext dbContext, I
                         ContainerName = x.ProcessedPost.VideoBlobPath.ContainerName,
                         AssetPath = x.ProcessedPost.VideoBlobPath.AssetPath
                     },
+                    IsPosted = x.ProcessedPost.IsPosted,
                     Parts = x.ProcessedPost.Parts.Select(p => new ProcessedPostPartDto
                     {
                         Id = p.Id,

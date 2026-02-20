@@ -73,4 +73,22 @@ public class AssetController(IMediator mediator) : ControllerBase
 
         return NoContent();
     }
+
+    /// <summary>Renames an asset and updates its tags.</summary>
+    [HttpPut("{id:guid}")]
+    public async Task<ActionResult> Rename(Guid id, [FromBody] RenameAssetRequest request)
+    {
+        var ok = await mediator.Send(new RenameAssetCommand(id, request.Name, request.Tags));
+        if (!ok) return NotFound();
+        return NoContent();
+    }
+}
+
+/// <summary>Request model for renaming an asset.</summary>
+public class RenameAssetRequest
+{
+    /// <summary>New asset name.</summary>
+    public string Name { get; set; } = string.Empty;
+    /// <summary>Updated tag string.</summary>
+    public string Tags { get; set; } = string.Empty;
 }

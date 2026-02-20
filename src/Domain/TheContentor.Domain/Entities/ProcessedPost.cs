@@ -23,4 +23,8 @@ public class ProcessedPost : BaseEntity
     public VideoStatus VideoStatus { get; set; } = VideoStatus.NotGenerated;
     public BlobPath? VideoBlobPath { get; set; }
     public string? VideoSettings { get; set; }
+
+    // Publishing
+    /// <summary>Indicates whether this post has been fully published across all platforms.</summary>
+    public bool IsPosted { get; set; }
 }

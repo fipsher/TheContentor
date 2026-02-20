@@ -81,6 +81,26 @@ public class ProcessedPostController(IMediator mediator, IHubContext<VideoGenera
         return Ok();
     }
 
+    /// <summary>Sets the posted status for a processed post.</summary>
+    [HttpPatch("{id:guid}/mark-posted")]
+    public async Task<IActionResult> MarkPosted(Guid id, [FromBody] MarkPostedRequest request)
+    {
+        var ok = await mediator.Send(new MarkProcessedPostAsPostedCommand(id, request.IsPosted));
+        if (!ok) return NotFound();
+        return NoContent();
+    }
+
+    /// <summary>Toggles a social platform published status for a specific part.</summary>
+    [HttpPatch("parts/{partId:guid}/toggle-platform")]
+    public async Task<IActionResult> TogglePartPlatform(
+        Guid partId, [FromBody] TogglePartPlatformRequest request)
+    {
+        var ok = await mediator.Send(
+            new TogglePartPlatformCommand(partId, request.Platform, request.IsPublished));
+        if (!ok) return NotFound();
+        return NoContent();
+    }
+
     /// <summary>Update TTS status (called by orchestrator).</summary>
     [HttpPut("tts-status")]
     public async Task<IActionResult> UpdateTtsStatus([FromBody] UpdateTtsStatusRequest request)
@@ -176,4 +196,20 @@ public class UpdateVideoStatusRequest
     public Guid ProcessedPostId { get; set; }
     public int Status { get; set; }
     public Dictionary<Guid, BlobPathRequest>? PartVideoBlobPaths { get; set; }
+}
+
+/// <summary>Request model for marking a post as posted.</summary>
+public class MarkPostedRequest
+{
+    /// <summary>Desired posted state.</summary>
+    public bool IsPosted { get; set; }
+}
+
+/// <summary>Request model for toggling a platform on a part.</summary>
+public class TogglePartPlatformRequest
+{
+    /// <summary>The social platform to toggle.</summary>
+    public SocialPlatform Platform { get; set; }
+    /// <summary>Whether the part is published to the platform.</summary>
+    public bool IsPublished { get; set; }
 }

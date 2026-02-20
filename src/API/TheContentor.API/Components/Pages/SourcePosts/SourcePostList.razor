@@ -43,6 +43,57 @@
                     }
                 </select>
             </div>
+            <div class="col-md-2">
+                <label class="form-label">TTS</label>
+                <select class="form-select" @bind="_filterTtsStatus">
+                    <option value="">All</option>
+                    @foreach (var s in Enum.GetValues<TtsStatus>())
+                    {
+                        <option value="@s">@s</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Video</label>
+                <select class="form-select" @bind="_filterVideoStatus">
+                    <option value="">All</option>
+                    @foreach (var s in Enum.GetValues<VideoStatus>())
+                    {
+                        <option value="@s">@s</option>
+                    }
+                </select>
+            </div>
+        </div>
+        <div class="row g-3 mt-1">
+            <div class="col-md-2">
+                <label class="form-label">Posted</label>
+                <select class="form-select" @bind="_filterIsPostedStr">
+                    <option value="">All</option>
+                    <option value="true">Posted</option>
+                    <option value="false">Not Posted</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Words min</label>
+                <input type="number" class="form-control" @bind="_filterWordCountMin" placeholder="e.g. 300" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Words max</label>
+                <input type="number" class="form-control" @bind="_filterWordCountMax" placeholder="e.g. 2000" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Ingested from</label>
+                <input type="date" class="form-control" @bind="_filterDateFrom" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Ingested to</label>
+                <input type="date" class="form-control" @bind="_filterDateTo" />
+            </div>
+        </div>
+        <div class="row mt-2">
+            <div class="col-auto">
+                <button class="btn btn-outline-secondary btn-sm" @onclick="ClearFilters">Clear Filters</button>
+            </div>
         </div>
     </div>
 </div>
@@ -90,6 +141,15 @@ else
                     <th style="cursor: pointer" @onclick='() => SetSort("Status")'>
                         Status @GetSortIcon("Status")
                     </th>
+                    <th style="cursor: pointer" @onclick='() => SetSort("TtsStatus")'>
+                        TTS @GetSortIcon("TtsStatus")
+                    </th>
+                    <th style="cursor: pointer" @onclick='() => SetSort("VideoStatus")'>
+                        Video @GetSortIcon("VideoStatus")
+                    </th>
+                    <th style="cursor: pointer" @onclick='() => SetSort("IsPosted")'>
+                        Posted @GetSortIcon("IsPosted")
+                    </th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -113,6 +173,40 @@ else
                             <span class="badge @GetStatusClass(post.Status)">@post.Status</span>
                         </td>
                         <td>
+                            @if (post.TtsStatus.HasValue)
+                            {
+                                <span class="badge @GetTtsStatusClass(post.TtsStatus.Value)">@post.TtsStatus</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">—</span>
+                            }
+                        </td>
+                        <td>
+                            @if (post.VideoStatus.HasValue)
+                            {
+                                <span class="badge @GetVideoStatusClass(post.VideoStatus.Value)">@post.VideoStatus</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">—</span>
+                            }
+                        </td>
+                        <td>
+                            @if (post.IsPosted == true)
+                            {
+                                <span class="badge bg-success">Posted</span>
+                            }
+                            else if (post.IsPosted == false)
+                            {
+                                <span class="text-muted">—</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">—</span>
+                            }
+                        </td>
+                        <td>
                             <a class="btn btn-sm btn-outline-info" href="/source-posts/@post.Id">
                                 View
                             </a>
@@ -130,6 +224,13 @@ else
     private string _searchTitle = "";
     private SourcePlatform? _filterPlatform;
     private SourcePostStatus? _filterStatus;
+    private TtsStatus? _filterTtsStatus;
+    private VideoStatus? _filterVideoStatus;
+    private string _filterIsPostedStr = "";
+    private int? _filterWordCountMin;
+    private int? _filterWordCountMax;
+    private DateTimeOffset? _filterDateFrom;
+    private DateTimeOffset? _filterDateTo;
     private string _sortColumn = "IngestedUtc";
     private bool _sortAscending = false;
 
@@ -143,6 +244,13 @@ else
         _posts = await Mediator.Send(new GetSourcePostListQuery());
     }
 
+    private bool? FilterIsPosted => _filterIsPostedStr switch
+    {
+        "true" => true,
+        "false" => false,
+        _ => null
+    };
+
     private IEnumerable<SourcePostListItemDto> FilteredPosts
     {
         get
@@ -152,9 +260,30 @@ else
             return _posts.Where(p =>
                 (string.IsNullOrWhiteSpace(_searchTitle) || p.Title.Contains(_searchTitle, StringComparison.OrdinalIgnoreCase)) &&
                 (_filterPlatform == null || p.Platform == _filterPlatform) &&
-                (_filterStatus == null || p.Status == _filterStatus)
+                (_filterStatus == null || p.Status == _filterStatus) &&
+                (_filterTtsStatus == null || p.TtsStatus == _filterTtsStatus) &&
+                (_filterVideoStatus == null || p.VideoStatus == _filterVideoStatus) &&
+                (FilterIsPosted == null || p.IsPosted == FilterIsPosted) &&
+                (_filterWordCountMin == null || p.WordCount >= _filterWordCountMin) &&
+                (_filterWordCountMax == null || p.WordCount <= _filterWordCountMax) &&
+                (_filterDateFrom == null || p.IngestedUtc >= _filterDateFrom) &&
+                (_filterDateTo == null || p.IngestedUtc <= _filterDateTo.Value.AddDays(1))
             );
         }
+    }
+
+    private void ClearFilters()
+    {
+        _searchTitle = "";
+        _filterPlatform = null;
+        _filterStatus = null;
+        _filterTtsStatus = null;
+        _filterVideoStatus = null;
+        _filterIsPostedStr = "";
+        _filterWordCountMin = null;
+        _filterWordCountMax = null;
+        _filterDateFrom = null;
+        _filterDateTo = null;
     }
 
     private IEnumerable<SourcePostListItemDto> SortedPosts
@@ -173,6 +302,9 @@ else
                 "CreatedUtc" => _sortAscending ? filtered.OrderBy(p => p.CreatedUtc) : filtered.OrderByDescending(p => p.CreatedUtc),
                 "IngestedUtc" => _sortAscending ? filtered.OrderBy(p => p.IngestedUtc) : filtered.OrderByDescending(p => p.IngestedUtc),
                 "Status" => _sortAscending ? filtered.OrderBy(p => p.Status) : filtered.OrderByDescending(p => p.Status),
+                "TtsStatus" => _sortAscending ? filtered.OrderBy(p => p.TtsStatus) : filtered.OrderByDescending(p => p.TtsStatus),
+                "VideoStatus" => _sortAscending ? filtered.OrderBy(p => p.VideoStatus) : filtered.OrderByDescending(p => p.VideoStatus),
+                "IsPosted" => _sortAscending ? filtered.OrderBy(p => p.IsPosted) : filtered.OrderByDescending(p => p.IsPosted),
                 _ => filtered
             };
         }
@@ -203,6 +335,22 @@ else
         SourcePostStatus.Processed => "bg-primary",
         SourcePostStatus.Approved => "bg-success",
         SourcePostStatus.Rejected => "bg-danger",
+        _ => "bg-secondary"
+    };
+
+    private static string GetTtsStatusClass(TtsStatus status) => status switch
+    {
+        TtsStatus.Generated => "bg-success",
+        TtsStatus.InProgress => "bg-warning text-dark",
+        TtsStatus.Failed => "bg-danger",
+        _ => "bg-secondary"
+    };
+
+    private static string GetVideoStatusClass(VideoStatus status) => status switch
+    {
+        VideoStatus.Generated => "bg-success",
+        VideoStatus.InProgress => "bg-warning text-dark",
+        VideoStatus.Failed => "bg-danger",
         _ => "bg-secondary"
     };
 }

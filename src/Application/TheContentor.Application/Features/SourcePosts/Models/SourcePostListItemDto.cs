@@ -27,4 +27,10 @@ public class SourcePostListItemDto
     public SourcePostStatus Status { get; set; }
     /// <summary>External URL to the original post.</summary>
     public string ExternalUrl { get; set; } = string.Empty;
+    /// <summary>TTS generation status from the linked processed post. Null if no processed post exists.</summary>
+    public TtsStatus? TtsStatus { get; set; }
+    /// <summary>Video generation status from the linked processed post. Null if no processed post exists.</summary>
+    public VideoStatus? VideoStatus { get; set; }
+    /// <summary>Whether the post has been marked as fully posted. Null if no processed post exists.</summary>
+    public bool? IsPosted { get; set; }
 }

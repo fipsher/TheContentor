@@ -3,6 +3,7 @@
 @using TheContentor.Application.Features.Assets.Models
 @using TheContentor.Application.Features.Assets.Queries
 @using TheContentor.Application.Features.Assets.Commands
+@using TheContentor.Domain.Enums
 @inject IMediator Mediator
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
@@ -35,6 +36,7 @@ else
         <thead>
             <tr>
                 <th>File Name</th>
+                <th>Source</th>
                 <th>Duration</th>
                 <th>Quality</th>
                 <th>Tags</th>
@@ -47,6 +49,18 @@ else
             {
                 <tr>
                     <td>@item.FileName</td>
+                    <td>
+                        @if (item.Type == AssetType.YouTube && !string.IsNullOrEmpty(item.OriginalUrl))
+                        {
+                            <a href="@item.OriginalUrl" target="_blank" class="btn btn-sm btn-outline-danger" title="Open original YouTube video">
+                                <i class="bi bi-youtube"></i> YouTube
+                            </a>
+                        }
+                        else
+                        {
+                            <span class="text-muted">Manual</span>
+                        }
+                    </td>
                     <td>@item.Duration?.ToString(@"mm\:ss")</td>
                     <td>@(item.Quality.HasValue ? QualityLabel(item.Quality.Value) : "-")</td>
                     <td>
@@ -64,6 +78,9 @@ else
                         <div class="btn-group">
                             <button class="btn btn-sm btn-outline-primary" @onclick="() => ViewAsset(item)">
                                 <i class="bi bi-play-circle"></i> View
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => EditAsset(item.Id)">
+                                <i class="bi bi-pencil"></i> Rename
                             </button>
                             <button class="btn btn-sm @(item.IsActive ? "btn-outline-warning" : "btn-outline-success")"
                                     @onclick="() => ToggleStatus(item.Id)">
@@ -124,6 +141,8 @@ else
     }
 
     private void CreateNew() => NavigationManager.NavigateTo("/assets/create");
+
+    private void EditAsset(Guid id) => NavigationManager.NavigateTo($"/assets/edit/{id}");
 
     private void ViewAsset(AssetDto asset) => _selectedAsset = asset;
 

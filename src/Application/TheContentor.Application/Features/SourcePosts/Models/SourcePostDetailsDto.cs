@@ -60,6 +60,8 @@ public class ProcessedPostDto
     public string? VideoSettings { get; set; }
     /// <summary>Video blob path for the final composed video.</summary>
     public BlobPathDto? VideoBlobPath { get; set; }
+    /// <summary>Whether the post has been fully published.</summary>
+    public bool IsPosted { get; set; }
 }
 
 /// <summary>Processed post segment details.</summary>
