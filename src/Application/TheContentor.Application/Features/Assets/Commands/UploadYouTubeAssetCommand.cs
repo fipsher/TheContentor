@@ -6,8 +6,11 @@ using TheContentor.Infrastructure.Interfaces;
 
 namespace TheContentor.Application.Features.Assets.Commands;
 
-/// <summary>Uploads a YouTube video asset and its metadata.</summary>
-public record UploadYouTubeAssetCommand(string YouTubeUrl) : IRequest<Guid>;
+/// <summary>Downloads a YouTube video and stores it as an asset.</summary>
+public record UploadYouTubeAssetCommand(
+    string YouTubeUrl,
+    string Name,
+    YouTubeVideoQuality Quality) : IRequest<Guid>;
 
 /// <summary>Handles YouTube video asset uploads and persistence.</summary>
 public class UploadYouTubeAssetCommandHandler(
@@ -15,60 +18,46 @@ public class UploadYouTubeAssetCommandHandler(
     IYouTubeService youtubeService,
     IBlobService blobService) : IRequestHandler<UploadYouTubeAssetCommand, Guid>
 {
-    /// <summary>Uploads the YouTube asset, extracts metadata, stores video, and persists metadata.</summary>
+    /// <summary>Validates the URL, downloads the video, stores it, and persists the asset metadata.</summary>
     public async Task<Guid> Handle(UploadYouTubeAssetCommand request, CancellationToken cancellationToken)
     {
         // 1. Validate YouTube URL
         if (!await youtubeService.IsValidYouTubeUrlAsync(request.YouTubeUrl))
-        {
             throw new ArgumentException("Invalid YouTube URL provided.", nameof(request.YouTubeUrl));
-        }
 
         // 2. Get Video Metadata
         var metadata = await youtubeService.GetVideoMetadataAsync(request.YouTubeUrl);
         if (metadata == null)
-        {
             throw new InvalidOperationException("Could not retrieve video metadata from the provided URL.");
-        }
 
-        // 3. Download Video Stream
-        var fileInfo = await youtubeService.DownloadVideoStreamAsync(DownloadMergeQuality.Quality2160, request.YouTubeUrl);
+        // 3. Download Video
+        var fileInfo = await youtubeService.DownloadVideoStreamAsync(request.Quality, request.YouTubeUrl);
         if (fileInfo == null)
-        {
-            throw new InvalidOperationException("Could not download video stream from the provided URL.");
-        }
-        
+            throw new InvalidOperationException("Could not download video from the provided URL.");
+
         try
         {
             await using var videoStream = fileInfo.OpenRead();
-            
-            if (videoStream == null)
-            {
-                throw new InvalidOperationException("Could not download video stream from the provided URL.");
-            }
 
-            // 4. Store Video in Blob Storage
-            // Use a descriptive name for the blob, possibly including the title or ID
+            // 4. Store in Blob Storage
             var blobFileName = $"youtube_videos/{Guid.NewGuid()}.mp4";
-            var localPath =
-                await blobService.UploadAsync(videoStream, "assets", blobFileName, "video/mp4", cancellationToken);
+            var localPath = await blobService.UploadAsync(videoStream, "assets", blobFileName, "video/mp4", cancellationToken);
 
             if (localPath == null)
-            {
                 throw new InvalidOperationException("Failed to upload video to blob storage.");
-            }
 
-            // 5. Create and Persist Asset Entity
+            // 5. Persist Asset
             var newAsset = new Asset
             {
-                Name = metadata.Value.Title, // Use YouTube title as asset name
+                Name = request.Name,
                 OriginalUrl = metadata.Value.OriginalUrl,
                 Title = metadata.Value.Title,
                 Duration = metadata.Value.Duration,
-                Type = AssetType.YouTube, // Mark as YouTube asset
+                Type = AssetType.YouTube,
+                Quality = request.Quality,
                 BlobPath = localPath,
-                IsActive = true, // Default to active
-                Tags = string.Empty // Can add logic to parse tags from YouTube if needed later
+                IsActive = true,
+                Tags = string.Empty
             };
 
             context.Assets.Add(newAsset);

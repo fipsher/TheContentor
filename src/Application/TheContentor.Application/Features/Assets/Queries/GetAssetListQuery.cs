@@ -25,7 +25,10 @@ public class GetAssetListQueryHandler(TheContentorDbContext context, IBlobServic
                 Tags = b.Tags,
                 Duration = b.Duration,
                 IsActive = b.IsActive,
-                BlobPath = b.BlobPath
+                BlobPath = b.BlobPath,
+                Type = b.Type,
+                OriginalUrl = b.OriginalUrl,
+                Quality = b.Quality
             })
             .ToListAsync(cancellationToken);
 

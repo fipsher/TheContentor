@@ -36,6 +36,7 @@ else
             <tr>
                 <th>File Name</th>
                 <th>Duration</th>
+                <th>Quality</th>
                 <th>Tags</th>
                 <th>Status</th>
                 <th>Actions</th>
@@ -47,6 +48,7 @@ else
                 <tr>
                     <td>@item.FileName</td>
                     <td>@item.Duration?.ToString(@"mm\:ss")</td>
+                    <td>@(item.Quality.HasValue ? QualityLabel(item.Quality.Value) : "-")</td>
                     <td>
                         @foreach (var tag in item.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries))
                         {
@@ -63,9 +65,9 @@ else
                             <button class="btn btn-sm btn-outline-primary" @onclick="() => ViewAsset(item)">
                                 <i class="bi bi-play-circle"></i> View
                             </button>
-                            <button class="btn btn-sm @(item.IsActive ? "btn-outline-warning" : "btn-outline-success")" 
+                            <button class="btn btn-sm @(item.IsActive ? "btn-outline-warning" : "btn-outline-success")"
                                     @onclick="() => ToggleStatus(item.Id)">
-                                <i class="bi @(item.IsActive ? "bi-eye-slash" : "bi-eye")"></i> 
+                                <i class="bi @(item.IsActive ? "bi-eye-slash" : "bi-eye")"></i>
                                 @(item.IsActive ? "Deactivate" : "Activate")
                             </button>
                         </div>
@@ -101,13 +103,15 @@ else
 
 @if (_showYouTubeUploadModal)
 {
-    <YouTubeUploadModal ShowModal="_showYouTubeUploadModal" OnClose="HideYouTubeUploadModal" OnUpload="HandleYouTubeUpload"></YouTubeUploadModal>
+    <YouTubeUploadModal ShowModal="_showYouTubeUploadModal"
+                        OnClose="HideYouTubeUploadModal"
+                        OnUploadComplete="HandleUploadComplete" />
 }
 
 @code {
     private List<AssetDto>? _assets;
     private AssetDto? _selectedAsset;
-    private bool _showYouTubeUploadModal = false;
+    private bool _showYouTubeUploadModal;
 
     protected override async Task OnInitializedAsync()
     {
@@ -119,66 +123,37 @@ else
         _assets = await Mediator.Send(new GetAssetListQuery());
     }
 
-    private void CreateNew()
-    {
-        NavigationManager.NavigateTo("/assets/create");
-    }
+    private void CreateNew() => NavigationManager.NavigateTo("/assets/create");
 
-    private void ViewAsset(AssetDto asset)
-    {
-        _selectedAsset = asset;
-    }
+    private void ViewAsset(AssetDto asset) => _selectedAsset = asset;
 
-    private void CloseModal()
-    {
-        _selectedAsset = null;
-    }
+    private void CloseModal() => _selectedAsset = null;
 
     private async Task ToggleStatus(Guid id)
     {
-        var result = await Mediator.Send(new ToggleAssetStatusCommand(id));
-        if (result)
-        {
+        if (await Mediator.Send(new ToggleAssetStatusCommand(id)))
             await LoadAssets();
-        }
     }
 
-    private void ShowYouTubeUploadModal()
-    {
-        _showYouTubeUploadModal = true;
-    }
+    private void ShowYouTubeUploadModal() => _showYouTubeUploadModal = true;
 
-    private void HideYouTubeUploadModal()
+    private void HideYouTubeUploadModal() => _showYouTubeUploadModal = false;
+
+    private async Task HandleUploadComplete()
     {
         _showYouTubeUploadModal = false;
-        // Optionally, reload assets after closing the modal if a new asset might have been added
-        // await LoadAssets();
+        await LoadAssets();
     }
 
-    private async Task HandleYouTubeUpload(string youTubeUrl)
+    private static string QualityLabel(TheContentor.Domain.Enums.YouTubeVideoQuality q) => q switch
     {
-        try
-        {
-            var command = new UploadYouTubeAssetCommand(youTubeUrl);
-            var newAssetId = await Mediator.Send(command);
-            // Optionally, do something with newAssetId, like navigating to the new asset's detail page
-            // Or just reload the assets list
-            await LoadAssets(); 
-        }
-        catch (ArgumentException ex)
-        {
-            // Handle invalid URL (e.g., show error message to user)
-            Console.WriteLine($"Error: {ex.Message}");
-        }
-        catch (InvalidOperationException ex)
-        {
-            // Handle backend processing failure
-            Console.WriteLine($"Error: {ex.Message}");
-        }
-        catch (Exception ex)
-        {
-            // General error handling
-            Console.WriteLine($"An unexpected error occurred: {ex.Message}");
-        }
-    }
+        TheContentor.Domain.Enums.YouTubeVideoQuality.P144  => "144p",
+        TheContentor.Domain.Enums.YouTubeVideoQuality.P360  => "360p",
+        TheContentor.Domain.Enums.YouTubeVideoQuality.P480  => "480p",
+        TheContentor.Domain.Enums.YouTubeVideoQuality.P720  => "720p HD",
+        TheContentor.Domain.Enums.YouTubeVideoQuality.P1080 => "1080p Full HD",
+        TheContentor.Domain.Enums.YouTubeVideoQuality.P1440 => "1440p 2K",
+        TheContentor.Domain.Enums.YouTubeVideoQuality.P2160 => "2160p 4K",
+        _ => q.ToString()
+    };
 }

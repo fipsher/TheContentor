@@ -1,124 +1,237 @@
 @using System.Text.RegularExpressions
+@using MediatR
+@using TheContentor.Application.Features.Assets.Commands
+@using TheContentor.Application.Features.Assets.Queries.GetYouTubeVideoMetadata
+@using TheContentor.Domain.Enums
+@inject IMediator Mediator
 
 <div class="modal fade @(ShowModal ? "show d-block" : "")" tabindex="-1" role="dialog" style="background-color: rgba(0,0,0,0.5);">
     <div class="modal-dialog modal-dialog-centered" role="document">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Upload YouTube Asset</h5>
-                <button type="button" class="btn-close" @onclick="OnClose"></button>
+                <button type="button" class="btn-close" @onclick="HandleClose" disabled="@_isLoading"></button>
             </div>
             <div class="modal-body">
-                <div class="mb-3">
-                    <label for="youTubeUrlInput" class="form-label">YouTube Video URL</label>
-                    <input type="text" class="form-control" id="youTubeUrlInput" @bind-value="YouTubeUrl" @bind-value:event="oninput" @onblur="ValidateYouTubeUrl" placeholder="Enter YouTube URL here" />
-                    @if (!string.IsNullOrWhiteSpace(_youTubeUrlError))
-                    {
-                        <div class="text-danger mt-1">@_youTubeUrlError</div>
-                    }
-                </div>
+
+                @if (_phase == Phase.UrlInput)
+                {
+                    <div class="mb-3">
+                        <label for="youTubeUrlInput" class="form-label">YouTube Video URL</label>
+                        <input type="text" class="form-control" id="youTubeUrlInput"
+                               @bind-value="YouTubeUrl" @bind-value:event="oninput"
+                               @onblur="ValidateUrl"
+                               placeholder="Enter YouTube URL here"
+                               disabled="@_isLoading" />
+                        @if (!string.IsNullOrWhiteSpace(_urlError))
+                        {
+                            <div class="text-danger mt-1">@_urlError</div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="mb-3">
+                        <label for="assetNameInput" class="form-label">Asset Name</label>
+                        <input type="text" class="form-control" id="assetNameInput"
+                               @bind-value="_assetName" @bind-value:event="oninput"
+                               placeholder="Enter asset name"
+                               disabled="@_isLoading" />
+                    </div>
+                    <div class="mb-3">
+                        <label for="qualitySelect" class="form-label">Quality</label>
+                        <select class="form-select" id="qualitySelect" @bind="_selectedQuality" disabled="@_isLoading">
+                            @foreach (var q in _availableQualities)
+                            {
+                                <option value="@q">@QualityLabel(q)</option>
+                            }
+                        </select>
+                    </div>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(_error))
+                {
+                    <div class="alert alert-danger mt-2">@_error</div>
+                }
+
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" @onclick="OnClose">Cancel</button>
-                <button type="button" class="btn btn-primary" @onclick="UploadFromYouTube" disabled="@(!_isYouTubeUrlValid || _isLoading)">
-                    @if (_isLoading)
-                    {
-                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                        <span>Uploading...</span>
-                    }
-                    else
-                    {
-                        <span>Upload</span>
-                    }
-                </button>
+                @if (_phase == Phase.UrlInput)
+                {
+                    <button type="button" class="btn btn-secondary" @onclick="HandleClose" disabled="@_isLoading">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="FetchMetadata"
+                            disabled="@(!_isUrlValid || _isLoading)">
+                        @if (_isLoading)
+                        {
+                            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                            <span> Fetching...</span>
+                        }
+                        else
+                        {
+                            <span>Next</span>
+                        }
+                    </button>
+                }
+                else
+                {
+                    <button type="button" class="btn btn-link px-0 me-auto" @onclick="GoBack" disabled="@_isLoading">&#8592; Back</button>
+                    <button type="button" class="btn btn-secondary" @onclick="HandleClose" disabled="@_isLoading">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="Upload"
+                            disabled="@(_isLoading || string.IsNullOrWhiteSpace(_assetName))">
+                        @if (_isLoading)
+                        {
+                            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                            <span> Uploading...</span>
+                        }
+                        else
+                        {
+                            <span>Upload</span>
+                        }
+                    </button>
+                }
             </div>
         </div>
     </div>
 </div>
 
 @code {
-    [Parameter]
-    public bool ShowModal { get; set; }
+    [Parameter] public bool ShowModal { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnUploadComplete { get; set; }
 
-    [Parameter]
-    public EventCallback OnClose { get; set; }
+    private enum Phase { UrlInput, Details }
 
-    [Parameter]
-    public EventCallback<string> OnUpload { get; set; }
-
+    private Phase _phase = Phase.UrlInput;
     private string _youTubeUrl = string.Empty;
-    private bool _isYouTubeUrlValid = false;
-    private string _youTubeUrlError = string.Empty;
-    private bool _hasInteracted = false; // Flag to track user interaction
-    private bool _isLoading = false; // New loading state field
+    private bool _isUrlValid;
+    private bool _hasInteracted;
+    private string _urlError = string.Empty;
+
+    private string _assetName = string.Empty;
+    private IReadOnlyList<YouTubeVideoQuality> _availableQualities = [];
+    private YouTubeVideoQuality _selectedQuality;
+
+    private bool _isLoading;
+    private string _error = string.Empty;
 
     private string YouTubeUrl
     {
         get => _youTubeUrl;
-        set
-        {
-            _youTubeUrl = value;
-            _hasInteracted = true; // User has interacted with the field
-            ValidateYouTubeUrl();
-        }
+        set { _youTubeUrl = value; _hasInteracted = true; ValidateUrl(); }
     }
 
-    protected override void OnInitialized()
+    private void ValidateUrl()
     {
-        // Initial state, no validation error shown until interaction
-        _isYouTubeUrlValid = false;
-        _youTubeUrlError = string.Empty;
-        _youTubeUrl = string.Empty;
-        _hasInteracted = false;
-    }
-
-    private void ValidateYouTubeUrl()
-    {
-        if (!_hasInteracted)
-        {
-            _isYouTubeUrlValid = false;
-            _youTubeUrlError = string.Empty;
-            return;
-        }
-
-        _isYouTubeUrlValid = false;
-        _youTubeUrlError = string.Empty;
-
+        if (!_hasInteracted) { _isUrlValid = false; _urlError = string.Empty; return; }
         if (string.IsNullOrWhiteSpace(_youTubeUrl))
         {
-            _youTubeUrlError = "URL cannot be empty.";
+            _isUrlValid = false; _urlError = "URL cannot be empty.";
         }
         else if (!Regex.IsMatch(_youTubeUrl, @"^(https?://)?(www\.)?(youtube\.com|youtu\.be)/.+$"))
         {
-            _youTubeUrlError = "Invalid YouTube URL format.";
+            _isUrlValid = false; _urlError = "Invalid YouTube URL format.";
         }
         else
         {
-            _isYouTubeUrlValid = true;
+            _isUrlValid = true; _urlError = string.Empty;
         }
     }
 
-    private async Task UploadFromYouTube()
+    private async Task FetchMetadata()
     {
-        _hasInteracted = true; // Ensure validation is shown if button is clicked
-        ValidateYouTubeUrl();
+        _hasInteracted = true;
+        ValidateUrl();
+        if (!_isUrlValid) return;
 
-        if (_isYouTubeUrlValid && !string.IsNullOrWhiteSpace(_youTubeUrl))
+        _isLoading = true;
+        _error = string.Empty;
+        StateHasChanged();
+
+        try
         {
-            _isLoading = true; // Start loading
-            try
-            {
-                await OnUpload.InvokeAsync(_youTubeUrl);
-                // After successful upload, clear and close modal
-                _youTubeUrl = string.Empty;
-                _isYouTubeUrlValid = false;
-                _youTubeUrlError = string.Empty;
-                _hasInteracted = false;
-                await OnClose.InvokeAsync();
-            }
-            finally
-            {
-                _isLoading = false; // Always stop loading
-            }
+            var metadata = await Mediator.Send(new GetYouTubeVideoMetadataQuery(_youTubeUrl));
+            _assetName = metadata.Title;
+            _availableQualities = metadata.AvailableQualities;
+            _selectedQuality = _availableQualities.Count > 0
+                ? _availableQualities[^1]
+                : YouTubeVideoQuality.P1080;
+            _phase = Phase.Details;
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
         }
     }
+
+    private async Task Upload()
+    {
+        if (string.IsNullOrWhiteSpace(_assetName)) return;
+
+        _isLoading = true;
+        _error = string.Empty;
+        StateHasChanged();
+
+        try
+        {
+            await Mediator.Send(new UploadYouTubeAssetCommand(_youTubeUrl, _assetName, _selectedQuality));
+            Reset();
+            await OnUploadComplete.InvokeAsync();
+            await OnClose.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void GoBack()
+    {
+        _phase = Phase.UrlInput;
+        _error = string.Empty;
+    }
+
+    private async Task HandleClose()
+    {
+        if (!_isLoading)
+        {
+            Reset();
+            await OnClose.InvokeAsync();
+        }
+    }
+
+    private void Reset()
+    {
+        _phase = Phase.UrlInput;
+        _youTubeUrl = string.Empty;
+        _isUrlValid = false;
+        _hasInteracted = false;
+        _urlError = string.Empty;
+        _assetName = string.Empty;
+        _availableQualities = [];
+        _selectedQuality = default;
+        _isLoading = false;
+        _error = string.Empty;
+    }
+
+    private static string QualityLabel(YouTubeVideoQuality q) => q switch
+    {
+        YouTubeVideoQuality.P144  => "144p",
+        YouTubeVideoQuality.P360  => "360p",
+        YouTubeVideoQuality.P480  => "480p",
+        YouTubeVideoQuality.P720  => "720p HD",
+        YouTubeVideoQuality.P1080 => "1080p Full HD",
+        YouTubeVideoQuality.P1440 => "1440p 2K",
+        YouTubeVideoQuality.P2160 => "2160p 4K",
+        _ => q.ToString()
+    };
 }

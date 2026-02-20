@@ -1,3 +1,4 @@
+using TheContentor.Domain.Enums;
 using TheContentor.Infrastructure.Interfaces;
 using YoutubeDLSharp;
 using YoutubeDLSharp.Options;
@@ -8,6 +9,17 @@ namespace TheContentor.Infrastructure.Services;
 
 public class YouTubeService(YoutubeClient youtube, YoutubeDL ytdl) : IYouTubeService
 {
+    private static readonly YouTubeVideoQuality[] AllQualities =
+    [
+        YouTubeVideoQuality.P144,
+        YouTubeVideoQuality.P360,
+        YouTubeVideoQuality.P480,
+        YouTubeVideoQuality.P720,
+        YouTubeVideoQuality.P1080,
+        YouTubeVideoQuality.P1440,
+        YouTubeVideoQuality.P2160
+    ];
+
     public Task<bool> IsValidYouTubeUrlAsync(string url)
     {
         return Task.FromResult(VideoId.TryParse(url) != null);
@@ -18,10 +30,7 @@ public class YouTubeService(YoutubeClient youtube, YoutubeDL ytdl) : IYouTubeSer
         try
         {
             var video = await youtube.Videos.GetAsync(url);
-            
-            return (video.Duration ?? TimeSpan.Zero, 
-                    url, 
-                    video.Title);
+            return (video.Duration ?? TimeSpan.Zero, url, video.Title);
         }
         catch (Exception)
         {
@@ -29,18 +38,41 @@ public class YouTubeService(YoutubeClient youtube, YoutubeDL ytdl) : IYouTubeSer
         }
     }
 
-    public async Task<FileInfo?> DownloadVideoStreamAsync(DownloadMergeQuality quality, string url)
+    public async Task<IReadOnlyList<YouTubeVideoQuality>> GetAvailableQualitiesAsync(string url)
+    {
+        try
+        {
+            var res = await ytdl.RunVideoDataFetch(url);
+            if (!res.Success || res.Data?.Formats == null)
+                return Array.Empty<YouTubeVideoQuality>();
+
+            var availableHeights = res.Data.Formats
+                .Where(f => f.Height.HasValue)
+                .Select(f => (int)f.Height!.Value)
+                .ToHashSet();
+
+            return AllQualities
+                .Where(q => availableHeights.Any(h => h >= (int)q - 30 && h <= (int)q + 30))
+                .ToList();
+        }
+        catch (Exception)
+        {
+            return Array.Empty<YouTubeVideoQuality>();
+        }
+    }
+
+    public async Task<FileInfo?> DownloadVideoStreamAsync(YouTubeVideoQuality quality, string url)
     {
         try
         {
             var options = new OptionSet
             {
-                Format = GetFormat(quality),//"worstvideo[ext=mp4]",
+                Format = GetFormat(quality),
                 MergeOutputFormat = DownloadMergeFormat.Mp4,
                 RestrictFilenames = true,
                 WriteInfoJson = false,
             };
-            
+
             var res = await ytdl.RunVideoDownload(url, overrideOptions: options);
             return new FileInfo(res.Data);
         }
@@ -50,20 +82,9 @@ public class YouTubeService(YoutubeClient youtube, YoutubeDL ytdl) : IYouTubeSer
         }
     }
 
-    private string GetFormat(DownloadMergeQuality quality, string extension = "mp4")
+    private static string GetFormat(YouTubeVideoQuality quality, string extension = "mp4")
     {
-        var maxHeight = quality switch
-        {
-            DownloadMergeQuality.Quality144 => 144,
-            DownloadMergeQuality.Quality360 => 360,
-            DownloadMergeQuality.Quality480 => 480,
-            DownloadMergeQuality.Quality720 => 720,
-            DownloadMergeQuality.Quality1080 => 1080,
-            DownloadMergeQuality.Quality1440 => 1440,
-            DownloadMergeQuality.Quality2160 => 2160,
-            _ => 480
-        };
-
+        var maxHeight = (int)quality;
         return $"bestvideo[height<={maxHeight}][ext={extension}]";
     }
 }

@@ -17,4 +17,7 @@ public class Asset : BaseEntity
 
     // New property for asset type
     public AssetType Type { get; set; } = AssetType.ManualUpload; // Default to ManualUpload
+
+    /// <summary>Quality of the downloaded YouTube video. Null for manually uploaded assets.</summary>
+    public YouTubeVideoQuality? Quality { get; set; }
 }

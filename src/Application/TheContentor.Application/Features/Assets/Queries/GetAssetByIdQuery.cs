@@ -25,7 +25,10 @@ public class GetAssetByIdQueryHandler(TheContentorDbContext context, IBlobServic
                 BlobPath = b.BlobPath,
                 Tags = b.Tags,
                 Duration = b.Duration,
-                IsActive = b.IsActive
+                IsActive = b.IsActive,
+                Type = b.Type,
+                OriginalUrl = b.OriginalUrl,
+                Quality = b.Quality
             })
             .FirstOrDefaultAsync(cancellationToken);
 

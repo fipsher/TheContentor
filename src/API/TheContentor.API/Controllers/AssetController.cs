@@ -4,6 +4,7 @@ using TheContentor.API.Models;
 using TheContentor.Application.Features.Assets.Commands;
 using TheContentor.Application.Features.Assets.Models;
 using TheContentor.Application.Features.Assets.Queries;
+using TheContentor.Application.Features.Assets.Queries.GetYouTubeVideoMetadata;
 
 namespace TheContentor.API.Controllers;
 
@@ -22,9 +23,7 @@ public class AssetController(IMediator mediator) : ControllerBase
     {
         var result = await mediator.Send(new GetAssetByIdQuery(id));
         if (result == null)
-        {
             return NotFound();
-        }
 
         return result;
     }
@@ -41,8 +40,27 @@ public class AssetController(IMediator mediator) : ControllerBase
             FileStream = stream,
             ContentType = model.File.ContentType
         };
-        
+
         var id = await mediator.Send(command);
+        return CreatedAtAction(nameof(GetById), new { id }, id);
+    }
+
+    /// <summary>Returns the title and available quality tiers for a YouTube video before upload.</summary>
+    [HttpGet("youtube-metadata")]
+    public async Task<ActionResult<YouTubeVideoMetadataDto>> GetYouTubeMetadata([FromQuery] string url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return BadRequest("url is required.");
+
+        var result = await mediator.Send(new GetYouTubeVideoMetadataQuery(url));
+        return Ok(result);
+    }
+
+    /// <summary>Downloads a YouTube video and stores it as an asset.</summary>
+    [HttpPost("youtube")]
+    public async Task<ActionResult<Guid>> UploadYouTube([FromBody] YouTubeAssetUploadModel model)
+    {
+        var id = await mediator.Send(new UploadYouTubeAssetCommand(model.YouTubeUrl, model.Name, model.Quality));
         return CreatedAtAction(nameof(GetById), new { id }, id);
     }
 
@@ -51,9 +69,7 @@ public class AssetController(IMediator mediator) : ControllerBase
     {
         var result = await mediator.Send(new ToggleAssetStatusCommand(id));
         if (!result)
-        {
             return NotFound();
-        }
 
         return NoContent();
     }
