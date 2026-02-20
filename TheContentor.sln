@@ -5,6 +5,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		README.md = README.md
 		AGENT_INSTRUCTIONS.md = AGENT_INSTRUCTIONS.md
 		verify_workflow.sh = verify_workflow.sh
+		CLAUDE.md = CLAUDE.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{DDEE5021-AB97-419B-B7A3-B1B5CA76E3C7}"
