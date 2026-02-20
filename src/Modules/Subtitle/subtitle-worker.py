@@ -54,50 +54,91 @@ async def send_event_callback(sender, callback_data):
     message.application_properties["Type"] = "video-generate-subtitles"
     await sender.send_messages(message)
 
-def format_timestamp(seconds):
-    """Format timestamp for SRT format: HH:MM:SS,mmm"""
-    hours = int(seconds // 3600)
-    minutes = int((seconds % 3600) // 60)
-    secs = int(seconds % 60)
-    millis = int((seconds % 1) * 1000)
-    return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
+def generate_subtitle_json(result, max_phrase_words=5, target_phrase_words=4):
+    """Generate JSON subtitle data with phrase grouping and word-level timing.
 
-def generate_srt_with_word_timing(result):
-    """Generate SRT file with word-level timing for highlighting effect"""
-    srt_content = []
-    subtitle_index = 1
+    Uses Whisper segment boundaries as the primary grouping signal:
+    - Segments with > ``max_phrase_words`` words are split into sub-groups of
+      ``target_phrase_words`` words.
+    - Segments with 1-2 words are merged with the following segment when the
+      combined count stays within ``max_phrase_words``.
+    - Falls back to segment-level entries when word-level timestamps are
+      unavailable.
 
-    for segment in result['segments']:
-        # Whisper provides word-level timestamps in newer versions
-        words = segment.get('words', [])
+    Returns a list of phrase dicts:
+        [{phrase, start, end, words: [{word, start, end}]}]
+    """
 
-        if words:
-            # Create subtitles with word-level timing
-            for word_info in words:
-                word = word_info.get('word', '').strip()
-                start = word_info.get('start', 0)
-                end = word_info.get('end', start + 0.5)
-
-                if word:
-                    srt_content.append(f"{subtitle_index}")
-                    srt_content.append(f"{format_timestamp(start)} --> {format_timestamp(end)}")
-                    srt_content.append(word)
-                    srt_content.append("")  # Empty line between subtitles
-                    subtitle_index += 1
-        else:
-            # Fall back to segment-level timing if word-level not available
-            text = segment['text'].strip()
-            start = segment['start']
-            end = segment['end']
-
+    def _clean_segment_words(segment):
+        """Extract non-empty word dicts from a Whisper segment."""
+        out = []
+        for w in segment.get('words', []):
+            text = w.get('word', '').strip()
             if text:
-                srt_content.append(f"{subtitle_index}")
-                srt_content.append(f"{format_timestamp(start)} --> {format_timestamp(end)}")
-                srt_content.append(text)
-                srt_content.append("")
-                subtitle_index += 1
+                out.append({
+                    'word': text,
+                    'start': w.get('start', 0),
+                    'end': w.get('end', w.get('start', 0) + 0.5),
+                })
+        return out
 
-    return "\n".join(srt_content)
+    def _make_phrase(word_list):
+        return {
+            'phrase': ' '.join(w['word'] for w in word_list),
+            'start': word_list[0]['start'],
+            'end': word_list[-1]['end'],
+            'words': word_list,
+        }
+
+    # First pass: collect cleaned word lists per segment
+    seg_word_lists = []
+    for segment in result['segments']:
+        cleaned = _clean_segment_words(segment)
+        if cleaned:
+            seg_word_lists.append(cleaned)
+        elif not cleaned and segment.get('text', '').strip():
+            # No word-level timing -- keep as single entry
+            text = segment['text'].strip()
+            seg_word_lists.append([{
+                'word': text,
+                'start': segment['start'],
+                'end': segment['end'],
+            }])
+
+    # Second pass: merge short segments (1-2 words) with the next
+    merged = []
+    carry = []
+    for words in seg_word_lists:
+        combined = carry + words
+        if len(combined) <= max_phrase_words:
+            if len(combined) <= 2:
+                # Still short -- carry forward to merge with next
+                carry = combined
+            else:
+                merged.append(combined)
+                carry = []
+        else:
+            # Would exceed limit -- flush carry first, then add current
+            if carry:
+                merged.append(carry)
+            carry = words if len(words) <= 2 else []
+            if len(words) > 2:
+                merged.append(words)
+    if carry:
+        merged.append(carry)
+
+    # Third pass: split long groups into sub-phrases of target_phrase_words
+    phrases = []
+    for word_list in merged:
+        if len(word_list) <= max_phrase_words:
+            phrases.append(_make_phrase(word_list))
+        else:
+            for i in range(0, len(word_list), target_phrase_words):
+                group = word_list[i:i + target_phrase_words]
+                if group:
+                    phrases.append(_make_phrase(group))
+
+    return phrases
 
 async def generate_subtitles(audio_blob_path, output_path):
     """Generate subtitles from audio using Whisper"""
@@ -110,14 +151,14 @@ async def generate_subtitles(audio_blob_path, output_path):
         print("Transcribing audio with Whisper...")
         result = whisper_model.transcribe(audio_file, word_timestamps=True)
 
-        # Generate SRT content with word-level timing
-        srt_content = generate_srt_with_word_timing(result)
+        # Generate phrase-grouped JSON with word-level timing
+        phrases = generate_subtitle_json(result)
 
-        # Write SRT file
+        # Write JSON file
         with open(output_path, 'w', encoding='utf-8') as f:
-            f.write(srt_content)
+            json.dump(phrases, f, ensure_ascii=False, indent=2)
 
-        print(f"Subtitles generated: {len(result['segments'])} segments")
+        print(f"Subtitles generated: {len(result['segments'])} segments, {len(phrases)} phrases")
 
 async def process_subtitle_command(command, events_sender):
     """Process a single subtitle generation command"""
@@ -136,7 +177,7 @@ async def process_subtitle_command(command, events_sender):
 
         try:
             with tempfile.TemporaryDirectory() as temp_dir:
-                subtitle_file = os.path.join(temp_dir, f"subtitles_part_{part_id}.srt")
+                subtitle_file = os.path.join(temp_dir, f"subtitles_part_{part_id}.json")
 
                 # Generate subtitles
                 await generate_subtitles(audio_blob_path, subtitle_file)
