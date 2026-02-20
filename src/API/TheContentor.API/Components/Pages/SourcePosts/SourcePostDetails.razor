@@ -1,24 +1,23 @@
 @page "/source-posts/{Id:guid}"
 @using MediatR
+@using Microsoft.AspNetCore.SignalR
+@using Microsoft.AspNetCore.SignalR.Client
 @using TheContentor.Application.Features.SourcePosts.Models
 @using TheContentor.Application.Features.SourcePosts.Commands
 @using TheContentor.Application.Features.SourcePosts.Queries
 @using TheContentor.Application.Features.ProcessedPosts.Commands
+@using TheContentor.Application.Features.ProcessedPosts.Models
 @using TheContentor.Domain.Enums
 @inject IMediator Mediator
 @inject NavigationManager NavigationManager
+@implements IAsyncDisposable
 @rendermode InteractiveServer
 
-<TtsDialog IsVisible="_showTtsDialog"
-           ProcessedPostId="Post?.ProcessedPost?.Id"
-           Gender="Post?.ProcessedPost?.NarratorGender ?? NarratorGender.Male"
-           OnClose="CloseTtsDialog"
-           OnGenerated="OnTtsGenerated" />
-
-<VideoGenerationDialog IsVisible="_showVideoDialog"
-                       ProcessedPostId="Post?.ProcessedPost?.Id"
-                       OnClose="CloseVideoDialog"
-                       OnGenerated="OnVideoGenerated" />
+<GenerateAllDialog IsVisible="_showGenerateDialog"
+                   ProcessedPostId="Post?.ProcessedPost?.Id"
+                   Gender="Post?.ProcessedPost?.NarratorGender ?? NarratorGender.Male"
+                   OnClose="CloseGenerateDialog"
+                   OnGenerated="OnGenerated" />
 
 @if (Post == null)
 {
@@ -33,7 +32,7 @@ else
             <div>
                 <h2>@Post.Title</h2>
                 <small class="text-muted">
-                    Posted by u/@Post.AuthorName in r/@Post.Community 
+                    Posted by u/@Post.AuthorName in r/@Post.Community
                     • @Post.CreatedUtc.ToString("f")
                 </small>
             </div>
@@ -75,7 +74,7 @@ else
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="d-grid gap-2 mb-4">
                     <div class="mb-2">
                         <label class="form-label fw-bold">AI Engine</label>
@@ -101,35 +100,62 @@ else
                     @if (Post.ProcessedPost != null && Post.Status == SourcePostStatus.Processed)
                     {
                         <div class="mt-3">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <label class="form-label fw-bold mb-0">TTS Status</label>
-                                <span class="badge @GetTtsStatusClass(Post.ProcessedPost.TtsStatus)">@Post.ProcessedPost.TtsStatus</span>
-                            </div>
-                            <button type="button" class="btn btn-info w-100" @onclick="ShowTtsDialog" disabled="@(_isProcessing || _isEditing || Post.ProcessedPost.TtsStatus == TtsStatus.InProgress)">
-                                <span>Generate TTS</span>
-                            </button>
-                        </div>
-
-                        <div class="mt-3">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <label class="form-label fw-bold mb-0">Video Status</label>
-                                <span class="badge @GetVideoStatusClass(Post.ProcessedPost.VideoStatus)">@Post.ProcessedPost.VideoStatus</span>
-                            </div>
-                            <button type="button" class="btn btn-success w-100" @onclick="ShowVideoDialog"
-                                    disabled="@(_isProcessing || _isEditing || Post.ProcessedPost.TtsStatus != TtsStatus.Generated || Post.ProcessedPost.VideoStatus == VideoStatus.InProgress)">
-                                <span>Generate Video</span>
-                            </button>
-                            @if (Post.ProcessedPost.VideoStatus == VideoStatus.InProgress)
+                            @if (_currentProgress != null)
                             {
-                                <button type="button" class="btn btn-outline-danger w-100 mt-2" @onclick="CancelVideoGeneration" disabled="@(_isProcessing || _isEditing || _isCancelingVideo)">
-                                    @if (_isCancelingVideo)
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <small class="fw-bold">@_currentProgress.Stage</small>
+                                        <small>@(_currentProgress.ProgressPercent)%</small>
+                                    </div>
+                                    <div class="progress" style="height: 20px;">
+                                        <div class="progress-bar progress-bar-striped progress-bar-animated @(_currentProgress.HasError ? "bg-danger" : "bg-primary")"
+                                             role="progressbar"
+                                             style="width: @(_currentProgress.ProgressPercent)%"
+                                             aria-valuenow="@_currentProgress.ProgressPercent"
+                                             aria-valuemin="0"
+                                             aria-valuemax="100">
+                                        </div>
+                                    </div>
+                                    <small class="text-muted">@_currentProgress.Message</small>
+                                    @if (_currentProgress.HasError && !string.IsNullOrEmpty(_currentProgress.ErrorMessage))
+                                    {
+                                        <div class="mt-1">
+                                            <small class="text-danger">@_currentProgress.ErrorMessage</small>
+                                        </div>
+                                    }
+                                </div>
+                            }
+
+                            <div class="d-flex gap-2 mb-2">
+                                @if (Post.ProcessedPost.TtsStatus == TtsStatus.Generated)
+                                {
+                                    <span class="badge bg-success">TTS Generated</span>
+                                }
+                                @if (Post.ProcessedPost.VideoStatus == VideoStatus.Generated)
+                                {
+                                    <span class="badge bg-success">Video Generated</span>
+                                }
+                            </div>
+
+                            <button type="button" class="btn btn-success w-100"
+                                    @onclick="ShowGenerateDialog"
+                                    disabled="@(_isProcessing || _isEditing || IsGenerating)">
+                                <span>@(HasPreviousGeneration() ? "Re-generate" : "Generate")</span>
+                            </button>
+
+                            @if (IsGenerating)
+                            {
+                                <button type="button" class="btn btn-outline-danger w-100 mt-2"
+                                        @onclick="CancelGeneration"
+                                        disabled="@(_isProcessing || _isEditing || _isCanceling)">
+                                    @if (_isCanceling)
                                     {
                                         <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
                                         <span> Canceling...</span>
                                     }
                                     else
                                     {
-                                        <span>Cancel Video Generation</span>
+                                        <span>Cancel Generation</span>
                                     }
                                 </button>
                             }
@@ -282,7 +308,7 @@ else
                                     @foreach (var platform in Enum.GetValues<SocialPlatform>())
                                     {
                                         <div class="form-check form-check-inline">
-                                            <input class="form-check-input" type="checkbox" 
+                                            <input class="form-check-input" type="checkbox"
                                                    id="@($"platform-{part.GetHashCode()}-{platform}")"
                                                    checked="@part.PublishedTo.Contains(platform)"
                                                    disabled="@(!_isEditing)"
@@ -315,13 +341,40 @@ else
     private CriteriaEngine _selectedEngine = CriteriaEngine.Gemini;
     private bool _isProcessing = false;
     private bool _isEditing = false;
-    private bool _isCancelingVideo = false;
-    private bool _showTtsDialog = false;
-    private bool _showVideoDialog = false;
+    private bool _isCanceling = false;
+    private bool _showGenerateDialog = false;
+    private HubConnection? _hubConnection;
+    private GenerationProgressModel? _currentProgress;
+
+    private bool IsGenerating => Post?.ProcessedPost?.TtsStatus == TtsStatus.InProgress
+                              || Post?.ProcessedPost?.VideoStatus == VideoStatus.InProgress;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadPost();
+
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl(NavigationManager.ToAbsoluteUri("/hubs/video-generation"))
+            .WithAutomaticReconnect()
+            .Build();
+
+        _hubConnection.On<GenerationProgressModel>("ProgressUpdate", async (progress) =>
+        {
+            _currentProgress = progress;
+            if (progress.IsComplete)
+            {
+                await LoadPost();
+                _currentProgress = null;
+            }
+            await InvokeAsync(StateHasChanged);
+        });
+
+        await _hubConnection.StartAsync();
+
+        if (Post?.ProcessedPost != null)
+        {
+            await _hubConnection.InvokeAsync("JoinPostGroup", Post.ProcessedPost.Id);
+        }
     }
 
     private async Task LoadPost()
@@ -392,7 +445,7 @@ else
     private void AddPart()
     {
         if (Post?.ProcessedPost == null) return;
-        
+
         var newPart = new ProcessedPostPartDto
         {
             Part = Post.ProcessedPost.Parts.Any() ? Post.ProcessedPost.Parts.Max(p => p.Part) + 1 : 1,
@@ -400,7 +453,7 @@ else
             Hashtags = [],
             PublishedTo = []
         };
-        
+
         Post.ProcessedPost.Parts.Add(newPart);
         _partHashtags[newPart] = "";
     }
@@ -440,68 +493,49 @@ else
         _ => "bg-secondary"
     };
 
-    private string GetTtsStatusClass(TtsStatus status) => status switch
+    private void ShowGenerateDialog()
     {
-        TtsStatus.NotGenerated => "bg-secondary",
-        TtsStatus.InProgress => "bg-warning",
-        TtsStatus.Generated => "bg-success",
-        TtsStatus.Failed => "bg-danger",
-        _ => "bg-secondary"
-    };
-
-    private void ShowTtsDialog()
-    {
-        _showTtsDialog = true;
+        _showGenerateDialog = true;
     }
 
-    private async Task CloseTtsDialog()
+    private async Task CloseGenerateDialog()
     {
-        _showTtsDialog = false;
+        _showGenerateDialog = false;
         await Task.CompletedTask;
     }
 
-    private async Task OnTtsGenerated()
+    private async Task OnGenerated()
     {
         await LoadPost();
     }
 
-    private string GetVideoStatusClass(VideoStatus status) => status switch
+    private bool HasPreviousGeneration()
     {
-        VideoStatus.NotGenerated => "bg-secondary",
-        VideoStatus.InProgress => "bg-warning",
-        VideoStatus.Generated => "bg-success",
-        VideoStatus.Failed => "bg-danger",
-        _ => "bg-secondary"
-    };
-
-    private void ShowVideoDialog()
-    {
-        _showVideoDialog = true;
+        return Post?.ProcessedPost?.TtsStatus == TtsStatus.Generated
+            || Post?.ProcessedPost?.VideoStatus == VideoStatus.Generated;
     }
 
-    private async Task CloseVideoDialog()
-    {
-        _showVideoDialog = false;
-        await Task.CompletedTask;
-    }
-
-    private async Task OnVideoGenerated()
-    {
-        await LoadPost();
-    }
-
-    private async Task CancelVideoGeneration()
+    private async Task CancelGeneration()
     {
         if (Post?.ProcessedPost == null) return;
-        _isCancelingVideo = true;
+        _isCanceling = true;
         try
         {
-            await Mediator.Send(new CancelVideoCommand(Post.ProcessedPost.Id));
+            await Mediator.Send(new CancelGenerationCommand(Post.ProcessedPost.Id));
+            _currentProgress = null;
             await LoadPost();
         }
         finally
         {
-            _isCancelingVideo = false;
+            _isCanceling = false;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hubConnection != null)
+        {
+            await _hubConnection.DisposeAsync();
         }
     }
 }

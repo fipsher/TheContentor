@@ -1,5 +1,7 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
+using TheContentor.API.Hubs;
 using TheContentor.Application.Features.ProcessedPosts.Commands;
 using TheContentor.Application.Features.ProcessedPosts.Models;
 using TheContentor.Application.Features.ProcessedPosts.Queries;
@@ -8,12 +10,10 @@ using TheContentor.Domain.Enums;
 
 namespace TheContentor.API.Controllers;
 
-/// <summary>
-/// Controller for ProcessedPost operations
-/// </summary>
+/// <summary>Controller for ProcessedPost operations.</summary>
 [ApiController]
 [Route("api/[controller]")]
-public class ProcessedPostController(IMediator mediator) : ControllerBase
+public class ProcessedPostController(IMediator mediator, IHubContext<VideoGenerationHub> hubContext) : ControllerBase
 {
     /// <summary>
     /// Get a ProcessedPost by ID
@@ -40,9 +40,15 @@ public class ProcessedPostController(IMediator mediator) : ControllerBase
         return Accepted();
     }
 
-    /// <summary>
-    /// Cancel video generation for a ProcessedPost
-    /// </summary>
+    /// <summary>Triggers the full TTS + Video generation pipeline.</summary>
+    [HttpPost("{id:guid}/generate-all")]
+    public async Task<IActionResult> GenerateAll(Guid id, [FromBody] GenerateAllSettingsModel settings)
+    {
+        await mediator.Send(new GenerateAllCommand(id, settings.TtsSettings, settings.AssetIds));
+        return Accepted();
+    }
+
+    /// <summary>Cancel video generation for a ProcessedPost.</summary>
     [HttpPost("{id:guid}/cancel-video")]
     public async Task<IActionResult> CancelVideo(Guid id)
     {
@@ -50,9 +56,32 @@ public class ProcessedPostController(IMediator mediator) : ControllerBase
         return Accepted();
     }
 
-    /// <summary>
-    /// Update TTS status (called by orchestrator)
-    /// </summary>
+    /// <summary>Cancels an in-progress generate-all pipeline.</summary>
+    [HttpPost("{id:guid}/cancel-generation")]
+    public async Task<IActionResult> CancelGeneration(Guid id)
+    {
+        await mediator.Send(new CancelGenerationCommand(id));
+        return Accepted();
+    }
+
+    /// <summary>Receives progress updates from the orchestrator and broadcasts via SignalR.</summary>
+    [HttpPost("progress")]
+    public async Task<IActionResult> ReportProgress([FromBody] GenerationProgressModel progress)
+    {
+        await hubContext.Clients.Group(progress.ProcessedPostId.ToString())
+            .SendAsync("ProgressUpdate", progress);
+        return Ok();
+    }
+
+    /// <summary>Cleans up intermediate assets for a processed post.</summary>
+    [HttpPost("{id:guid}/cleanup-intermediate")]
+    public async Task<IActionResult> CleanupIntermediateAssets(Guid id)
+    {
+        await mediator.Send(new CleanupIntermediateAssetsCommand(id));
+        return Ok();
+    }
+
+    /// <summary>Update TTS status (called by orchestrator).</summary>
     [HttpPut("tts-status")]
     public async Task<IActionResult> UpdateTtsStatus([FromBody] UpdateTtsStatusRequest request)
     {

@@ -6,6 +6,7 @@ using Microsoft.DurableTask.Client;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RestSharp;
+using TheContentor.Orchestrator.Models.GenerateAll;
 using TheContentor.Orchestrator.Models.ProcessedPost;
 using TheContentor.Orchestrator.Models.TTS;
 using TheContentor.Orchestrator.Models.Video;
@@ -94,6 +95,37 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
                 catch (Exception ex)
                 {
                     logger.LogWarning(ex, "Failed to terminate Video orchestration for ProcessedPost: {ProcessedPostId}, InstanceId: {InstanceId}",
+                        cancelRequest.ProcessedPostId, instanceId);
+                }
+            }
+        }
+        else if (messageType == "generate-all")
+        {
+            var request = JsonSerializer.Deserialize<GenerateAllOrchestratorRequest>(message.Body.ToString());
+            if (request != null)
+            {
+                logger.LogInformation("Triggering GenerateAll orchestration for ProcessedPost: {ProcessedPostId}", request.ProcessedPostId);
+                var instanceId = $"generate-all-{request.ProcessedPostId}";
+                await client.ScheduleNewOrchestrationInstanceAsync(
+                    nameof(GenerateAllOrchestrator), request,
+                    new StartOrchestrationOptions { InstanceId = instanceId });
+            }
+        }
+        else if (messageType == "generate-all-cancel")
+        {
+            var cancelRequest = JsonSerializer.Deserialize<VideoCancelRequest>(message.Body.ToString());
+            if (cancelRequest != null)
+            {
+                var instanceId = $"generate-all-{cancelRequest.ProcessedPostId}";
+                logger.LogInformation("Terminating GenerateAll orchestration for ProcessedPost: {ProcessedPostId}, InstanceId: {InstanceId}",
+                    cancelRequest.ProcessedPostId, instanceId);
+                try
+                {
+                    await client.TerminateInstanceAsync(instanceId, "Canceled by user");
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to terminate GenerateAll orchestration for ProcessedPost: {ProcessedPostId}, InstanceId: {InstanceId}",
                         cancelRequest.ProcessedPostId, instanceId);
                 }
             }
@@ -618,5 +650,363 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
         }
 
         logger.LogInformation("Updated video status for ProcessedPost: {ProcessedPostId}", state.ProcessedPostId);
+    }
+
+    // ==================== Unified Generate-All Orchestration ====================
+
+    [Function(nameof(GenerateAllOrchestrator))]
+    public async Task GenerateAllOrchestrator([OrchestrationTrigger] TaskOrchestrationContext context)
+    {
+        var request = context.GetInput<GenerateAllOrchestratorRequest>()!;
+        var instanceId = context.InstanceId;
+
+        logger.LogInformation("GenerateAll Orchestrator started for ProcessedPost: {ProcessedPostId}, InstanceId: {InstanceId}",
+            request.ProcessedPostId, instanceId);
+
+        var ttsState = new TtsOrchestrationState
+        {
+            ProcessedPostId = request.ProcessedPostId,
+            HasErrors = false
+        };
+
+        try
+        {
+            // --- Phase 1: TTS ---
+            await context.CallActivityAsync("ReportProgress", new GenerationProgressDto
+            {
+                ProcessedPostId = request.ProcessedPostId, ProgressPercent = 0,
+                Stage = "TTS", Message = "Starting TTS generation..."
+            });
+
+            var postData = await context.CallActivityAsync<ProcessedPostData>("FetchProcessedPostData", request.ProcessedPostId);
+            var expectedTtsCallbacks = postData.Parts.Count;
+            ttsState.ExpectedCallbacks = expectedTtsCallbacks;
+
+            // Send TTS commands
+            var ttsTasks = new List<Task>();
+            foreach (var part in postData.Parts)
+            {
+                var text = part.Part == 1
+                    ? $"{postData.Title} {part.ProcessedText}".Trim()
+                    : part.ProcessedText;
+
+                ttsTasks.Add(context.CallActivityAsync("SendTtsCommand", new TtsCommandMessage
+                {
+                    Text = text,
+                    Voice = request.TtsSettings.Voice,
+                    Rate = request.TtsSettings.Rate,
+                    Pitch = request.TtsSettings.Pitch,
+                    ProcessedPostId = request.ProcessedPostId,
+                    PartId = part.Id,
+                    OrchestrationInstanceId = instanceId,
+                    TextType = "part"
+                }));
+            }
+
+            await Task.WhenAll(ttsTasks);
+
+            await context.CallActivityAsync("ReportProgress", new GenerationProgressDto
+            {
+                ProcessedPostId = request.ProcessedPostId, ProgressPercent = 5,
+                Stage = "TTS", Message = "TTS commands dispatched, waiting for callbacks..."
+            });
+
+            // Wait for TTS callbacks
+            while (ttsState.ReceivedCallbacks < ttsState.ExpectedCallbacks)
+            {
+                var callback = await context.WaitForExternalEvent<TtsEventCallback>("TtsCallback");
+                if (callback.TextType != "part")
+                {
+                    logger.LogInformation("Ignoring TTS callback for {TextType}", callback.TextType);
+                    continue;
+                }
+
+                ttsState.ReceivedCallbacks++;
+
+                if (callback.Success && !string.IsNullOrEmpty(callback.BlobContainer) && !string.IsNullOrEmpty(callback.BlobPath))
+                {
+                    var key = $"part-{callback.PartId}";
+                    ttsState.CompletedItems[key] = new BlobPathInfo
+                    {
+                        ContainerName = callback.BlobContainer,
+                        AssetPath = callback.BlobPath,
+                        PartId = callback.PartId,
+                        TextType = callback.TextType,
+                        AudioDurationSeconds = callback.AudioDurationSeconds
+                    };
+                }
+                else
+                {
+                    ttsState.HasErrors = true;
+                    logger.LogError("TTS generation failed: {ErrorMessage}", callback.ErrorMessage);
+                }
+
+                var ttsPercent = 5 + (int)((ttsState.ReceivedCallbacks / (double)ttsState.ExpectedCallbacks) * 35);
+                await context.CallActivityAsync("ReportProgress", new GenerationProgressDto
+                {
+                    ProcessedPostId = request.ProcessedPostId, ProgressPercent = ttsPercent,
+                    Stage = "TTS", Message = $"TTS: {ttsState.ReceivedCallbacks}/{ttsState.ExpectedCallbacks} parts complete"
+                });
+            }
+
+            // Save TTS results
+            await context.CallActivityAsync("UpdateProcessedPostTtsStatus", ttsState);
+
+            if (ttsState.HasErrors)
+            {
+                await context.CallActivityAsync("ReportProgress", new GenerationProgressDto
+                {
+                    ProcessedPostId = request.ProcessedPostId, ProgressPercent = 40,
+                    Stage = "TTS", Message = "TTS generation failed",
+                    IsComplete = true, HasError = true, ErrorMessage = "One or more TTS parts failed"
+                });
+                return;
+            }
+
+            await context.CallActivityAsync("ReportProgress", new GenerationProgressDto
+            {
+                ProcessedPostId = request.ProcessedPostId, ProgressPercent = 40,
+                Stage = "TTS", Message = "TTS generation complete"
+            });
+
+            // --- Phase 2: Video ---
+            await context.CallActivityAsync("ReportProgress", new GenerationProgressDto
+            {
+                ProcessedPostId = request.ProcessedPostId, ProgressPercent = 42,
+                Stage = "Video", Message = "Starting video generation..."
+            });
+
+            await context.CallActivityAsync("UpdateVideoStatusToInProgress", request.ProcessedPostId);
+
+            var videoData = await context.CallActivityAsync<VideoGenerationData>("FetchVideoGenerationData",
+                new FetchVideoGenerationDataInput { ProcessedPostId = request.ProcessedPostId, AssetIds = request.AssetIds });
+
+            var videoState = new VideoOrchestrationState
+            {
+                ProcessedPostId = request.ProcessedPostId,
+                HasErrors = false
+            };
+            var partsCount = videoData.Parts.Count;
+            videoState.ExpectedCallbacks = partsCount * 3;
+
+            // Compute sequential video offsets
+            var orderedParts = videoData.Parts.OrderBy(p => p.Part).ToList();
+            var totalAudioSeconds = orderedParts.Sum(p => p.AudioDuration.TotalSeconds);
+            var totalAssetSeconds = videoData.Assets
+                .Where(a => a.Duration.HasValue)
+                .Sum(a => a.Duration!.Value.TotalSeconds);
+
+            var randomStart = TimeSpan.Zero;
+            if (totalAssetSeconds > totalAudioSeconds)
+            {
+                var maxStartSeconds = totalAssetSeconds - totalAudioSeconds;
+                var seed = Math.Abs(context.NewGuid().GetHashCode());
+                var startSeconds = (seed % (int)(maxStartSeconds * 100)) / 100.0;
+                randomStart = TimeSpan.FromSeconds(startSeconds);
+            }
+
+            var concatTasks = new List<Task>();
+            var cumulativeOffset = randomStart;
+
+            foreach (var part in orderedParts)
+            {
+                concatTasks.Add(context.CallActivityAsync("SendVideoConcatCommand", new VideoCommandMessage
+                {
+                    CommandType = "concat-cut",
+                    ProcessedPostId = request.ProcessedPostId,
+                    PartId = part.Id,
+                    OrchestrationInstanceId = instanceId,
+                    AssetBlobPaths = videoData.Assets.Select(a => a.BlobPath).ToList(),
+                    TargetDuration = part.AudioDuration,
+                    VideoOffset = cumulativeOffset
+                }));
+
+                cumulativeOffset += part.AudioDuration;
+            }
+
+            await Task.WhenAll(concatTasks);
+
+            await context.CallActivityAsync("ReportProgress", new GenerationProgressDto
+            {
+                ProcessedPostId = request.ProcessedPostId, ProgressPercent = 45,
+                Stage = "Video", Message = "Video concat-cut commands dispatched..."
+            });
+
+            // Track per-step callback counts for progress
+            var concatCutReceived = 0;
+            var subtitleReceived = 0;
+            var composeReceived = 0;
+            var partVideos = new Dictionary<Guid, BlobPathInfo>();
+            var partSubtitles = new Dictionary<Guid, BlobPathInfo>();
+
+            while (videoState.ReceivedCallbacks < videoState.ExpectedCallbacks)
+            {
+                var callback = await context.WaitForExternalEvent<VideoEventCallback>("VideoCallback");
+                videoState.ReceivedCallbacks++;
+
+                if (!callback.Success)
+                {
+                    videoState.HasErrors = true;
+                    logger.LogError("Video processing failed: {ErrorMessage}", callback.ErrorMessage);
+                    continue;
+                }
+
+                var partId = callback.PartId!.Value;
+
+                if (callback.CommandType == "concat-cut")
+                {
+                    partVideos[partId] = new BlobPathInfo
+                    {
+                        ContainerName = callback.BlobContainer!,
+                        AssetPath = callback.BlobPath!,
+                        PartId = partId
+                    };
+
+                    concatCutReceived++;
+                    var concatPercent = 45 + (int)((concatCutReceived / (double)partsCount) * 15);
+                    await context.CallActivityAsync("ReportProgress", new GenerationProgressDto
+                    {
+                        ProcessedPostId = request.ProcessedPostId, ProgressPercent = concatPercent,
+                        Stage = "Video", Message = $"Concat-cut: {concatCutReceived}/{partsCount} parts"
+                    });
+
+                    var part = videoData.Parts.First(p => p.Id == partId);
+                    await context.CallActivityAsync("SendSubtitleGenerationCommand", new VideoCommandMessage
+                    {
+                        CommandType = "generate-subtitles",
+                        ProcessedPostId = request.ProcessedPostId,
+                        PartId = partId,
+                        OrchestrationInstanceId = instanceId,
+                        AudioBlobPath = part.AudioBlobPath
+                    });
+                }
+                else if (callback.CommandType == "generate-subtitles")
+                {
+                    partSubtitles[partId] = new BlobPathInfo
+                    {
+                        ContainerName = callback.BlobContainer!,
+                        AssetPath = callback.BlobPath!,
+                        PartId = partId
+                    };
+
+                    subtitleReceived++;
+                    var subtitlePercent = 60 + (int)((subtitleReceived / (double)partsCount) * 15);
+                    await context.CallActivityAsync("ReportProgress", new GenerationProgressDto
+                    {
+                        ProcessedPostId = request.ProcessedPostId, ProgressPercent = subtitlePercent,
+                        Stage = "Video", Message = $"Subtitles: {subtitleReceived}/{partsCount} parts"
+                    });
+
+                    await context.CallActivityAsync("SendVideoComposeCommand", new VideoCommandMessage
+                    {
+                        CommandType = "compose",
+                        ProcessedPostId = request.ProcessedPostId,
+                        PartId = partId,
+                        OrchestrationInstanceId = instanceId,
+                        VideoBlobPath = partVideos[partId],
+                        SubtitleBlobPath = partSubtitles[partId],
+                        AudioBlobPath = videoData.Parts.First(p => p.Id == partId).AudioBlobPath
+                    });
+                }
+                else if (callback.CommandType == "compose")
+                {
+                    var key = $"part-{partId}";
+                    videoState.CompletedItems[key] = new BlobPathInfo
+                    {
+                        ContainerName = callback.BlobContainer!,
+                        AssetPath = callback.BlobPath!,
+                        PartId = partId
+                    };
+
+                    composeReceived++;
+                    var composePercent = 75 + (int)((composeReceived / (double)partsCount) * 20);
+                    await context.CallActivityAsync("ReportProgress", new GenerationProgressDto
+                    {
+                        ProcessedPostId = request.ProcessedPostId, ProgressPercent = composePercent,
+                        Stage = "Video", Message = $"Compose: {composeReceived}/{partsCount} parts"
+                    });
+                }
+            }
+
+            // Save video results
+            await context.CallActivityAsync("UpdateProcessedPostVideoStatus", videoState);
+
+            if (videoState.HasErrors)
+            {
+                await context.CallActivityAsync("ReportProgress", new GenerationProgressDto
+                {
+                    ProcessedPostId = request.ProcessedPostId, ProgressPercent = 95,
+                    Stage = "Video", Message = "Video generation completed with errors",
+                    IsComplete = true, HasError = true, ErrorMessage = "One or more video parts failed"
+                });
+                return;
+            }
+
+            // --- Phase 3: Cleanup ---
+            await context.CallActivityAsync("ReportProgress", new GenerationProgressDto
+            {
+                ProcessedPostId = request.ProcessedPostId, ProgressPercent = 97,
+                Stage = "Cleanup", Message = "Cleaning up intermediate files..."
+            });
+
+            await context.CallActivityAsync("CleanupIntermediateAssets", request.ProcessedPostId);
+
+            await context.CallActivityAsync("ReportProgress", new GenerationProgressDto
+            {
+                ProcessedPostId = request.ProcessedPostId, ProgressPercent = 100,
+                Stage = "Complete", Message = "Generation complete!", IsComplete = true
+            });
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Exception in GenerateAll Orchestrator for ProcessedPost: {ProcessedPostId}", request.ProcessedPostId);
+
+            await context.CallActivityAsync("ReportProgress", new GenerationProgressDto
+            {
+                ProcessedPostId = request.ProcessedPostId, ProgressPercent = 0,
+                Stage = "Error", Message = "Pipeline failed unexpectedly",
+                IsComplete = true, HasError = true, ErrorMessage = ex.Message
+            });
+        }
+    }
+
+    [Function("ReportProgress")]
+    public async Task ReportProgress([ActivityTrigger] GenerationProgressDto progress)
+    {
+        var request = new RestRequest($"{_apiUrl}/api/ProcessedPost/progress", Method.Post);
+        request.AddJsonBody(progress);
+        var response = await client.ExecuteAsync(request);
+        if (!response.IsSuccessful)
+        {
+            logger.LogWarning("Failed to report progress: {ErrorMessage}", response.ErrorMessage);
+        }
+    }
+
+    [Function("UpdateVideoStatusToInProgress")]
+    public async Task UpdateVideoStatusToInProgress([ActivityTrigger] Guid processedPostId)
+    {
+        var request = new RestRequest($"{_apiUrl}/api/ProcessedPost/video-status", Method.Put);
+        request.AddJsonBody(new
+        {
+            ProcessedPostId = processedPostId,
+            Status = 2, // InProgress
+            PartVideoBlobPaths = new Dictionary<string, object>()
+        });
+        var response = await client.ExecuteAsync(request);
+        if (!response.IsSuccessful)
+        {
+            logger.LogWarning("Failed to update video status to InProgress: {ErrorMessage}", response.ErrorMessage);
+        }
+    }
+
+    [Function("CleanupIntermediateAssets")]
+    public async Task CleanupIntermediateAssets([ActivityTrigger] Guid processedPostId)
+    {
+        var request = new RestRequest($"{_apiUrl}/api/ProcessedPost/{processedPostId}/cleanup-intermediate", Method.Post);
+        var response = await client.ExecuteAsync(request);
+        if (!response.IsSuccessful)
+        {
+            logger.LogWarning("Failed to cleanup intermediate assets: {ErrorMessage}", response.ErrorMessage);
+        }
     }
 }

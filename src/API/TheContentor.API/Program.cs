@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.FileProviders;
 using TheContentor.API.Components;
+using TheContentor.API.Hubs;
 using TheContentor.Application;
 using TheContentor.Infrastructure;
 using Xabe.FFmpeg;
@@ -28,6 +29,7 @@ if (!string.IsNullOrEmpty(ffmpegPath))
 
 // Add services to the container.
 builder.Services.AddControllers();
+builder.Services.AddSignalR();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddRazorComponents()
@@ -92,6 +94,7 @@ app.UseHttpsRedirection();
 app.UseAntiforgery();
 
 app.MapControllers();
+app.MapHub<VideoGenerationHub>("/hubs/video-generation");
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
