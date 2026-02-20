@@ -12,6 +12,7 @@ public class VideoCommandMessage
     // For concat-cut
     public List<BlobPathInfo>? AssetBlobPaths { get; set; }
     public TimeSpan? TargetDuration { get; set; }
+    public TimeSpan? VideoOffset { get; set; }
 
     // For generate-subtitles
     public BlobPathInfo? AudioBlobPath { get; set; }

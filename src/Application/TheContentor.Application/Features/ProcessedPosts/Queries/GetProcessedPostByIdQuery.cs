@@ -44,7 +44,8 @@ public class GetProcessedPostByIdQueryHandler(TheContentorDbContext dbContext)
                     {
                         ContainerName = p.AudioBlobPath.ContainerName,
                         AssetPath = p.AudioBlobPath.AssetPath
-                    }
+                    },
+                    AudioDurationSeconds = p.AudioDuration.HasValue ? p.AudioDuration.Value.TotalSeconds : null
                 }).ToList()
             })
             .FirstOrDefaultAsync(cancellationToken);

@@ -66,6 +66,7 @@ public class GetSourcePostDetailsQueryHandler(TheContentorDbContext dbContext, I
                             ContainerName = p.AudioBlobPath.ContainerName,
                             AssetPath = p.AudioBlobPath.AssetPath
                         },
+                        AudioDurationSeconds = p.AudioDuration.HasValue ? p.AudioDuration.Value.TotalSeconds : null,
                         VideoBlobPath = p.VideoBlobPath == null ? null : new BlobPathDto
                         {
                             ContainerName = p.VideoBlobPath.ContainerName,

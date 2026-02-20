@@ -66,6 +66,12 @@ public class ProcessedPostController(IMediator mediator) : ControllerBase
                 }
             ) ?? new Dictionary<Guid, BlobPath>();
 
+        var partAudioDurations = request.PartAudioBlobPaths?
+            .ToDictionary(
+                x => x.Key,
+                x => x.Value.AudioDurationSeconds
+            ) ?? new Dictionary<Guid, double?>();
+
         var descriptionBlobPath = request.DescriptionAudioBlobPath == null
             ? null
             : new BlobPath
@@ -78,7 +84,8 @@ public class ProcessedPostController(IMediator mediator) : ControllerBase
             request.ProcessedPostId,
             (TtsStatus)request.Status,
             descriptionBlobPath,
-            partBlobPaths
+            partBlobPaths,
+            partAudioDurations
         ));
 
         return Ok();
@@ -121,10 +128,15 @@ public class UpdateTtsStatusRequest
     public Dictionary<Guid, BlobPathRequest>? PartAudioBlobPaths { get; set; }
 }
 
+/// <summary>Blob path with optional audio duration.</summary>
 public class BlobPathRequest
 {
+    /// <summary>Blob container name.</summary>
     public string ContainerName { get; set; } = string.Empty;
+    /// <summary>Asset path within the container.</summary>
     public string AssetPath { get; set; } = string.Empty;
+    /// <summary>Audio duration in seconds (from TTS worker).</summary>
+    public double? AudioDurationSeconds { get; set; }
 }
 
 /// <summary>

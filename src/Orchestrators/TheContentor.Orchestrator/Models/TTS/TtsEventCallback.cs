@@ -13,4 +13,5 @@ public class TtsEventCallback
     public bool Success { get; set; }
     public string? ErrorMessage { get; set; }
     public string TextType { get; set; } = string.Empty; // "description" or "part"
+    public double? AudioDurationSeconds { get; set; }
 }

@@ -10,6 +10,7 @@ public class ProcessedPostPartResponse
     public Guid? Id { get; set; }
     public int Part { get; set; }
     public BlobPathResponse? AudioBlobPath { get; set; }
+    public double? AudioDurationSeconds { get; set; }
 }
 
 public class AssetDetailsResponse

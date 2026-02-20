@@ -175,7 +175,8 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
                         ContainerName = callback.BlobContainer,
                         AssetPath = callback.BlobPath,
                         PartId = callback.PartId,
-                        TextType = callback.TextType
+                        TextType = callback.TextType,
+                        AudioDurationSeconds = callback.AudioDurationSeconds
                     };
                 }
                 else
@@ -262,7 +263,7 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
             .Where(x => x.Key.StartsWith("part-"))
             .ToDictionary(
                 x => x.Value.PartId!.Value,
-                x => new { x.Value.ContainerName, x.Value.AssetPath }
+                x => new { x.Value.ContainerName, x.Value.AssetPath, x.Value.AudioDurationSeconds }
             );
 
         var updatePayload = new
@@ -275,7 +276,7 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
 
         var request = new RestRequest($"{_apiUrl}/api/ProcessedPost/tts-status", Method.Put);
         request.AddJsonBody(updatePayload);
-        
+
         var response = await client.ExecuteAsync(request);
         if (!response.IsSuccessful)
         {
@@ -312,11 +313,29 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
             // Expected callbacks: (concat-cut + subtitles + compose) * parts.Count
             state.ExpectedCallbacks = videoData.Parts.Count * 3;
 
-            var tasks = new List<Task>();
+            // Compute sequential video offsets so each part gets the next slice of background video
+            var orderedParts = videoData.Parts.OrderBy(p => p.Part).ToList();
+            var totalAudioSeconds = orderedParts.Sum(p => p.AudioDuration.TotalSeconds);
+            var totalAssetSeconds = videoData.Assets
+                .Where(a => a.Duration.HasValue)
+                .Sum(a => a.Duration!.Value.TotalSeconds);
 
-            foreach (var part in videoData.Parts)
+            // Pick a deterministic random start (orchestrators must be deterministic)
+            var randomStart = TimeSpan.Zero;
+            if (totalAssetSeconds > totalAudioSeconds)
             {
-                // Step 1: Concat and cut video to match audio duration
+                var maxStartSeconds = totalAssetSeconds - totalAudioSeconds;
+                var seed = Math.Abs(context.NewGuid().GetHashCode());
+                var startSeconds = (seed % (int)(maxStartSeconds * 100)) / 100.0;
+                randomStart = TimeSpan.FromSeconds(startSeconds);
+            }
+
+            var tasks = new List<Task>();
+            var cumulativeOffset = randomStart;
+
+            foreach (var part in orderedParts)
+            {
+                // Step 1: Concat and cut video to match audio duration, starting at the correct offset
                 tasks.Add(context.CallActivityAsync("SendVideoConcatCommand", new VideoCommandMessage
                 {
                     CommandType = "concat-cut",
@@ -324,8 +343,11 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
                     PartId = part.Id,
                     OrchestrationInstanceId = instanceId,
                     AssetBlobPaths = videoData.Assets.Select(a => a.BlobPath).ToList(),
-                    TargetDuration = part.AudioDuration
+                    TargetDuration = part.AudioDuration,
+                    VideoOffset = cumulativeOffset
                 }));
+
+                cumulativeOffset += part.AudioDuration;
             }
 
             await Task.WhenAll(tasks);
@@ -446,6 +468,10 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
                     throw new InvalidOperationException($"ProcessedPost part is missing an ID for ProcessedPost: {processedPostId}");
                 }
 
+                var audioDuration = part.AudioDurationSeconds.HasValue
+                    ? TimeSpan.FromSeconds(part.AudioDurationSeconds.Value)
+                    : TimeSpan.FromSeconds(30);
+
                 parts.Add(new VideoPartData
                 {
                     Id = part.Id.Value,
@@ -455,7 +481,7 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
                         ContainerName = part.AudioBlobPath.ContainerName,
                         AssetPath = part.AudioBlobPath.AssetPath
                     },
-                    AudioDuration = TimeSpan.FromSeconds(30) // TODO: Get actual duration from blob metadata or DB
+                    AudioDuration = audioDuration
                 });
             }
         }

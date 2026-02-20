@@ -77,6 +77,8 @@ public class ProcessedPostPartDto
     public int Part { get; set; }
     /// <summary>Audio blob path for the part narration.</summary>
     public BlobPathDto? AudioBlobPath { get; set; }
+    /// <summary>Audio duration in seconds.</summary>
+    public double? AudioDurationSeconds { get; set; }
     /// <summary>Video blob path for the part's final video.</summary>
     public BlobPathDto? VideoBlobPath { get; set; }
     /// <summary>Subtitle blob path for the part's subtitles.</summary>

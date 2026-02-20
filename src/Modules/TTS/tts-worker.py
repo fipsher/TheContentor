@@ -8,6 +8,7 @@ import shutil
 import tempfile
 import uuid
 import edge_tts
+from mutagen.mp3 import MP3
 from azure.servicebus.aio import ServiceBusClient
 
 # Configuration from environment variables
@@ -73,6 +74,10 @@ async def process_tts_command(command, events_sender):
             audio_file = os.path.join(temp_dir, f"{text_type}_{processed_post_id}.mp3")
             await generate_audio(text, voice, rate, pitch, audio_file)
 
+            # Measure audio duration
+            audio_duration_seconds = MP3(audio_file).info.length
+            print(f"Audio duration: {audio_duration_seconds:.2f}s")
+
             # Save to local storage
             container_name = "tts-audio"
 
@@ -87,7 +92,8 @@ async def process_tts_command(command, events_sender):
                     "BlobContainer": container,
                     "BlobPath": blob_path,
                     "Success": True,
-                    "TextType": text_type
+                    "TextType": text_type,
+                    "AudioDurationSeconds": audio_duration_seconds
                 }
 
                 await send_event_callback(events_sender, callback)

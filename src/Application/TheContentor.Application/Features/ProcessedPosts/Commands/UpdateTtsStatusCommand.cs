@@ -11,7 +11,8 @@ public record UpdateTtsStatusCommand(
     Guid ProcessedPostId,
     TtsStatus Status,
     BlobPath? DescriptionAudioBlobPath,
-    Dictionary<Guid, BlobPath> PartAudioBlobPaths) : IRequest;
+    Dictionary<Guid, BlobPath> PartAudioBlobPaths,
+    Dictionary<Guid, double?> PartAudioDurations) : IRequest;
 
 /// <summary>Persists TTS status changes for a processed post.</summary>
 public class UpdateTtsStatusCommandHandler(
@@ -38,6 +39,11 @@ public class UpdateTtsStatusCommandHandler(
             if (part != null)
             {
                 part.AudioBlobPath = blobPath;
+
+                if (request.PartAudioDurations.TryGetValue(partId, out var durationSeconds) && durationSeconds.HasValue)
+                {
+                    part.AudioDuration = TimeSpan.FromSeconds(durationSeconds.Value);
+                }
             }
         }
 

@@ -6,4 +6,5 @@ public class BlobPathInfo
     public string AssetPath { get; set; } = string.Empty;
     public Guid? PartId { get; set; }
     public string TextType { get; set; } = string.Empty;
+    public double? AudioDurationSeconds { get; set; }
 }

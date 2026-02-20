@@ -14,10 +14,13 @@ from moviepy.editor import VideoFileClip, concatenate_videoclips, AudioFileClip,
 import numpy as np
 try:
     from PIL import Image, ImageDraw, ImageFont
+    # Pillow 10+ removed ANTIALIAS; MoviePy's resize still references it
+    if not hasattr(Image, 'ANTIALIAS'):
+        Image.ANTIALIAS = Image.LANCZOS
     PIL_AVAILABLE = True
 except Exception:
     PIL_AVAILABLE = False
-from moviepy.video.fx import crop
+from moviepy.video.fx.crop import crop
 
 # Configuration
 SERVICE_BUS_CONNECTION_STRING = os.environ.get("ConnectionStrings__ContentorServiceBus") or os.environ.get("SERVICE_BUS_CONNECTION_STRING")
@@ -58,8 +61,8 @@ async def send_event_callback(sender, callback_data):
     message.application_properties["Type"] = f"video-{callback_data.get('CommandType', 'unknown')}"
     await sender.send_messages(message)
 
-async def concat_and_cut_video(asset_blob_paths, target_duration, output_path):
-    """Concatenate video assets and cut to target duration"""
+async def concat_and_cut_video(asset_blob_paths, target_duration, output_path, video_offset=0):
+    """Concatenate video assets and cut to target duration starting at video_offset"""
     with tempfile.TemporaryDirectory() as temp_dir:
         # Download all assets from local storage
         asset_files = []
@@ -69,26 +72,64 @@ async def concat_and_cut_video(asset_blob_paths, target_duration, output_path):
             asset_files.append(asset_file)
 
         target_seconds = target_duration.total_seconds() if hasattr(target_duration, 'total_seconds') else target_duration
+        offset_seconds = video_offset.total_seconds() if hasattr(video_offset, 'total_seconds') else video_offset
 
-        def _build_and_write_video(files, max_seconds, out_path):
+        def _build_and_write_video(files, max_seconds, offset, out_path):
+            TARGET_FPS = 30
+            TARGET_W, TARGET_H = 1080, 1920  # 9:16 portrait for social media
             clips = []
+            normalized = []
             concatenated = None
             final_clip = None
             try:
                 clips = [VideoFileClip(f) for f in files]
-                concatenated = concatenate_videoclips(clips, method="compose")
-                final_clip = concatenated.subclip(0, min(max_seconds, concatenated.duration))
-                final_clip.write_videofile(out_path, codec='libx264', audio=False, fps=30, preset='medium')
+
+                # Center-crop each clip to 9:16 aspect ratio, then resize to 1080x1920
+                target_aspect = TARGET_W / TARGET_H  # 0.5625
+                for c in clips:
+                    src_w, src_h = c.size
+                    src_aspect = src_w / src_h
+
+                    if src_aspect > target_aspect:
+                        # Source is wider than 9:16 — crop sides
+                        new_w = int(src_h * target_aspect)
+                        x_center = src_w / 2
+                        cropped = crop(c, x_center=x_center, width=new_w, height=src_h)
+                    else:
+                        # Source is taller than 9:16 — crop top/bottom
+                        new_h = int(src_w / target_aspect)
+                        y_center = src_h / 2
+                        cropped = crop(c, y_center=y_center, width=src_w, height=new_h)
+
+                    resized = cropped.resize((TARGET_W, TARGET_H)).set_fps(TARGET_FPS)
+                    normalized.append(resized)
+
+                concatenated = concatenate_videoclips(normalized, method="chain")
+
+                # Slice from offset to offset + target duration (no looping)
+                end = min(offset + max_seconds, concatenated.duration)
+                start = min(offset, concatenated.duration)
+                if end - start < 0.1:
+                    print(f"Warning: not enough footage after offset {offset:.1f}s (total: {concatenated.duration:.1f}s)")
+
+                final_clip = concatenated.subclip(start, end)
+
+                final_clip.write_videofile(
+                    out_path, codec='libx264', audio=False, fps=TARGET_FPS, preset='medium',
+                    bitrate='8000k', ffmpeg_params=['-crf', '18', '-pix_fmt', 'yuv420p']
+                )
                 return final_clip.duration
             finally:
                 if final_clip is not None:
                     final_clip.close()
                 if concatenated is not None:
                     concatenated.close()
+                for clip in normalized:
+                    clip.close()
                 for clip in clips:
                     clip.close()
 
-        return await asyncio.to_thread(_build_and_write_video, asset_files, target_seconds, output_path)
+        return await asyncio.to_thread(_build_and_write_video, asset_files, target_seconds, offset_seconds, output_path)
 
 async def compose_final_video(video_blob_path, audio_blob_path, subtitle_blob_path, output_path):
     """Compose final video with audio and subtitles"""
@@ -132,18 +173,27 @@ async def compose_final_video(video_blob_path, audio_blob_path, subtitle_blob_pa
         def _build_and_write_final(video_path, audio_path, subtitle_path, out_path):
             video_clip = None
             audio_clip = None
+            adjusted_video = None
             final_clip = None
             subtitle_clips = []
             try:
                 video_clip = VideoFileClip(video_path)
                 audio_clip = AudioFileClip(audio_path)
 
+                # Trim video to match audio duration (no looping — concat-cut already sized it)
+                audio_dur = audio_clip.duration
+                video_dur = video_clip.duration
+                if video_dur > audio_dur + 0.1:
+                    adjusted_video = video_clip.subclip(0, audio_dur)
+                else:
+                    adjusted_video = video_clip
+
                 # Add subtitles
                 subtitles = parse_srt(subtitle_path)
 
-                def _make_pil_subtitle_image(text, video_w, video_h):
-                    max_width = int(video_w * 0.9)
-                    base_font_size = max(24, int(video_h * 0.055))
+                def _make_pil_subtitle_image(text, video_w, video_h):  # noqa: C901
+                    max_width = int(video_w * 0.85)
+                    base_font_size = max(36, int(video_h * 0.07))
 
                     # Try to find a truetype font; fall back to default if not found
                     font = None
@@ -181,7 +231,7 @@ async def compose_final_video(video_blob_path, audio_blob_path, subtitle_blob_pa
                     current = ""
                     for w in words:
                         test = (current + " " + w).strip()
-                        bbox = draw.textbbox((0, 0), test, font=font, stroke_width=2)
+                        bbox = draw.textbbox((0, 0), test, font=font, stroke_width=3)
                         if bbox[2] > max_width and current:
                             lines.append(current)
                             current = w
@@ -191,38 +241,39 @@ async def compose_final_video(video_blob_path, audio_blob_path, subtitle_blob_pa
                         lines.append(current)
 
                     # Compute resulting image size
-                    line_spacing = int(base_font_size * 0.2)
+                    line_spacing = int(base_font_size * 0.3)
                     text_width = 0
                     text_height = 0
                     line_heights = []
                     for ln in lines:
-                        bbox = draw.textbbox((0, 0), ln, font=font, stroke_width=2)
+                        bbox = draw.textbbox((0, 0), ln, font=font, stroke_width=3)
                         w = bbox[2] - bbox[0]
                         h = bbox[3] - bbox[1]
                         text_width = max(text_width, w)
                         line_heights.append(h)
                     text_height = sum(line_heights) + (len(lines) - 1) * line_spacing
 
-                    padding_x = 20
-                    padding_y = 8
+                    padding_x = 30
+                    padding_y = 16
+                    corner_radius = 20
                     img_w = text_width + 2 * padding_x
                     img_h = text_height + 2 * padding_y
 
                     img = Image.new("RGBA", (img_w, img_h), (0, 0, 0, 0))
                     draw = ImageDraw.Draw(img)
 
-                    # Semi-transparent black box background
-                    draw.rectangle([0, 0, img_w, img_h], fill=(0, 0, 0, 160))
+                    # Semi-transparent black rounded-rectangle background
+                    draw.rounded_rectangle([0, 0, img_w - 1, img_h - 1], radius=corner_radius, fill=(0, 0, 0, 180))
 
-                    # Draw each line centered with a thin black stroke
+                    # Draw each line centered with a thick black stroke
                     y = padding_y
                     for i, ln in enumerate(lines):
-                        bbox = draw.textbbox((0, 0), ln, font=font, stroke_width=2)
+                        bbox = draw.textbbox((0, 0), ln, font=font, stroke_width=3)
                         w = bbox[2] - bbox[0]
                         h = bbox[3] - bbox[1]
                         x = (img_w - w) // 2 - bbox[0]
                         draw.text((x, y - bbox[1]), ln, font=font, fill=(255, 255, 255, 255),
-                                  stroke_width=2, stroke_fill=(0, 0, 0, 255))
+                                  stroke_width=3, stroke_fill=(0, 0, 0, 255))
                         y += h + line_spacing
 
                     return np.array(img)
@@ -236,9 +287,9 @@ async def compose_final_video(video_blob_path, audio_blob_path, subtitle_blob_pa
 
                     # Preferred: PIL-based rendering (no ImageMagick dependency)
                     try:
-                        pil_img = _make_pil_subtitle_image(text, video_clip.w, video_clip.h)
+                        pil_img = _make_pil_subtitle_image(text, adjusted_video.w, adjusted_video.h)
                         if pil_img is not None:
-                            img_clip = ImageClip(pil_img).set_start(start).set_end(end).set_position(('center', int(video_clip.h * 0.75)))
+                            img_clip = ImageClip(pil_img).set_start(start).set_end(end).set_position(('center', int(adjusted_video.h * 0.45)))
                             subtitle_clips.append(img_clip)
                             made = True
                     except Exception as e:
@@ -249,13 +300,13 @@ async def compose_final_video(video_blob_path, audio_blob_path, subtitle_blob_pa
                         try:
                             txt_clip = TextClip(
                                 text,
-                                fontsize=max(24, int(video_clip.h * 0.055)),
+                                fontsize=max(36, int(adjusted_video.h * 0.07)),
                                 color='white',
                                 stroke_color='black',
-                                stroke_width=2,
+                                stroke_width=3,
                                 method='caption',
-                                size=(int(video_clip.w * 0.9), None)
-                            ).set_start(start).set_end(end).set_position(('center', int(video_clip.h * 0.75)))
+                                size=(int(adjusted_video.w * 0.85), None)
+                            ).set_start(start).set_end(end).set_position(('center', int(adjusted_video.h * 0.45)))
                             subtitle_clips.append(txt_clip)
                             made = True
                         except Exception as e:
@@ -265,20 +316,24 @@ async def compose_final_video(video_blob_path, audio_blob_path, subtitle_blob_pa
                         print(f"Warning: Skipped subtitle due to rendering issues: '{text}'")
 
                 if subtitle_clips:
-                    final_clip = CompositeVideoClip([video_clip] + subtitle_clips).set_audio(audio_clip)
+                    final_clip = CompositeVideoClip([adjusted_video] + subtitle_clips).set_audio(audio_clip)
                 else:
-                    final_clip = video_clip.set_audio(audio_clip)
+                    final_clip = adjusted_video.set_audio(audio_clip)
 
                 final_clip.write_videofile(
                     out_path,
                     codec='libx264',
                     audio_codec='aac',
                     fps=30,
-                    preset='medium'
+                    preset='medium',
+                    bitrate='8000k',
+                    ffmpeg_params=['-crf', '18', '-pix_fmt', 'yuv420p']
                 )
             finally:
                 if final_clip is not None:
                     final_clip.close()
+                if adjusted_video is not None and adjusted_video is not video_clip:
+                    adjusted_video.close()
                 if video_clip is not None:
                     video_clip.close()
                 if audio_clip is not None:
@@ -307,21 +362,28 @@ async def process_video_command(command, events_sender):
                 # Concatenate and cut video
                 asset_blob_paths = command.get("AssetBlobPaths", [])
                 target_duration_str = command.get("TargetDuration")
+                video_offset_str = command.get("VideoOffset")
 
                 # Parse duration (format: HH:MM:SS or total seconds)
-                if isinstance(target_duration_str, str):
-                    parts = target_duration_str.split(':')
-                    if len(parts) == 3:
-                        h, m, s = map(float, parts)
-                        target_duration = h * 3600 + m * 60 + s
-                    else:
-                        target_duration = float(target_duration_str)
-                else:
-                    target_duration = float(target_duration_str)
+                def _parse_timespan(val):
+                    if val is None:
+                        return 0.0
+                    if isinstance(val, str):
+                        parts = val.split(':')
+                        if len(parts) == 3:
+                            h, m, s = map(float, parts)
+                            return h * 3600 + m * 60 + s
+                        return float(val)
+                    return float(val)
+
+                target_duration = _parse_timespan(target_duration_str)
+                video_offset = _parse_timespan(video_offset_str)
+
+                print(f"concat-cut: target_duration={target_duration:.1f}s, video_offset={video_offset:.1f}s")
 
                 with tempfile.TemporaryDirectory() as temp_dir:
                     output_file = os.path.join(temp_dir, f"video_part_{part_id}.mp4")
-                    duration = await concat_and_cut_video(asset_blob_paths, target_duration, output_file)
+                    duration = await concat_and_cut_video(asset_blob_paths, target_duration, output_file, video_offset)
 
                     # Save to local storage
                     container, blob_path = save_to_local_storage(output_file, "generated-videos")

@@ -23,6 +23,8 @@ public sealed class ProcessedPostPartConfiguration : IEntityTypeConfiguration<Pr
         b.Property(x => x.PublishedTo)
             .HasColumnType("integer[]");
 
+        b.Property(x => x.AudioDuration);
+
         b.OwnsOne(x => x.AudioBlobPath, bp =>
         {
             bp.Property(p => p.ContainerName).HasColumnName("AudioContainer");

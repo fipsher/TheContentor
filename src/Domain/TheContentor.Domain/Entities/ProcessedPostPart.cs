@@ -15,6 +15,7 @@ public class ProcessedPostPart : BaseEntity
 
     // TTS
     public BlobPath? AudioBlobPath { get; set; }
+    public TimeSpan? AudioDuration { get; set; }
 
     // Video
     public BlobPath? VideoBlobPath { get; set; }

@@ -14,7 +14,7 @@ public static class PromptConstants
         3. **Pacing**: Remove 'filler' words and redundant details. Keep the sentences punchy and easy for an AI voice to read without sounding monotone.
         4. **Tone**: Maintain a first-person perspective. Use emotional triggers (anger, shock, satisfaction, or suspense).
         5. **Hashtags**: Provide 5-10 trending and relevant hashtags for the overall post.
-        6. **Parts**: Break the story into segments. Each segment should be approximately 130–150 words, which equals roughly 1 minute of spoken narration at a moderate pace. 
+        6. **Parts**: Break the story into segments. Each segment should be approximately 200–250 words, which equals roughly 2 minute of spoken narration at a high pace. 
            - For each Part, provide a 'ProcessedText' which is a polished, narrated version of that segment.
            - For each Part, provide 3-5 specific hashtags.
            - For each part, a 'ProcessedText' should start with a small 'pre-history' to set the scene for the segment.
