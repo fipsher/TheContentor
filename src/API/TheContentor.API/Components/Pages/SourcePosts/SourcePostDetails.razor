@@ -268,10 +268,16 @@ else
                                 <div class="d-flex gap-1">
                                     @if (!_isEditing)
                                     {
-                                        <button class="btn btn-outline-secondary btn-sm"
-                                                @onclick="() => CopyPartToClipboard(part)"
-                                                title="Copy part content to clipboard">
-                                            <i class="bi bi-clipboard"></i>
+                                        <button class="btn btn-sm @(_copiedPartId == part.Id ? "btn-success" : "btn-outline-secondary")"
+                                                @onclick="() => CopyPartToClipboard(part)">
+                                            @if (_copiedPartId == part.Id)
+                                            {
+                                                <i class="bi bi-check2"></i> <span>Copied!</span>
+                                            }
+                                            else
+                                            {
+                                                <i class="bi bi-clipboard"></i> <span>Copy for Social</span>
+                                            }
                                         </button>
                                     }
                                     @if (_isEditing)
@@ -381,6 +387,7 @@ else
     private bool _showGenerateDialog = false;
     private HubConnection? _hubConnection;
     private GenerationProgressModel? _currentProgress;
+    private Guid? _copiedPartId;
 
     private bool IsGenerating => Post?.ProcessedPost?.TtsStatus == TtsStatus.InProgress
                               || Post?.ProcessedPost?.VideoStatus == VideoStatus.InProgress;
@@ -571,16 +578,26 @@ else
     {
         if (Post?.ProcessedPost == null) return;
 
-        var hashtags = _partHashtags.TryGetValue(part, out var h) && !string.IsNullOrWhiteSpace(h)
-            ? string.Join(" ", h.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                  .Select(t => t.Trim().StartsWith('#') ? t.Trim() : $"#{t.Trim()}"))
-            : string.Empty;
+        var hashtags = Post.ProcessedPost.Hashtags
+            .Concat(part.Hashtags)
+            .Select(t => t.Trim().StartsWith('#') ? t.Trim() : $"#{t.Trim()}")
+            .Where(t => t.Length > 1)
+            .Distinct();
 
-        var text = $"[Part {part.Part}] {Post.ProcessedPost.Title}\n\n{part.ProcessedText}";
-        if (!string.IsNullOrWhiteSpace(hashtags))
-            text += $"\n\n{hashtags}";
+        var hashtagsLine = string.Join(" ", hashtags);
 
-        await JS.InvokeVoidAsync("navigator.clipboard.writeText", text);
+        var prefix = Post.ProcessedPost.Parts.Count == 1 ? "[Full Story]" : $"[Part {part.Part}]";
+        var text = $"{prefix} {Post.ProcessedPost.Title}";
+        if (!string.IsNullOrWhiteSpace(hashtagsLine))
+            text += $"\n\n{hashtagsLine}";
+
+        await JS.InvokeVoidAsync("copyToClipboard", text);
+
+        _copiedPartId = part.Id;
+        StateHasChanged();
+        await Task.Delay(2000);
+        _copiedPartId = null;
+        StateHasChanged();
     }
 
     private async Task TogglePostedStatus()

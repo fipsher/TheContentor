@@ -18,6 +18,24 @@
     <Routes />
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
+    <script>
+        window.copyToClipboard = function (text) {
+            if (navigator.clipboard && window.isSecureContext) {
+                return navigator.clipboard.writeText(text);
+            }
+            // fallback for non-secure contexts
+            var el = document.createElement('textarea');
+            el.value = text;
+            el.style.position = 'fixed';
+            el.style.opacity = '0';
+            document.body.appendChild(el);
+            el.focus();
+            el.select();
+            document.execCommand('copy');
+            document.body.removeChild(el);
+            return Promise.resolve();
+        };
+    </script>
 </body>
 
 </html>
