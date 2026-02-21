@@ -39,6 +39,7 @@ builder
 builder.AddPythonApp("tts-worker", "../../Modules/TTS", "tts-worker.py")
     .WithReference(serviceBus)
     .WithEnvironment("STORAGE_BASE_PATH", storageBasePath)
+    .WithEnvironment("PYTHONUNBUFFERED", "1")
     .WaitFor(serviceBus)
     .WaitFor(apiService);
 
@@ -46,6 +47,7 @@ builder.AddPythonApp("tts-worker", "../../Modules/TTS", "tts-worker.py")
 builder.AddPythonApp("video-worker", "../../Modules/Video", "video-worker.py")
     .WithReference(serviceBus)
     .WithEnvironment("STORAGE_BASE_PATH", storageBasePath)
+    .WithEnvironment("PYTHONUNBUFFERED", "1")
     .WaitFor(serviceBus)
     .WaitFor(apiService);
 
@@ -53,6 +55,7 @@ builder.AddPythonApp("video-worker", "../../Modules/Video", "video-worker.py")
 builder.AddPythonApp("subtitle-worker", "../../Modules/Subtitle", "subtitle-worker.py")
     .WithReference(serviceBus)
     .WithEnvironment("STORAGE_BASE_PATH", storageBasePath)
+    .WithEnvironment("PYTHONUNBUFFERED", "1")
     .WaitFor(serviceBus)
     .WaitFor(apiService);
 

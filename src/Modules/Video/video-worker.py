@@ -5,22 +5,19 @@ import asyncio
 import json
 import os
 import shutil
+import subprocess
 import tempfile
 import uuid
+import re
 from azure.servicebus.aio import ServiceBusClient, AutoLockRenewer
 from azure.servicebus.exceptions import MessageLockLostError
-import re
-from moviepy.editor import VideoFileClip, concatenate_videoclips, AudioFileClip, CompositeVideoClip, TextClip, ColorClip, ImageClip
-import numpy as np
 try:
     from PIL import Image, ImageDraw, ImageFont
-    # Pillow 10+ removed ANTIALIAS; MoviePy's resize still references it
     if not hasattr(Image, 'ANTIALIAS'):
         Image.ANTIALIAS = Image.LANCZOS
     PIL_AVAILABLE = True
 except Exception:
     PIL_AVAILABLE = False
-from moviepy.video.fx.crop import crop
 
 # Configuration
 SERVICE_BUS_CONNECTION_STRING = os.environ.get("ConnectionStrings__ContentorServiceBus") or os.environ.get("SERVICE_BUS_CONNECTION_STRING")
@@ -33,6 +30,44 @@ if not STORAGE_BASE_PATH:
 
 COMMANDS_QUEUE_NAME = "video-commands-queue"
 EVENTS_QUEUE_NAME = "events-queue"
+
+
+def _detect_encoder():
+    """Detect best available H.264 encoder. Uses VideoToolbox on macOS when available."""
+    try:
+        result = subprocess.run(
+            ['ffmpeg', '-hide_banner', '-encoders'],
+            capture_output=True, text=True, timeout=10
+        )
+        if 'h264_videotoolbox' in result.stdout:
+            return 'h264_videotoolbox', []
+    except Exception:
+        pass
+    return 'libx264', ['-preset', 'fast']
+
+FFMPEG_ENCODER, FFMPEG_ENCODER_EXTRA_FLAGS = _detect_encoder()
+
+
+def _run_ffmpeg(args: list, description: str = ""):
+    """Run FFmpeg subprocess. Raises RuntimeError on non-zero exit."""
+    cmd = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y'] + args
+    print(f"FFmpeg {description}")
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"FFmpeg failed ({description}):\n{result.stderr}")
+
+
+def _probe_duration(file_path: str) -> float:
+    """Return media duration in seconds via ffprobe."""
+    result = subprocess.run(
+        ['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+         '-of', 'default=noprint_wrappers=1:nokey=1', file_path],
+        capture_output=True, text=True, timeout=30
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"ffprobe failed: {result.stderr}")
+    return float(result.stdout.strip())
+
 
 def save_to_local_storage(file_path, container_name):
     """Save file to local storage, return (containerName, assetPath)"""
@@ -50,6 +85,231 @@ def read_from_local_storage(container_name, asset_path, output_path):
         raise FileNotFoundError(f"Blob not found: {container_name}/{asset_path}")
     shutil.copy2(src, output_path)
 
+
+def _load_subtitle_font(video_h):
+    """Load the subtitle font, trying bundled Montserrat first, then system fallbacks."""
+    font_size = max(36, int(video_h * 0.045))
+    font = None
+
+    if not PIL_AVAILABLE:
+        return None, font_size
+
+    # Bundled font (preferred), then Arial Black, Impact, system defaults
+    bundled = os.path.join(os.path.dirname(__file__), "fonts", "Montserrat-ExtraBold.ttf")
+    font_candidates = [
+        bundled,
+        # Arial Black
+        "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+        "/Library/Fonts/Arial Black.ttf",
+        "/usr/share/fonts/truetype/msttcorefonts/Arial_Black.ttf",
+        # Impact
+        "/System/Library/Fonts/Supplemental/Impact.ttf",
+        "/Library/Fonts/Impact.ttf",
+        "/usr/share/fonts/truetype/msttcorefonts/Impact.ttf",
+        # Generic bold fallbacks
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+        "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+        "/Library/Fonts/Arial Bold.ttf",
+    ]
+    for fp in font_candidates:
+        if os.path.exists(fp):
+            try:
+                font = ImageFont.truetype(fp, font_size)
+                break
+            except Exception:
+                continue
+    if font is None:
+        try:
+            font = ImageFont.load_default()
+        except Exception:
+            font = None
+
+    return font, font_size
+
+
+def _srt_time_to_seconds(time_str):
+    """Convert SRT timestamp (HH:MM:SS,mmm) to seconds."""
+    m = re.match(r'(\d+):(\d+):(\d+),(\d+)', time_str)
+    if not m:
+        return 0
+    h, mi, s, ms = map(int, m.groups())
+    return h * 3600 + mi * 60 + s + ms / 1000.0
+
+
+def _parse_subtitles(subtitle_path):
+    """Parse subtitle file (JSON phrase format or legacy SRT)."""
+    with open(subtitle_path, 'r', encoding='utf-8') as f:
+        content = f.read().strip()
+
+    # Try JSON first (new phrase-grouped format)
+    if content.startswith('['):
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError:
+            pass
+
+    # Legacy SRT fallback: convert to phrase format
+    content = content.replace('\r\n', '\n')
+    pattern = re.compile(
+        r'(\d+)\n(\d{2}:\d{2}:\d{2},\d{3}) --> (\d{2}:\d{2}:\d{2},\d{3})\n(.*?)(?=\n\d+\n|\Z)',
+        re.DOTALL,
+    )
+    phrases = []
+    for m in pattern.finditer(content):
+        _, start_str, end_str, text = m.groups()
+        start = _srt_time_to_seconds(start_str)
+        end = _srt_time_to_seconds(end_str)
+        word = text.strip()
+        if word:
+            phrases.append({
+                'phrase': word,
+                'start': start,
+                'end': end,
+                'words': [{'word': word, 'start': start, 'end': end}],
+            })
+    return phrases
+
+
+def _render_phrase_image(phrase_data, active_word_idx, video_w, video_h, font, font_size):  # noqa: C901
+    """Render a phrase image with the active word highlighted in gold.
+
+    Args:
+        phrase_data: dict with 'phrase' and 'words' list
+        active_word_idx: index of the currently-spoken word (-1 for none)
+        video_w: video width in pixels
+        video_h: video height in pixels
+        font: PIL ImageFont
+        font_size: base font size in pixels
+
+    Returns:
+        numpy array (RGBA) or None if rendering fails
+    """
+    import numpy as np
+
+    if not PIL_AVAILABLE or font is None:
+        return None
+
+    words = phrase_data.get('words', [])
+    if not words:
+        return None
+
+    max_width = int(video_w * 0.80)
+    stroke_w = 5
+    shadow_offset = (3, 3)
+    shadow_color = (0, 0, 0, 153)
+    inactive_color = (255, 255, 255, 255)
+    active_color = (255, 215, 0, 255)
+    stroke_color = (0, 0, 0, 255)
+
+    # Active word gets a slightly larger font for scale pop
+    active_font_size = int(font_size * 1.10)
+    active_font = None
+    if active_word_idx >= 0:
+        try:
+            active_font = font.font_variant(size=active_font_size)
+        except Exception:
+            active_font = font
+
+    # Uppercase all words
+    display_words = [w['word'].upper() for w in words]
+
+    # Measure dummy draw surface
+    dummy_img = Image.new("RGBA", (max_width * 2, 10), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(dummy_img)
+
+    # Word-wrap into lines, tracking which word index each token belongs to
+    # Each line is a list of (word_text, word_index) tuples
+    lines = []
+    current_line = []
+    for wi, word_text in enumerate(display_words):
+        w_font = active_font if (wi == active_word_idx and active_font) else font
+        # Measure current line + this word
+        test_text = ' '.join(t for t, _ in current_line) + (' ' if current_line else '') + word_text
+        bbox = draw.textbbox((0, 0), test_text, font=w_font, stroke_width=stroke_w)
+        line_w = bbox[2] - bbox[0]
+        if line_w > max_width and current_line:
+            lines.append(current_line)
+            current_line = [(word_text, wi)]
+        else:
+            current_line.append((word_text, wi))
+    if current_line:
+        lines.append(current_line)
+
+    # Compute line dimensions
+    line_spacing = int(font_size * 0.35)
+    line_metrics = []  # (line_width, line_height, [(word_text, word_idx, word_font, word_bbox)])
+    total_height = 0
+    max_line_width = 0
+
+    for line in lines:
+        line_word_data = []
+        line_h = 0
+        line_w = 0
+        for i, (word_text, wi) in enumerate(line):
+            w_font = active_font if (wi == active_word_idx and active_font) else font
+            bbox = draw.textbbox((0, 0), word_text, font=w_font, stroke_width=stroke_w)
+            w = bbox[2] - bbox[0]
+            h = bbox[3] - bbox[1]
+            line_word_data.append((word_text, wi, w_font, bbox))
+            line_w += w
+            line_h = max(line_h, h)
+        # Add spaces between words
+        if len(line) > 1:
+            space_bbox = draw.textbbox((0, 0), ' ', font=font, stroke_width=stroke_w)
+            space_w = space_bbox[2] - space_bbox[0]
+            line_w += space_w * (len(line) - 1)
+
+        line_metrics.append((line_w, line_h, line_word_data))
+        total_height += line_h
+        max_line_width = max(max_line_width, line_w)
+
+    total_height += line_spacing * max(0, len(lines) - 1)
+
+    # Add padding around the text for shadow/stroke overflow
+    pad = stroke_w + abs(shadow_offset[0]) + 4
+    img_w = max_line_width + 2 * pad
+    img_h = total_height + 2 * pad
+
+    img = Image.new("RGBA", (img_w, img_h), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+
+    # Measure space width
+    space_bbox = draw.textbbox((0, 0), ' ', font=font, stroke_width=stroke_w)
+    space_w = space_bbox[2] - space_bbox[0]
+
+    # Draw each line centered
+    y = pad
+    for line_w, line_h, line_word_data in line_metrics:
+        x = (img_w - line_w) // 2
+        for word_text, wi, w_font, bbox in line_word_data:
+            w = bbox[2] - bbox[0]
+            x_offset = -bbox[0]
+            y_offset = -bbox[1]
+
+            is_active = (wi == active_word_idx)
+            fill = active_color if is_active else inactive_color
+
+            # Drop shadow
+            draw.text(
+                (x + x_offset + shadow_offset[0], y + y_offset + shadow_offset[1]),
+                word_text, font=w_font, fill=shadow_color,
+                stroke_width=stroke_w, stroke_fill=shadow_color,
+            )
+            # Main text with stroke
+            draw.text(
+                (x + x_offset, y + y_offset),
+                word_text, font=w_font, fill=fill,
+                stroke_width=stroke_w, stroke_fill=stroke_color,
+            )
+
+            x += w + space_w
+
+        y += line_h + line_spacing
+
+    return np.array(img)
+
+
 async def send_event_callback(sender, callback_data):
     """Send callback event to orchestrator"""
     from azure.servicebus import ServiceBusMessage
@@ -62,79 +322,69 @@ async def send_event_callback(sender, callback_data):
     await sender.send_messages(message)
 
 async def concat_and_cut_video(asset_blob_paths, target_duration, output_path, video_offset=0):
-    """Concatenate video assets and cut to target duration starting at video_offset"""
+    """Concatenate video assets and cut to target duration starting at video_offset using FFmpeg directly."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        # Download all assets from local storage
         asset_files = []
         for i, blob_path in enumerate(asset_blob_paths):
             asset_file = os.path.join(temp_dir, f"asset_{i}.mp4")
             read_from_local_storage(blob_path['ContainerName'], blob_path['AssetPath'], asset_file)
             asset_files.append(asset_file)
 
-        target_seconds = target_duration.total_seconds() if hasattr(target_duration, 'total_seconds') else target_duration
-        offset_seconds = video_offset.total_seconds() if hasattr(video_offset, 'total_seconds') else video_offset
+        target_seconds = target_duration.total_seconds() if hasattr(target_duration, 'total_seconds') else float(target_duration)
+        offset_seconds = video_offset.total_seconds() if hasattr(video_offset, 'total_seconds') else float(video_offset)
 
         def _build_and_write_video(files, max_seconds, offset, out_path):
-            TARGET_FPS = 30
-            TARGET_W, TARGET_H = 1080, 1920  # 9:16 portrait for social media
-            clips = []
-            normalized = []
-            concatenated = None
-            final_clip = None
-            try:
-                clips = [VideoFileClip(f) for f in files]
+            # Probe total available duration
+            total_dur = sum(_probe_duration(f) for f in files)
+            end = min(offset + max_seconds, total_dur)
+            start = min(offset, total_dur)
+            if end - start < 0.1:
+                print(f"Warning: not enough footage after offset {offset:.1f}s (total: {total_dur:.1f}s)")
 
-                # Center-crop each clip to 9:16 aspect ratio, then resize to 1080x1920
-                target_aspect = TARGET_W / TARGET_H  # 0.5625
-                for c in clips:
-                    src_w, src_h = c.size
-                    src_aspect = src_w / src_h
+            n = len(files)
+            inputs = []
+            for f in files:
+                inputs += ['-i', f]
 
-                    if src_aspect > target_aspect:
-                        # Source is wider than 9:16 — crop sides
-                        new_w = int(src_h * target_aspect)
-                        x_center = src_w / 2
-                        cropped = crop(c, x_center=x_center, width=new_w, height=src_h)
-                    else:
-                        # Source is taller than 9:16 — crop top/bottom
-                        new_h = int(src_w / target_aspect)
-                        y_center = src_h / 2
-                        cropped = crop(c, y_center=y_center, width=src_w, height=new_h)
-
-                    resized = cropped.resize((TARGET_W, TARGET_H)).set_fps(TARGET_FPS)
-                    normalized.append(resized)
-
-                concatenated = concatenate_videoclips(normalized, method="chain")
-
-                # Slice from offset to offset + target duration (no looping)
-                end = min(offset + max_seconds, concatenated.duration)
-                start = min(offset, concatenated.duration)
-                if end - start < 0.1:
-                    print(f"Warning: not enough footage after offset {offset:.1f}s (total: {concatenated.duration:.1f}s)")
-
-                final_clip = concatenated.subclip(start, end)
-
-                final_clip.write_videofile(
-                    out_path, codec='libx264', audio=False, fps=TARGET_FPS, preset='medium',
-                    bitrate='8000k', ffmpeg_params=['-crf', '18', '-pix_fmt', 'yuv420p']
+            # Per-clip: crop to 9:16 aspect ratio (handles both wider and taller sources),
+            # resize to 1080x1920, set fps=30, normalize pixel format
+            filter_parts = []
+            for i in range(n):
+                filter_parts.append(
+                    f"[{i}:v]"
+                    f"crop='if(gt(iw/ih\\,9/16)\\,ih*9/16\\,iw)':'if(gt(iw/ih\\,9/16)\\,ih\\,iw*16/9)',"
+                    f"scale=1080:1920:flags=lanczos,format=yuv420p,fps=30"
+                    f"[v{i}]"
                 )
-                return final_clip.duration
-            finally:
-                if final_clip is not None:
-                    final_clip.close()
-                if concatenated is not None:
-                    concatenated.close()
-                for clip in normalized:
-                    clip.close()
-                for clip in clips:
-                    clip.close()
+
+            concat_inputs = ''.join(f'[v{i}]' for i in range(n))
+            filter_parts.append(f"{concat_inputs}concat=n={n}:v=1:a=0[vcat]")
+            filter_parts.append(
+                f"[vcat]trim=start={start:.6f}:end={end:.6f},setpts=PTS-STARTPTS[vout]"
+            )
+            filter_complex = ';'.join(filter_parts)
+
+            if FFMPEG_ENCODER == 'h264_videotoolbox':
+                encode_flags = ['-c:v', FFMPEG_ENCODER, '-q:v', '65', '-pix_fmt', 'nv12']
+            else:
+                encode_flags = (['-c:v', FFMPEG_ENCODER]
+                                + FFMPEG_ENCODER_EXTRA_FLAGS
+                                + ['-crf', '18', '-maxrate', '12M', '-bufsize', '24M',
+                                   '-pix_fmt', 'yuv420p'])
+
+            args = (inputs
+                    + ['-filter_complex', filter_complex, '-map', '[vout]']
+                    + encode_flags
+                    + ['-an', '-vsync', 'cfr', '-movflags', '+faststart',
+                       '-threads', '0', out_path])
+            _run_ffmpeg(args, description=f"concat-cut {n} clips, offset={offset:.1f}s")
+            return _probe_duration(out_path)
 
         return await asyncio.to_thread(_build_and_write_video, asset_files, target_seconds, offset_seconds, output_path)
 
 async def compose_final_video(video_blob_path, audio_blob_path, subtitle_blob_path, output_path):
-    """Compose final video with audio and subtitles"""
+    """Compose final video with audio and subtitles using FFmpeg directly."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        # Read files from local storage
         video_file = os.path.join(temp_dir, "video.mp4")
         audio_file = os.path.join(temp_dir, "audio.mp3")
         subtitle_file = os.path.join(temp_dir, "subtitles.json")
@@ -143,359 +393,164 @@ async def compose_final_video(video_blob_path, audio_blob_path, subtitle_blob_pa
         read_from_local_storage(audio_blob_path['ContainerName'], audio_blob_path['AssetPath'], audio_file)
         read_from_local_storage(subtitle_blob_path['ContainerName'], subtitle_blob_path['AssetPath'], subtitle_file)
 
-        def _load_subtitle_font(video_h):
-            """Load the subtitle font, trying bundled Montserrat first, then system fallbacks."""
-            font_size = max(36, int(video_h * 0.045))
-            font = None
+        def _prerender_subtitle_images(phrases, vid_w, vid_h, font, font_size, sub_dir):
+            """Pre-render subtitle images to PNG files. Returns list of segment dicts."""
+            sub_y = int(vid_h * 0.40)
+            segments = []
+            img_cache = {}
 
-            if not PIL_AVAILABLE:
-                return None, font_size
+            def _get_or_render(pi, phrase, active_wi):
+                key = (pi, active_wi)
+                if key in img_cache:
+                    return img_cache[key]
+                img_arr = _render_phrase_image(phrase, active_wi, vid_w, vid_h, font, font_size)
+                if img_arr is None:
+                    return None
+                # Composite onto full-size canvas so FFmpeg just does x=0:y=0 overlay
+                small_img = Image.fromarray(img_arr)
+                canvas = Image.new('RGBA', (vid_w, vid_h), (0, 0, 0, 0))
+                x_pos = (vid_w - small_img.width) // 2
+                canvas.paste(small_img, (x_pos, sub_y), small_img)
+                path = os.path.join(sub_dir, f"sub_{pi}_{active_wi + 2}.png")
+                canvas.save(path, 'PNG')
+                img_cache[key] = path
+                return path
 
-            # Bundled font (preferred), then Arial Black, Impact, system defaults
-            bundled = os.path.join(os.path.dirname(__file__), "fonts", "Montserrat-ExtraBold.ttf")
-            font_candidates = [
-                bundled,
-                # Arial Black
-                "/System/Library/Fonts/Supplemental/Arial Black.ttf",
-                "/Library/Fonts/Arial Black.ttf",
-                "/usr/share/fonts/truetype/msttcorefonts/Arial_Black.ttf",
-                # Impact
-                "/System/Library/Fonts/Supplemental/Impact.ttf",
-                "/Library/Fonts/Impact.ttf",
-                "/usr/share/fonts/truetype/msttcorefonts/Impact.ttf",
-                # Generic bold fallbacks
-                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-                "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
-                "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
-                "/Library/Fonts/Arial Bold.ttf",
-            ]
-            for fp in font_candidates:
-                if os.path.exists(fp):
-                    try:
-                        font = ImageFont.truetype(fp, font_size)
-                        break
-                    except Exception:
-                        continue
-            if font is None:
-                try:
-                    font = ImageFont.load_default()
-                except Exception:
-                    font = None
+            for pi, phrase in enumerate(phrases):
+                words = phrase.get('words', [])
+                phrase_start = phrase['start']
+                phrase_end = phrase['end']
+                if not words:
+                    continue
 
-            return font, font_size
+                # Before first word
+                if words[0]['start'] > phrase_start + 0.01:
+                    p = _get_or_render(pi, phrase, -1)
+                    if p:
+                        segments.append({'path': p, 'start': phrase_start,
+                                         'end': words[0]['start'], 'y': sub_y})
 
-        def _parse_subtitles(subtitle_path):
-            """Parse subtitle file (JSON phrase format or legacy SRT)."""
-            with open(subtitle_path, 'r', encoding='utf-8') as f:
-                content = f.read().strip()
+                for wi, w in enumerate(words):
+                    p = _get_or_render(pi, phrase, wi)
+                    if p:
+                        segments.append({'path': p, 'start': w['start'],
+                                         'end': w['end'], 'y': sub_y})
+                    # Gap to next word
+                    if wi < len(words) - 1:
+                        gap_s = w['end']
+                        gap_e = words[wi + 1]['start']
+                        if gap_e - gap_s > 0.01:
+                            p = _get_or_render(pi, phrase, -1)
+                            if p:
+                                segments.append({'path': p, 'start': gap_s,
+                                                 'end': gap_e, 'y': sub_y})
 
-            # Try JSON first (new phrase-grouped format)
-            if content.startswith('['):
-                try:
-                    return json.loads(content)
-                except json.JSONDecodeError:
-                    pass
+                # After last word
+                if phrase_end > words[-1]['end'] + 0.01:
+                    p = _get_or_render(pi, phrase, -1)
+                    if p:
+                        segments.append({'path': p, 'start': words[-1]['end'],
+                                         'end': phrase_end, 'y': sub_y})
 
-            # Legacy SRT fallback: convert to phrase format
-            content = content.replace('\r\n', '\n')
-            pattern = re.compile(
-                r'(\d+)\n(\d{2}:\d{2}:\d{2},\d{3}) --> (\d{2}:\d{2}:\d{2},\d{3})\n(.*?)(?=\n\d+\n|\Z)',
-                re.DOTALL,
-            )
-            phrases = []
-            for m in pattern.finditer(content):
-                _, start_str, end_str, text = m.groups()
-                start = _srt_time_to_seconds(start_str)
-                end = _srt_time_to_seconds(end_str)
-                word = text.strip()
-                if word:
-                    phrases.append({
-                        'phrase': word,
-                        'start': start,
-                        'end': end,
-                        'words': [{'word': word, 'start': start, 'end': end}],
-                    })
-            return phrases
-
-        def _srt_time_to_seconds(time_str):
-            """Convert SRT timestamp (HH:MM:SS,mmm) to seconds."""
-            m = re.match(r'(\d+):(\d+):(\d+),(\d+)', time_str)
-            if not m:
-                return 0
-            h, mi, s, ms = map(int, m.groups())
-            return h * 3600 + mi * 60 + s + ms / 1000.0
-
-        def _render_phrase_image(phrase_data, active_word_idx, video_w, video_h, font, font_size):  # noqa: C901
-            """Render a phrase image with the active word highlighted in gold.
-
-            Args:
-                phrase_data: dict with 'phrase' and 'words' list
-                active_word_idx: index of the currently-spoken word (-1 for none)
-                video_w: video width in pixels
-                video_h: video height in pixels
-                font: PIL ImageFont
-                font_size: base font size in pixels
-
-            Returns:
-                numpy array (RGBA) or None if rendering fails
-            """
-            if not PIL_AVAILABLE or font is None:
-                return None
-
-            words = phrase_data.get('words', [])
-            if not words:
-                return None
-
-            max_width = int(video_w * 0.80)
-            stroke_w = 5
-            shadow_offset = (3, 3)
-            shadow_color = (0, 0, 0, 153)
-            inactive_color = (255, 255, 255, 255)
-            active_color = (255, 215, 0, 255)
-            stroke_color = (0, 0, 0, 255)
-
-            # Active word gets a slightly larger font for scale pop
-            active_font_size = int(font_size * 1.10)
-            active_font = None
-            if active_word_idx >= 0:
-                try:
-                    active_font = font.font_variant(size=active_font_size)
-                except Exception:
-                    active_font = font
-
-            # Uppercase all words
-            display_words = [w['word'].upper() for w in words]
-
-            # Measure dummy draw surface
-            dummy_img = Image.new("RGBA", (max_width * 2, 10), (0, 0, 0, 0))
-            draw = ImageDraw.Draw(dummy_img)
-
-            # Word-wrap into lines, tracking which word index each token belongs to
-            # Each line is a list of (word_text, word_index) tuples
-            lines = []
-            current_line = []
-            for wi, word_text in enumerate(display_words):
-                w_font = active_font if (wi == active_word_idx and active_font) else font
-                # Measure current line + this word
-                test_text = ' '.join(t for t, _ in current_line) + (' ' if current_line else '') + word_text
-                bbox = draw.textbbox((0, 0), test_text, font=w_font, stroke_width=stroke_w)
-                line_w = bbox[2] - bbox[0]
-                if line_w > max_width and current_line:
-                    lines.append(current_line)
-                    current_line = [(word_text, wi)]
-                else:
-                    current_line.append((word_text, wi))
-            if current_line:
-                lines.append(current_line)
-
-            # Compute line dimensions
-            line_spacing = int(font_size * 0.35)
-            line_metrics = []  # (line_width, line_height, [(word_text, word_idx, word_font, word_bbox)])
-            total_height = 0
-            max_line_width = 0
-
-            for line in lines:
-                line_word_data = []
-                line_h = 0
-                line_w = 0
-                for i, (word_text, wi) in enumerate(line):
-                    w_font = active_font if (wi == active_word_idx and active_font) else font
-                    bbox = draw.textbbox((0, 0), word_text, font=w_font, stroke_width=stroke_w)
-                    w = bbox[2] - bbox[0]
-                    h = bbox[3] - bbox[1]
-                    line_word_data.append((word_text, wi, w_font, bbox))
-                    line_w += w
-                    line_h = max(line_h, h)
-                # Add spaces between words
-                if len(line) > 1:
-                    space_bbox = draw.textbbox((0, 0), ' ', font=font, stroke_width=stroke_w)
-                    space_w = space_bbox[2] - space_bbox[0]
-                    line_w += space_w * (len(line) - 1)
-
-                line_metrics.append((line_w, line_h, line_word_data))
-                total_height += line_h
-                max_line_width = max(max_line_width, line_w)
-
-            total_height += line_spacing * max(0, len(lines) - 1)
-
-            # Add padding around the text for shadow/stroke overflow
-            pad = stroke_w + abs(shadow_offset[0]) + 4
-            img_w = max_line_width + 2 * pad
-            img_h = total_height + 2 * pad
-
-            img = Image.new("RGBA", (img_w, img_h), (0, 0, 0, 0))
-            draw = ImageDraw.Draw(img)
-
-            # Measure space width
-            space_bbox = draw.textbbox((0, 0), ' ', font=font, stroke_width=stroke_w)
-            space_w = space_bbox[2] - space_bbox[0]
-
-            # Draw each line centered
-            y = pad
-            for line_w, line_h, line_word_data in line_metrics:
-                x = (img_w - line_w) // 2
-                for word_text, wi, w_font, bbox in line_word_data:
-                    w = bbox[2] - bbox[0]
-                    x_offset = -bbox[0]
-                    y_offset = -bbox[1]
-
-                    is_active = (wi == active_word_idx)
-                    fill = active_color if is_active else inactive_color
-
-                    # Drop shadow
-                    draw.text(
-                        (x + x_offset + shadow_offset[0], y + y_offset + shadow_offset[1]),
-                        word_text, font=w_font, fill=shadow_color,
-                        stroke_width=stroke_w, stroke_fill=shadow_color,
-                    )
-                    # Main text with stroke
-                    draw.text(
-                        (x + x_offset, y + y_offset),
-                        word_text, font=w_font, fill=fill,
-                        stroke_width=stroke_w, stroke_fill=stroke_color,
-                    )
-
-                    x += w + space_w
-
-                y += line_h + line_spacing
-
-            return np.array(img)
+            return segments
 
         def _build_and_write_final(video_path, audio_path, subtitle_path, out_path):
-            video_clip = None
-            audio_clip = None
-            adjusted_video = None
-            final_clip = None
-            subtitle_clips = []
-            try:
-                video_clip = VideoFileClip(video_path)
-                audio_clip = AudioFileClip(audio_path)
+            vid_w, vid_h = 1080, 1920  # known from concat-cut output
+            audio_dur = _probe_duration(audio_path)
 
-                # Trim video to match audio duration (no looping — concat-cut already sized it)
-                audio_dur = audio_clip.duration
-                video_dur = video_clip.duration
-                if video_dur > audio_dur + 0.1:
-                    adjusted_video = video_clip.subclip(0, audio_dur)
-                else:
-                    adjusted_video = video_clip
+            phrases = _parse_subtitles(subtitle_path)
+            font, font_size = _load_subtitle_font(vid_h)
 
-                vid_w = adjusted_video.w
-                vid_h = adjusted_video.h
-                sub_y = int(vid_h * 0.40)
+            sub_dir = os.path.join(os.path.dirname(out_path), "subtitle_imgs")
+            os.makedirs(sub_dir, exist_ok=True)
 
-                phrases = _parse_subtitles(subtitle_path)
-                font, font_size = _load_subtitle_font(vid_h)
+            segments = []
+            if PIL_AVAILABLE and font is not None:
+                segments = _prerender_subtitle_images(phrases, vid_w, vid_h, font, font_size, sub_dir)
 
-                for phrase in phrases:
-                    phrase_start = phrase['start']
-                    phrase_end = phrase['end']
-                    words = phrase.get('words', [])
+            if not segments:
+                # No subtitles: just mux video + audio
+                args = [
+                    '-i', video_path, '-i', audio_path,
+                    '-map', '0:v', '-map', '1:a',
+                    '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k',
+                    '-shortest', '-movflags', '+faststart', out_path
+                ]
+                _run_ffmpeg(args, description="compose (no subtitles)")
+                return
 
-                    if not words:
-                        continue
+            # Build subtitle timeline: gap/segment pieces concatenated → single overlay
+            # This replaces N chained overlays (O(N)/frame) with 1 overlay (O(1)/frame).
+            segs_sorted = sorted(segments, key=lambda s: s['start'])
 
-                    made = False
+            # Blank full-size transparent PNG for silent gaps between subtitles
+            blank_path = os.path.join(sub_dir, 'blank.png')
+            Image.new('RGBA', (vid_w, vid_h), (0, 0, 0, 0)).save(blank_path, 'PNG')
 
-                    # Preferred: PIL-based rendering with word highlighting
-                    if PIL_AVAILABLE and font is not None:
-                        try:
-                            # Pre-render one image per word-highlight state
-                            word_images = {}
-                            for wi in range(len(words)):
-                                img = _render_phrase_image(phrase, wi, vid_w, vid_h, font, font_size)
-                                if img is not None:
-                                    word_images[wi] = img
+            # Deduplicate PNG inputs: blank first (idx=2), then subtitle states
+            unique_paths = [blank_path]
+            path_to_idx = {blank_path: 2}
+            for seg in segs_sorted:
+                p = seg['path']
+                if p not in path_to_idx:
+                    path_to_idx[p] = 2 + len(unique_paths)
+                    unique_paths.append(p)
 
-                            if word_images:
-                                for wi, word_info in enumerate(words):
-                                    w_start = word_info['start']
-                                    w_end = word_info['end']
-                                    img_arr = word_images.get(wi)
-                                    if img_arr is not None:
-                                        clip = (ImageClip(img_arr)
-                                                .set_start(w_start)
-                                                .set_end(w_end)
-                                                .set_position(('center', sub_y)))
-                                        subtitle_clips.append(clip)
+            inputs = ['-i', video_path, '-i', audio_path]
+            for p in unique_paths:
+                inputs += ['-loop', '1', '-r', '30', '-t', str(audio_dur + 1), '-i', p]
 
-                                # Fill gaps between words with no-highlight image
-                                no_highlight = _render_phrase_image(phrase, -1, vid_w, vid_h, font, font_size)
-                                if no_highlight is not None:
-                                    # Before first word
-                                    if words[0]['start'] > phrase_start + 0.01:
-                                        clip = (ImageClip(no_highlight)
-                                                .set_start(phrase_start)
-                                                .set_end(words[0]['start'])
-                                                .set_position(('center', sub_y)))
-                                        subtitle_clips.append(clip)
-                                    # Between words
-                                    for wi in range(len(words) - 1):
-                                        gap_start = words[wi]['end']
-                                        gap_end = words[wi + 1]['start']
-                                        if gap_end - gap_start > 0.01:
-                                            clip = (ImageClip(no_highlight)
-                                                    .set_start(gap_start)
-                                                    .set_end(gap_end)
-                                                    .set_position(('center', sub_y)))
-                                            subtitle_clips.append(clip)
-                                    # After last word
-                                    if phrase_end > words[-1]['end'] + 0.01:
-                                        clip = (ImageClip(no_highlight)
-                                                .set_start(words[-1]['end'])
-                                                .set_end(phrase_end)
-                                                .set_position(('center', sub_y)))
-                                        subtitle_clips.append(clip)
+            # Build ordered piece list: (png_path, duration_seconds)
+            pieces = []
+            prev_end = 0.0
+            for seg in segs_sorted:
+                if seg['start'] > prev_end + 0.005:
+                    pieces.append((blank_path, seg['start'] - prev_end))
+                pieces.append((seg['path'], seg['end'] - seg['start']))
+                prev_end = seg['end']
+            if audio_dur > prev_end + 0.005:
+                pieces.append((blank_path, audio_dur - prev_end))
 
-                                made = True
-                        except Exception as e:
-                            print(f"Warning: PIL subtitle rendering failed for '{phrase.get('phrase', '')}': {e}")
-
-                    # Fallback: MoviePy TextClip (may require ImageMagick)
-                    if not made:
-                        try:
-                            text = phrase.get('phrase', '')
-                            txt_clip = TextClip(
-                                text.upper(),
-                                fontsize=max(36, int(vid_h * 0.045)),
-                                color='white',
-                                stroke_color='black',
-                                stroke_width=5,
-                                method='caption',
-                                size=(int(vid_w * 0.80), None)
-                            ).set_start(phrase_start).set_end(phrase_end).set_position(('center', sub_y))
-                            subtitle_clips.append(txt_clip)
-                            made = True
-                        except Exception as e:
-                            print(f"Warning: Failed to create TextClip for subtitle '{phrase.get('phrase', '')}': {e}")
-
-                    if not made:
-                        print(f"Warning: Skipped subtitle due to rendering issues: '{phrase.get('phrase', '')}'")
-
-                if subtitle_clips:
-                    final_clip = CompositeVideoClip([adjusted_video] + subtitle_clips).set_audio(audio_clip)
-                else:
-                    final_clip = adjusted_video.set_audio(audio_clip)
-
-                final_clip.write_videofile(
-                    out_path,
-                    codec='libx264',
-                    audio_codec='aac',
-                    fps=30,
-                    preset='medium',
-                    bitrate='8000k',
-                    ffmpeg_params=['-crf', '18', '-pix_fmt', 'yuv420p']
+            # Each piece: trim the looped PNG to its duration, normalise timestamps + format
+            filter_parts = []
+            filter_parts.append(
+                f"[0:v]trim=end={audio_dur:.6f},setpts=PTS-STARTPTS[base]"
+            )
+            piece_labels = []
+            for k, (path, dur) in enumerate(pieces):
+                label = f'pc{k}'
+                in_idx = path_to_idx[path]
+                # max() guards against sub-frame durations that would produce 0 frames
+                filter_parts.append(
+                    f"[{in_idx}:v]trim=end={max(dur, 1/30):.6f},"
+                    f"setpts=PTS-STARTPTS,format=rgba[{label}]"
                 )
-            finally:
-                if final_clip is not None:
-                    final_clip.close()
-                if adjusted_video is not None and adjusted_video is not video_clip:
-                    adjusted_video.close()
-                if video_clip is not None:
-                    video_clip.close()
-                if audio_clip is not None:
-                    audio_clip.close()
-                for sc in subtitle_clips:
-                    sc.close()
+                piece_labels.append(f'[{label}]')
+
+            # Concat all pieces into one subtitle stream, then single overlay
+            n_pieces = len(piece_labels)
+            filter_parts.append(
+                f"{''.join(piece_labels)}concat=n={n_pieces}:v=1:a=0,format=rgba[subtitles]"
+            )
+            filter_parts.append("[base][subtitles]overlay=x=0:y=0:format=auto[vout]")
+            filter_complex = ';'.join(filter_parts)
+
+            if FFMPEG_ENCODER == 'h264_videotoolbox':
+                encode_flags = ['-c:v', FFMPEG_ENCODER, '-q:v', '65', '-pix_fmt', 'nv12']
+            else:
+                encode_flags = (['-c:v', FFMPEG_ENCODER]
+                                + FFMPEG_ENCODER_EXTRA_FLAGS
+                                + ['-crf', '18', '-maxrate', '12M', '-bufsize', '24M',
+                                   '-pix_fmt', 'yuv420p'])
+
+            args = (inputs
+                    + ['-filter_complex', filter_complex,
+                       '-map', '[vout]', '-map', '1:a']
+                    + encode_flags
+                    + ['-c:a', 'aac', '-b:a', '192k',
+                       '-shortest', '-movflags', '+faststart',
+                       '-threads', '0', out_path])
+            _run_ffmpeg(args, description=f"compose with {len(segments)} subtitle segments")
 
         await asyncio.to_thread(_build_and_write_final, video_file, audio_file, subtitle_file, output_path)
 

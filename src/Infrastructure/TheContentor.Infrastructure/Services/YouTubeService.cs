@@ -46,13 +46,18 @@ public class YouTubeService(YoutubeClient youtube, YoutubeDL ytdl) : IYouTubeSer
             if (!res.Success || res.Data?.Formats == null)
                 return Array.Empty<YouTubeVideoQuality>();
 
-            var availableHeights = res.Data.Formats
+            // Use the shorter dimension so quality labels are orientation-independent:
+            // landscape 1080p  → width=1920, height=1080 → min=1080 ✓
+            // portrait  1080p  → width=1080, height=1920 → min=1080 ✓
+            var availableDimensions = res.Data.Formats
                 .Where(f => f.Height.HasValue)
-                .Select(f => (int)f.Height!.Value)
+                .Select(f => f.Width.HasValue
+                    ? Math.Min((int)f.Height!.Value, (int)f.Width!.Value)
+                    : (int)f.Height!.Value)
                 .ToHashSet();
 
             return AllQualities
-                .Where(q => availableHeights.Any(h => h >= (int)q - 30 && h <= (int)q + 30))
+                .Where(q => availableDimensions.Any(d => d >= (int)q - 30 && d <= (int)q + 30))
                 .ToList();
         }
         catch (Exception)
@@ -82,9 +87,11 @@ public class YouTubeService(YoutubeClient youtube, YoutubeDL ytdl) : IYouTubeSer
         }
     }
 
-    private static string GetFormat(YouTubeVideoQuality quality, string extension = "mp4")
+    private static string GetFormat(YouTubeVideoQuality quality)
     {
-        var maxHeight = (int)quality;
-        return $"bestvideo[height<={maxHeight}][ext={extension}]";
+        var maxDim = (int)quality;
+        // Landscape: height-constrained. Portrait: width-constrained fallback.
+        // No [ext=] filter — MergeOutputFormat=Mp4 handles container conversion.
+        return $"bestvideo[height<={maxDim}]/bestvideo[width<={maxDim}]";
     }
 }
