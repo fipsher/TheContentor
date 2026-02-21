@@ -128,6 +128,76 @@ def _load_subtitle_font(video_h):
     return font, font_size
 
 
+def _render_watermark_pieces(vid_w, vid_h, font, wm_dir, total_dur, interval=10.0):
+    """Pre-render 'contentor.stories' watermark as 4-corner PNGs and build a timeline.
+
+    Cycles through corners every ``interval`` seconds (default 10):
+    top-left → top-right → bottom-right → bottom-left.
+
+    Returns a list of (png_path, duration_seconds) tuples, or [] if PIL is unavailable.
+    """
+    if not PIL_AVAILABLE:
+        return []
+
+    text = "contentor.stories"
+    wm_font_size = max(22, int(vid_h * 0.018))
+
+    # Load a font for the watermark (prefer bundled, fall back to system fonts)
+    bundled = os.path.join(os.path.dirname(__file__), "fonts", "Montserrat-ExtraBold.ttf")
+    wm_font = None
+    for fp in [bundled,
+               "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+               "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+               "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf"]:
+        if os.path.exists(fp):
+            try:
+                wm_font = ImageFont.truetype(fp, wm_font_size)
+                break
+            except Exception:
+                continue
+    if wm_font is None:
+        try:
+            wm_font = ImageFont.load_default()
+        except Exception:
+            return []
+
+    # Measure text dimensions
+    tmp = Image.new('RGBA', (1, 1))
+    draw = ImageDraw.Draw(tmp)
+    try:
+        bbox = draw.textbbox((0, 0), text, font=wm_font)
+        tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    except AttributeError:
+        tw, th = draw.textsize(text, font=wm_font)
+
+    margin, shadow = 20, 2
+    corners = [
+        (margin, margin),                          # top-left
+        (vid_w - tw - margin, margin),             # top-right
+        (vid_w - tw - margin, vid_h - th - margin),# bottom-right
+        (margin, vid_h - th - margin),             # bottom-left
+    ]
+
+    corner_paths = []
+    for i, (cx, cy) in enumerate(corners):
+        canvas = Image.new('RGBA', (vid_w, vid_h), (0, 0, 0, 0))
+        d = ImageDraw.Draw(canvas)
+        d.text((cx + shadow, cy + shadow), text, font=wm_font, fill=(0, 0, 0, 180))
+        d.text((cx, cy), text, font=wm_font, fill=(255, 255, 255, 190))
+        path = os.path.join(wm_dir, f"wm_corner_{i}.png")
+        canvas.save(path, 'PNG')
+        corner_paths.append(path)
+
+    # Build timeline cycling through 4 corners
+    pieces, t, idx = [], 0.0, 0
+    while t < total_dur - 0.005:
+        dur = min(interval, total_dur - t)
+        pieces.append((corner_paths[idx % 4], dur))
+        t += interval
+        idx += 1
+    return pieces
+
+
 def _srt_time_to_seconds(time_str):
     """Convert SRT timestamp (HH:MM:SS,mmm) to seconds."""
     m = re.match(r'(\d+):(\d+):(\d+),(\d+)', time_str)
@@ -468,15 +538,53 @@ async def compose_final_video(video_blob_path, audio_blob_path, subtitle_blob_pa
             if PIL_AVAILABLE and font is not None:
                 segments = _prerender_subtitle_images(phrases, vid_w, vid_h, font, font_size, sub_dir)
 
+            wm_pieces = _render_watermark_pieces(vid_w, vid_h, font, sub_dir, audio_dur)
+
             if not segments:
-                # No subtitles: just mux video + audio
-                args = [
-                    '-i', video_path, '-i', audio_path,
-                    '-map', '0:v', '-map', '1:a',
-                    '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k',
-                    '-shortest', '-movflags', '+faststart', out_path
-                ]
-                _run_ffmpeg(args, description="compose (no subtitles)")
+                if wm_pieces:
+                    # No subtitles but watermark: build overlay stream from PIL-rendered PNGs
+                    wm_unique = list(dict.fromkeys(p for p, _ in wm_pieces))
+                    wm_path_to_idx = {p: 2 + i for i, p in enumerate(wm_unique)}
+                    inputs = ['-i', video_path, '-i', audio_path]
+                    for p in wm_unique:
+                        inputs += ['-loop', '1', '-r', '30', '-t', str(audio_dur + 1), '-i', p]
+                    wm_fparts = [f"[0:v]trim=end={audio_dur:.6f},setpts=PTS-STARTPTS[base]"]
+                    wm_labels = []
+                    for k, (path, dur) in enumerate(wm_pieces):
+                        label = f'wm{k}'
+                        wm_fparts.append(
+                            f"[{wm_path_to_idx[path]}:v]trim=end={max(dur, 1/30):.6f},"
+                            f"setpts=PTS-STARTPTS,format=rgba[{label}]"
+                        )
+                        wm_labels.append(f'[{label}]')
+                    n_wm = len(wm_labels)
+                    wm_fparts.append(
+                        f"{''.join(wm_labels)}concat=n={n_wm}:v=1:a=0,format=rgba[watermark]"
+                    )
+                    wm_fparts.append("[base][watermark]overlay=x=0:y=0:format=auto[vout]")
+                    if FFMPEG_ENCODER == 'h264_videotoolbox':
+                        enc_flags = ['-c:v', FFMPEG_ENCODER, '-q:v', '65', '-pix_fmt', 'nv12']
+                    else:
+                        enc_flags = (['-c:v', FFMPEG_ENCODER]
+                                     + FFMPEG_ENCODER_EXTRA_FLAGS
+                                     + ['-crf', '18', '-maxrate', '12M', '-bufsize', '24M',
+                                        '-pix_fmt', 'yuv420p'])
+                    args = (inputs
+                            + ['-filter_complex', ';'.join(wm_fparts),
+                               '-map', '[vout]', '-map', '1:a']
+                            + enc_flags
+                            + ['-c:a', 'aac', '-b:a', '192k',
+                               '-shortest', '-movflags', '+faststart', out_path])
+                    _run_ffmpeg(args, description="compose (no subtitles, watermark)")
+                else:
+                    # No subtitles, no watermark: simple copy mux
+                    args = [
+                        '-i', video_path, '-i', audio_path,
+                        '-map', '0:v', '-map', '1:a',
+                        '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k',
+                        '-shortest', '-movflags', '+faststart', out_path
+                    ]
+                    _run_ffmpeg(args, description="compose (no subtitles)")
                 return
 
             # Build subtitle timeline: gap/segment pieces concatenated → single overlay
@@ -498,6 +606,11 @@ async def compose_final_video(video_blob_path, audio_blob_path, subtitle_blob_pa
 
             inputs = ['-i', video_path, '-i', audio_path]
             for p in unique_paths:
+                inputs += ['-loop', '1', '-r', '30', '-t', str(audio_dur + 1), '-i', p]
+            # Watermark inputs follow subtitle inputs
+            wm_unique = list(dict.fromkeys(p for p, _ in wm_pieces))
+            wm_path_to_idx = {p: 2 + len(unique_paths) + i for i, p in enumerate(wm_unique)}
+            for p in wm_unique:
                 inputs += ['-loop', '1', '-r', '30', '-t', str(audio_dur + 1), '-i', p]
 
             # Build ordered piece list: (png_path, duration_seconds)
@@ -532,7 +645,23 @@ async def compose_final_video(video_blob_path, audio_blob_path, subtitle_blob_pa
             filter_parts.append(
                 f"{''.join(piece_labels)}concat=n={n_pieces}:v=1:a=0,format=rgba[subtitles]"
             )
-            filter_parts.append("[base][subtitles]overlay=x=0:y=0:format=auto[vout]")
+            if wm_pieces:
+                wm_labels = []
+                for k, (path, dur) in enumerate(wm_pieces):
+                    label = f'wm{k}'
+                    filter_parts.append(
+                        f"[{wm_path_to_idx[path]}:v]trim=end={max(dur, 1/30):.6f},"
+                        f"setpts=PTS-STARTPTS,format=rgba[{label}]"
+                    )
+                    wm_labels.append(f'[{label}]')
+                n_wm = len(wm_labels)
+                filter_parts.append(
+                    f"{''.join(wm_labels)}concat=n={n_wm}:v=1:a=0,format=rgba[watermark]"
+                )
+                filter_parts.append("[base][subtitles]overlay=x=0:y=0:format=auto[subtitled]")
+                filter_parts.append("[subtitled][watermark]overlay=x=0:y=0:format=auto[vout]")
+            else:
+                filter_parts.append("[base][subtitles]overlay=x=0:y=0:format=auto[vout]")
             filter_complex = ';'.join(filter_parts)
 
             if FFMPEG_ENCODER == 'h264_videotoolbox':
