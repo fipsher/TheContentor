@@ -298,15 +298,6 @@ else
                                     else
                                     {
                                         <div class="p-2 border rounded bg-light" style="white-space: pre-wrap;">@part.ProcessedText</div>
-                                        @if (!string.IsNullOrEmpty(part.AudioBlobPath?.SasUrl))
-                                        {
-                                            <div class="mt-2">
-                                                <audio controls class="w-100">
-                                                    <source src="@part.AudioBlobPath.SasUrl" type="audio/mpeg">
-                                                    Your browser does not support the audio element.
-                                                </audio>
-                                            </div>
-                                        }
                                         @if (!string.IsNullOrEmpty(part.VideoBlobPath?.SasUrl))
                                         {
                                             <div class="mt-2">

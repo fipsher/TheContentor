@@ -187,8 +187,8 @@
             };
 
             await Mediator.Send(new GenerateAllCommand(ProcessedPostId.Value, ttsSettings, _selectedAssetIds.ToList()));
-            await OnGenerated.InvokeAsync();
             await Close();
+            await OnGenerated.InvokeAsync();
         }
         finally
         {
