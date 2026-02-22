@@ -126,8 +126,8 @@
     [Parameter] public EventCallback OnGenerated { get; set; }
 
     private string _selectedVoice = string.Empty;
-    private int _rate = 0;
-    private int _pitch = 0;
+    private int _rate = 50;
+    private int _pitch = 20;
     private List<AssetDto> _assets = new();
     private HashSet<Guid> _selectedAssetIds = new();
     private bool _isGenerating = false;
