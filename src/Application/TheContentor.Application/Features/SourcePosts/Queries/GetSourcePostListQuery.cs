@@ -33,7 +33,8 @@ public class GetSourcePostListQueryHandler(TheContentorDbContext dbContext)
                 ExternalUrl = x.ExternalUrl,
                 TtsStatus = x.ProcessedPost != null ? (TtsStatus?)x.ProcessedPost.TtsStatus : null,
                 VideoStatus = x.ProcessedPost != null ? (VideoStatus?)x.ProcessedPost.VideoStatus : null,
-                IsPosted = x.ProcessedPost != null ? (bool?)x.ProcessedPost.IsPosted : null
+                IsPosted = x.ProcessedPost != null ? (bool?)x.ProcessedPost.IsPosted : null,
+                ProcessedPostId = x.ProcessedPost != null ? (Guid?)x.ProcessedPost.Id : null
             })
             .OrderByDescending(x => x.IngestedUtc)
             .ToListAsync(cancellationToken);

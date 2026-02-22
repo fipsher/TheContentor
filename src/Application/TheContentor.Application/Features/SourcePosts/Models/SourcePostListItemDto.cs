@@ -33,4 +33,7 @@ public class SourcePostListItemDto
     public VideoStatus? VideoStatus { get; set; }
     /// <summary>Whether the post has been marked as fully posted. Null if no processed post exists.</summary>
     public bool? IsPosted { get; set; }
+
+    /// <summary>Identifier of the linked processed post. Null if no processed post exists.</summary>
+    public Guid? ProcessedPostId { get; set; }
 }

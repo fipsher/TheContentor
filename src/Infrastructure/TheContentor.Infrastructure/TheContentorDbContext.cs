@@ -16,6 +16,9 @@ public class TheContentorDbContext(DbContextOptions<TheContentorDbContext> optio
     public DbSet<ProcessedPost> ProcessedPosts { get; set; } = null!;
     public DbSet<ProcessedPostPart> ProcessedPostParts { get; set; } = null!;
 
+    /// <summary>Scheduled post calendar entries.</summary>
+    public DbSet<ScheduledPost> ScheduledPosts { get; set; } = null!;
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
