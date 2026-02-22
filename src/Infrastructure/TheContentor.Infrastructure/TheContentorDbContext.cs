@@ -5,8 +5,6 @@ namespace TheContentor.Infrastructure;
 
 public class TheContentorDbContext(DbContextOptions<TheContentorDbContext> options) : DbContext(options)
 {
-    public DbSet<AnalysisCriteria> AnalysisCriteria { get; set; } = null!;
-    public DbSet<ContentAnalysis> ContentAnalyses { get; set; } = null!;
     public virtual DbSet<Asset> Assets { get; set; } = null!;
     public DbSet<SourcePost> SourcePosts { get; set; } = null!;
     public DbSet<SourceComment> SourceComments { get; set; } = null!;

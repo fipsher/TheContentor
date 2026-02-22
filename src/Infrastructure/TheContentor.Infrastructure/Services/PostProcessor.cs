@@ -3,7 +3,6 @@ using Google.GenAI.Types;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenAI.Chat;
-using TheContentor.Domain.Enums;
 using TheContentor.Infrastructure.Constants;
 using TheContentor.Infrastructure.Interfaces;
 using TheContentor.Infrastructure.Models;
@@ -25,23 +24,17 @@ public class PostProcessor(
     public async Task<ProcessedPostResponse> ProcessAsync(
         string title,
         string content,
-        CriteriaEngine engine = CriteriaEngine.Gemini,
         CancellationToken cancellationToken = default)
     {
-        logger.LogInformation("Processing post with {Engine}. Title: {Title}", engine, title);
+        logger.LogInformation("Processing post. Title: {Title}", title);
 
         try
         {
-            return engine switch
-            {
-                CriteriaEngine.Gemini => await ProcessWithGeminiAsync(title, content, cancellationToken),
-                CriteriaEngine.ChatGPT => await ProcessWithChatGPTAsync(title, content, cancellationToken),
-                _ => throw new ArgumentOutOfRangeException(nameof(engine), engine, null)
-            };
+            return await ProcessWithGeminiAsync(title, content, cancellationToken);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error processing post with {Engine}", engine);
+            logger.LogError(ex, "Error processing post");
             throw;
         }
     }

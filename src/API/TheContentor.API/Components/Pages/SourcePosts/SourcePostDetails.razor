@@ -253,15 +253,6 @@ else
                 </div>
 
                 <div class="d-grid gap-2 mb-4">
-                    <div class="mb-2">
-                        <label class="form-label fw-bold">AI Engine</label>
-                        <select class="form-select" @bind="_selectedEngine" disabled="@(_isProcessing || _isEditing)">
-                            @foreach (var engine in Enum.GetValues<CriteriaEngine>())
-                            {
-                                <option value="@engine">@engine</option>
-                            }
-                        </select>
-                    </div>
                      <button type="button" class="btn btn-warning" @onclick="ProcessWithAI" disabled="@(_isProcessing || _isEditing)">
                         @if (_isProcessing)
                         {
@@ -537,7 +528,6 @@ else
     private SourcePostDetailsDto? Post { get; set; }
     private string _hashtagsText = "";
     private Dictionary<ProcessedPostPartDto, string> _partHashtags = new();
-    private CriteriaEngine _selectedEngine = CriteriaEngine.Gemini;
     private bool _isProcessing = false;
     private bool _isEditing = false;
     private bool _isCanceling = false;
@@ -598,7 +588,7 @@ else
         _isProcessing = true;
         try
         {
-            await Mediator.Send(new ProcessSourcePostCommand(Post.Id, _selectedEngine));
+            await Mediator.Send(new ProcessSourcePostCommand(Post.Id));
             await LoadPost();
             _isEditing = false;
         }
