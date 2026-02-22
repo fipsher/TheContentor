@@ -237,6 +237,13 @@ else
                                     @(Post.ProcessedPost.IsPosted ? "Posted" : "Mark as Posted")
                                 </button>
                             }
+                            <button class="btn btn-sm @(Post.Status == SourcePostStatus.Skipped ? "btn-warning" : "btn-outline-warning")"
+                                    @onclick="ToggleSkip"
+                                    disabled="@_isEditing"
+                                    title="@(Post.Status == SourcePostStatus.Skipped ? "Restore post — it will be eligible for scheduling again" : "Mark as not good enough — excludes from auto-scheduling")">
+                                <i class="bi @(Post.Status == SourcePostStatus.Skipped ? "bi-arrow-counterclockwise" : "bi-x-circle")"></i>
+                                @(Post.Status == SourcePostStatus.Skipped ? "Restore" : "Skip")
+                            </button>
                         </div>
                         <hr/>
                         <div class="post-content" style="white-space: pre-wrap; max-height: 500px; overflow-y: auto; font-size: 0.9rem;">
@@ -767,6 +774,16 @@ else
         var newValue = !Post.ProcessedPost.IsPosted;
         await Mediator.Send(new MarkProcessedPostAsPostedCommand(Post.ProcessedPost.Id, newValue));
         Post.ProcessedPost.IsPosted = newValue;
+        StateHasChanged();
+    }
+
+    private async Task ToggleSkip()
+    {
+        if (Post == null) return;
+        await Mediator.Send(new ToggleSkipSourcePostCommand(Post.Id));
+        Post.Status = Post.Status == SourcePostStatus.Skipped
+            ? SourcePostStatus.Raw
+            : SourcePostStatus.Skipped;
         StateHasChanged();
     }
 

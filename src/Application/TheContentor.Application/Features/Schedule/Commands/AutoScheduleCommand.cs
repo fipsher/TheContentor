@@ -2,6 +2,7 @@ using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using TheContentor.Domain.Entities;
+using TheContentor.Domain.Enums;
 using TheContentor.Infrastructure;
 
 namespace TheContentor.Application.Features.Schedule.Commands;
@@ -67,6 +68,7 @@ public class AutoScheduleCommandHandler(TheContentorDbContext context)
         var eligiblePostIds = await context.SourcePosts
             .AsNoTracking()
             .Where(x =>
+                x.Status != SourcePostStatus.Skipped &&
                 (x.ProcessedPost == null || !x.ProcessedPost.IsPosted) &&
                 !alreadyScheduledPostIds.Contains(x.Id) &&
                 (communityFilter == null || x.Community.ToLower() == communityFilter))

@@ -6,4 +6,5 @@ public enum SourcePostStatus
     Processed = 2,
     Approved = 3,
     Rejected = 4,
+    Skipped = 5,
 }
