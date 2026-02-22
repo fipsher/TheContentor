@@ -5,6 +5,7 @@
 @using TheContentor.Application.Features.Schedule.Queries
 @using TheContentor.Application.Features.SourcePosts.Models
 @using TheContentor.Application.Features.SourcePosts.Queries
+@using TheContentor.Domain.Enums
 @inject IMediator Mediator
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
@@ -75,50 +76,60 @@
 }
 else
 {
-    <div class="calendar-grid">
-        <!-- Day headers -->
-        @foreach (var day in new[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" })
-        {
-            <div class="calendar-header-cell">@day</div>
-        }
+    <div class="calendar-wrapper">
+        <div class="calendar-grid">
+            <!-- Day headers -->
+            @foreach (var day in new[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" })
+            {
+                <div class="calendar-header-cell">@day</div>
+            }
 
-        <!-- Empty leading cells -->
-        @for (var i = 0; i < LeadingBlanks; i++)
-        {
-            <div class="calendar-cell calendar-cell--empty"></div>
-        }
+            <!-- Empty leading cells -->
+            @for (var i = 0; i < LeadingBlanks; i++)
+            {
+                <div class="calendar-cell calendar-cell--empty"></div>
+            }
 
-        <!-- Day cells -->
-        @foreach (var cell in CalendarCells)
-        {
-            <div class="calendar-cell @(cell.IsToday ? "calendar-cell--today" : "")">
-                <div class="calendar-cell__header">
-                    <span class="calendar-day-number @(cell.IsToday ? "fw-bold text-primary" : "")">@cell.Day</span>
-                    <button class="btn btn-sm btn-outline-secondary calendar-add-btn"
-                            title="Add post"
-                            @onclick="() => OpenAddPost(cell.Date)">+</button>
-                </div>
-
-                @foreach (var post in cell.Posts)
-                {
-                    var postCapture = post;
-                    <div class="calendar-post-item">
-                        <div class="calendar-post-item__title"
-                             title="@postCapture.Title"
-                             style="cursor:pointer"
-                             @onclick="() => GoToPost(postCapture.SourcePostId)">
-                            @TruncateTitle(postCapture.Title)
-                        </div>
-                        <div class="d-flex justify-content-between align-items-center mt-1">
-                            <span class="badge bg-secondary" style="font-size:0.65rem">@postCapture.Community</span>
-                            <button class="btn btn-link btn-sm p-0 text-danger"
-                                    title="Remove"
-                                    @onclick="() => RemoveEntry(postCapture.ScheduledPostId)">&#xD7;</button>
+            <!-- Day cells -->
+            @foreach (var cell in CalendarCells)
+            {
+                <div class="calendar-cell @(cell.IsToday ? "calendar-cell--today" : "") @(cell.IsCurrentWeek && !cell.IsToday ? "calendar-cell--this-week" : "")">
+                    <div class="calendar-cell__header">
+                        <span class="calendar-day-number @(cell.IsToday ? "fw-bold text-primary" : "")">@cell.Day</span>
+                        <div class="d-flex gap-1">
+                            <button class="btn btn-sm btn-outline-success calendar-action-btn"
+                                    title="Auto-assign top post"
+                                    @onclick="() => AutoAssignDay(cell.Date)">&#9889;</button>
+                            <button class="btn btn-sm btn-outline-secondary calendar-action-btn"
+                                    title="Pick a post"
+                                    @onclick="() => OpenAddPost(cell.Date)">+</button>
                         </div>
                     </div>
-                }
-            </div>
-        }
+
+                    @foreach (var post in cell.Posts)
+                    {
+                        var postCapture = post;
+                        <div class="calendar-post-item"
+                             title="@postCapture.Title"
+                             @onclick="() => GoToPost(postCapture.SourcePostId)">
+                            <div class="calendar-post-item__title">@TruncateTitle(postCapture.Title)</div>
+                            <div class="d-flex gap-1 flex-wrap mt-1">
+                                <span class="badge @GetStatusBadgeClass(postCapture)" style="font-size:0.6rem">@GetStatusLabel(postCapture)</span>
+                                <span class="badge bg-secondary" style="font-size:0.6rem">@postCapture.Community</span>
+                            </div>
+                            <div class="calendar-post-meta">
+                                <span>&#9650; @postCapture.Score</span>
+                                <span>@postCapture.WordCount w</span>
+                                <button class="btn btn-link p-0 text-danger remove-btn"
+                                        title="Remove"
+                                        @onclick:stopPropagation
+                                        @onclick="() => RemoveEntry(postCapture.ScheduledPostId)">&#xD7;</button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
     </div>
 }
 
@@ -126,7 +137,7 @@ else
 @if (_addPostDate.HasValue)
 {
     <div class="add-post-overlay">
-        <div class="add-post-panel card shadow">
+        <div class="card shadow">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <span>Add post for @_addPostDate.Value.ToString("MMM d, yyyy")</span>
                 <button class="btn-close" @onclick="CloseAddPost"></button>
@@ -138,7 +149,7 @@ else
                 }
                 else if (!_availablePosts.Any())
                 {
-                    <p class="text-muted">No unposted processed posts available.</p>
+                    <p class="text-muted">No unposted posts available.</p>
                 }
                 else
                 {
@@ -152,7 +163,7 @@ else
                         <div class="post-pick-item d-flex justify-content-between align-items-center p-2 border-bottom">
                             <div>
                                 <div class="fw-semibold" style="font-size:0.85rem">@postCapture.Title</div>
-                                <small class="text-muted">@postCapture.Community &bull; Score: @postCapture.Score</small>
+                                <small class="text-muted">@postCapture.Community &bull; &#9650; @postCapture.Score &bull; @postCapture.WordCount w</small>
                             </div>
                             <button class="btn btn-sm btn-primary ms-2" @onclick="() => AddPost(_addPostDate!.Value, postCapture.Id)">
                                 Add
@@ -166,31 +177,40 @@ else
 }
 
 <style>
+    .calendar-wrapper {
+        width: 100%;
+        overflow-x: hidden;
+    }
+
     .calendar-grid {
         display: grid;
-        grid-template-columns: repeat(7, 1fr);
+        grid-template-columns: repeat(7, minmax(0, 1fr));
         gap: 4px;
         margin-bottom: 2rem;
+        width: 100%;
     }
 
     .calendar-header-cell {
         text-align: center;
         font-weight: 600;
-        font-size: 0.8rem;
-        padding: 4px;
+        font-size: 0.75rem;
+        padding: 4px 2px;
         color: #6c757d;
         text-transform: uppercase;
+        min-width: 0;
     }
 
     .calendar-cell {
-        min-height: 110px;
+        min-height: 120px;
         background: #fff;
         border: 1px solid #dee2e6;
         border-radius: 6px;
-        padding: 6px;
+        padding: 5px;
         display: flex;
         flex-direction: column;
-        gap: 4px;
+        gap: 3px;
+        min-width: 0;
+        overflow: hidden;
     }
 
     .calendar-cell--empty {
@@ -198,34 +218,48 @@ else
         border-color: transparent;
     }
 
+    .calendar-cell--this-week {
+        background: #f0f7ff;
+    }
+
     .calendar-cell--today {
         border-color: #0d6efd;
-        box-shadow: 0 0 0 1px #0d6efd33;
+        background: #e8f0ff;
+        box-shadow: 0 0 0 1px #0d6efd44;
     }
 
     .calendar-cell__header {
         display: flex;
         justify-content: space-between;
         align-items: center;
+        min-width: 0;
     }
 
     .calendar-day-number {
         font-size: 0.85rem;
         color: #495057;
+        flex-shrink: 0;
     }
 
-    .calendar-add-btn {
-        padding: 0 5px;
-        font-size: 1rem;
-        line-height: 1;
-        border-radius: 4px;
+    .calendar-action-btn {
+        padding: 1px 5px;
+        font-size: 0.75rem;
+        line-height: 1.3;
     }
 
     .calendar-post-item {
         background: #e8f4ff;
         border-radius: 4px;
-        padding: 4px 6px;
-        font-size: 0.78rem;
+        padding: 4px 5px;
+        font-size: 0.75rem;
+        cursor: pointer;
+        min-width: 0;
+        overflow: hidden;
+        transition: background 0.12s;
+    }
+
+    .calendar-post-item:hover {
+        background: #cce5ff;
     }
 
     .calendar-post-item__title {
@@ -233,6 +267,25 @@ else
         overflow: hidden;
         text-overflow: ellipsis;
         font-weight: 500;
+        min-width: 0;
+    }
+
+    .calendar-post-meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 2px;
+        color: #6c757d;
+        font-size: 0.65rem;
+        gap: 4px;
+    }
+
+    .remove-btn {
+        font-size: 0.85rem;
+        line-height: 1;
+        flex-shrink: 0;
+        color: #dc3545 !important;
+        text-decoration: none;
     }
 
     .add-post-overlay {
@@ -241,6 +294,7 @@ else
         right: 24px;
         z-index: 1050;
         width: 420px;
+        max-width: calc(100vw - 48px);
     }
 
     .post-pick-item:hover {
@@ -268,7 +322,7 @@ else
     private string? _errorMessage;
     private string? _successMessage;
 
-    private record CalendarCell(int Day, DateOnly Date, bool IsToday, List<ScheduledDayDto> Posts);
+    private record CalendarCell(int Day, DateOnly Date, bool IsToday, bool IsCurrentWeek, List<ScheduledDayDto> Posts);
 
     private int DaysInMonth => DateTime.DaysInMonth(_year, _month);
 
@@ -287,6 +341,8 @@ else
         {
             if (_schedule == null) return [];
             var today = DateOnly.FromDateTime(DateTime.Today);
+            var weekStart = today.AddDays(today.DayOfWeek == DayOfWeek.Sunday ? -6 : -(int)today.DayOfWeek + 1);
+            var weekEnd = weekStart.AddDays(6);
             return Enumerable.Range(1, DaysInMonth)
                 .Select(d =>
                 {
@@ -295,6 +351,7 @@ else
                         Day: d,
                         Date: date,
                         IsToday: date == today,
+                        IsCurrentWeek: date >= weekStart && date <= weekEnd,
                         Posts: _schedule.Where(x => x.ScheduledDate == date).ToList()
                     );
                 })
@@ -370,6 +427,23 @@ else
         }
     }
 
+    private async Task AutoAssignDay(DateOnly date)
+    {
+        _errorMessage = null;
+        try
+        {
+            var count = await Mediator.Send(new AutoScheduleCommand(date, date, null));
+            if (count == 0)
+                _errorMessage = "No eligible posts to assign for this day.";
+            else
+                await RefreshSchedule();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+    }
+
     private async Task OpenAddPost(DateOnly date)
     {
         _addPostDate = date;
@@ -389,12 +463,12 @@ else
         _availablePosts = null;
     }
 
-    private async Task AddPost(DateOnly date, Guid processedPostId)
+    private async Task AddPost(DateOnly date, Guid sourcePostId)
     {
         _errorMessage = null;
         try
         {
-            await Mediator.Send(new CreateScheduledPostCommand(date, processedPostId));
+            await Mediator.Send(new CreateScheduledPostCommand(date, sourcePostId));
             CloseAddPost();
             await RefreshSchedule();
         }
@@ -404,9 +478,23 @@ else
         }
     }
 
-    private void GoToPost(Guid processedPostId) =>
-        NavigationManager.NavigateTo($"/source-posts/{processedPostId}");
+    private void GoToPost(Guid sourcePostId) =>
+        NavigationManager.NavigateTo($"/source-posts/{sourcePostId}");
+
+    private static string GetStatusLabel(ScheduledDayDto post)
+    {
+        if (!post.IsProcessed) return "Not Processed";
+        if (post.VideoStatus == VideoStatus.Generated) return "Video Ready";
+        return "AI Processed";
+    }
+
+    private static string GetStatusBadgeClass(ScheduledDayDto post)
+    {
+        if (!post.IsProcessed) return "bg-secondary";
+        if (post.VideoStatus == VideoStatus.Generated) return "bg-success";
+        return "bg-primary";
+    }
 
     private static string TruncateTitle(string title) =>
-        title.Length > 40 ? title[..40] + "\u2026" : title;
+        title.Length > 38 ? title[..38] + "\u2026" : title;
 }

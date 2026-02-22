@@ -1,3 +1,5 @@
+using TheContentor.Domain.Enums;
+
 namespace TheContentor.Application.Features.Schedule.Models;
 
 /// <summary>Represents a single scheduled calendar day with its associated post summary.</summary>
@@ -21,8 +23,14 @@ public class ScheduledDayDto
     /// <summary>Score of the source post.</summary>
     public int Score { get; set; }
 
+    /// <summary>Word count of the source post.</summary>
+    public int WordCount { get; set; }
+
     /// <summary>Whether the source post has been processed into a <c>ProcessedPost</c>.</summary>
     public bool IsProcessed { get; set; }
+
+    /// <summary>Video generation status. Null when not yet processed.</summary>
+    public VideoStatus? VideoStatus { get; set; }
 
     /// <summary>Whether the post has already been published. Null when not yet processed.</summary>
     public bool? IsPosted { get; set; }
