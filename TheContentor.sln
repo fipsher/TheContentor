@@ -65,6 +65,25 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Video", "Video", "{19E4C8C0
 		src\Modules\Video\requirements.txt = src\Modules\Video\requirements.txt
 	EndProjectSection
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "video", "video", "{E0054829-C027-472C-9E6C-9C6A9A4196E6}"
+	ProjectSection(SolutionItems) = preProject
+		src\Modules\Video\video\__init__.py = src\Modules\Video\video\__init__.py
+		src\Modules\Video\video\config.py = src\Modules\Video\video\config.py
+		src\Modules\Video\video\dispatcher.py = src\Modules\Video\video\dispatcher.py
+		src\Modules\Video\video\ffmpeg.py = src\Modules\Video\video\ffmpeg.py
+		src\Modules\Video\video\messaging.py = src\Modules\Video\video\messaging.py
+		src\Modules\Video\video\operations.py = src\Modules\Video\video\operations.py
+		src\Modules\Video\video\storage.py = src\Modules\Video\video\storage.py
+		src\Modules\Video\video\subtitles.py = src\Modules\Video\video\subtitles.py
+		src\Modules\Video\video\watermark.py = src\Modules\Video\video\watermark.py
+		src\Modules\Video\video\worker.py = src\Modules\Video\video\worker.py
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "fonts", "fonts", "{648319A2-9751-4E43-B02D-9DAFBC11FE1F}"
+	ProjectSection(SolutionItems) = preProject
+		src\Modules\Video\fonts\Montserrat-ExtraBold.ttf = src\Modules\Video\fonts\Montserrat-ExtraBold.ttf
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -221,5 +240,7 @@ Global
 		{B46D2CBC-0FFE-4D09-9264-DE43B6A4C133} = {4515D94F-0B64-4AA9-A2BD-FEABA23C8916}
 		{A293FD3B-6A2E-44AA-BB37-E5BE35C64E78} = {4515D94F-0B64-4AA9-A2BD-FEABA23C8916}
 		{19E4C8C0-BA1D-486C-BDE7-5739B3CE6401} = {4515D94F-0B64-4AA9-A2BD-FEABA23C8916}
+		{E0054829-C027-472C-9E6C-9C6A9A4196E6} = {19E4C8C0-BA1D-486C-BDE7-5739B3CE6401}
+		{648319A2-9751-4E43-B02D-9DAFBC11FE1F} = {19E4C8C0-BA1D-486C-BDE7-5739B3CE6401}
 	EndGlobalSection
 EndGlobal
