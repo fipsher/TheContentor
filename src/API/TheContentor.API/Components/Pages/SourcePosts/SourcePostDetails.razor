@@ -631,12 +631,19 @@ else
             var wordsPerPart = _wordsPerPartAuto ? (int?)null : _wordsPerPart;
             await Mediator.Send(new ProcessSourcePostCommand(Post.Id, partsCount, wordsPerPart, _llmProvider));
             await LoadPost();
+            await EnsureJoinedHubGroup();
             _isEditing = false;
         }
         finally
         {
             _isProcessing = false;
         }
+    }
+
+    private async Task EnsureJoinedHubGroup()
+    {
+        if (_hubConnection?.State == HubConnectionState.Connected && Post?.ProcessedPost != null)
+            await _hubConnection.InvokeAsync("JoinPostGroup", Post.ProcessedPost.Id);
     }
 
     private void StartEditing()
@@ -763,6 +770,7 @@ else
     private async Task OnGenerated()
     {
         await LoadPost();
+        await EnsureJoinedHubGroup();
     }
 
     private bool HasPreviousGeneration()

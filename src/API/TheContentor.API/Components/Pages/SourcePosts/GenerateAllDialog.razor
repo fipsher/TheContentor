@@ -76,6 +76,10 @@
                                                 {
                                                     <span>@asset.Duration.Value.ToString(@"mm\:ss")</span>
                                                 }
+                                                @if (asset.Quality.HasValue)
+                                                {
+                                                    <span>@(asset.Quality.Value.ToString().TrimStart('P') + "p")</span>
+                                                }
                                                 @if (asset.ContentTag.HasValue)
                                                 {
                                                     <span>@asset.ContentTag.Value</span>
