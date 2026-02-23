@@ -31,35 +31,30 @@
                     else
                     {
                         <div class="mb-3">
-                            <label class="form-label fw-bold">Select Background Video Assets</label>
                             <small class="text-muted d-block mb-2">
                                 Select one or more video assets. They will be concatenated and cut to match the audio duration for each part.
                             </small>
-                            <div class="list-group" style="max-height: 400px; overflow-y: auto;">
+                            <div class="asset-pick-grid">
                                 @foreach (var asset in _assets)
                                 {
-                                    <div class="list-group-item list-group-item-action" @key="asset.Id">
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox"
-                                                   id="@($"asset-{asset.Id}")"
-                                                   checked="@_selectedAssetIds.Contains(asset.Id)"
-                                                   disabled="@_isGenerating"
-                                                   @onchange="@(e => ToggleAsset(asset.Id, e.Value))" />
-                                            <label class="form-check-label w-100" for="@($"asset-{asset.Id}")">
-                                                <div class="d-flex justify-content-between align-items-center">
-                                                    <div>
-                                                        <strong>@asset.FileName</strong>
-                                                        @if (asset.Duration.HasValue)
-                                                        {
-                                                            <span class="badge bg-secondary ms-2">@asset.Duration.Value.ToString(@"mm\:ss")</span>
-                                                        }
-                                                    </div>
-                                                    @if (asset.ContentTag.HasValue)
-                                                    {
-                                                        <small class="text-muted">@asset.ContentTag.Value</small>
-                                                    }
-                                                </div>
-                                            </label>
+                                    var isSelected = _selectedAssetIds.Contains(asset.Id);
+                                    <div class="asset-pick-card @(isSelected ? "selected" : "")"
+                                         @key="asset.Id"
+                                         @onclick="() => ToggleAssetCard(asset.Id)"
+                                         title="@asset.FileName">
+                                        <video src="@(asset.SasUri + "#t=0.5")" muted preload="metadata"></video>
+                                        <div class="pick-info">
+                                            <div class="pick-name">@(asset.Title ?? asset.FileName)</div>
+                                            <div class="pick-meta">
+                                                @if (asset.Duration.HasValue)
+                                                {
+                                                    <span>@asset.Duration.Value.ToString(@"mm\:ss")</span>
+                                                }
+                                                @if (asset.ContentTag.HasValue)
+                                                {
+                                                    <span>@asset.ContentTag.Value</span>
+                                                }
+                                            </div>
                                         </div>
                                     </div>
                                 }
@@ -126,16 +121,10 @@
         }
     }
 
-    private void ToggleAsset(Guid assetId, object? isChecked)
+    private void ToggleAssetCard(Guid assetId)
     {
-        if (isChecked is true)
-        {
+        if (!_selectedAssetIds.Remove(assetId))
             _selectedAssetIds.Add(assetId);
-        }
-        else
-        {
-            _selectedAssetIds.Remove(assetId);
-        }
     }
 
     private async Task GenerateVideo()

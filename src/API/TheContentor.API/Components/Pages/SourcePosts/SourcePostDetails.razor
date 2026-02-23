@@ -181,6 +181,66 @@
     </div>
 }
 
+<!-- AI Process Settings Modal -->
+@if (_showProcessModal)
+{
+    <div class="modal fade show" style="display:block;" tabindex="-1" @onclick="CloseProcessModal">
+        <div class="modal-dialog modal-dialog-centered" style="max-width:420px;" @onclick:stopPropagation>
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-cpu me-2" style="color:var(--accent-warning);"></i>
+                        AI Processing Settings
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CloseProcessModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">LLM Provider</label>
+                        <select class="form-select" @bind="_llmProvider">
+                            <option value="@LlmProvider.Gemini">Google Gemini</option>
+                            <option value="@LlmProvider.OpenAI">OpenAI ChatGPT</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Parts Count</label>
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="number" class="form-control" style="width:90px;"
+                                   @bind="_partsCount" min="1" max="20"
+                                   disabled="@_partsCountAuto" />
+                            <button class="auto-toggle @(_partsCountAuto ? "active" : "")"
+                                    @onclick="() => _partsCountAuto = !_partsCountAuto">
+                                <i class="bi @(_partsCountAuto ? "bi-magic" : "bi-input-cursor")"></i>
+                                @(_partsCountAuto ? "Auto" : "Manual")
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mb-1">
+                        <label class="form-label">Words per Part</label>
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="number" class="form-control" style="width:90px;"
+                                   @bind="_wordsPerPart" min="50" max="2000"
+                                   disabled="@_wordsPerPartAuto" />
+                            <button class="auto-toggle @(_wordsPerPartAuto ? "active" : "")"
+                                    @onclick="() => _wordsPerPartAuto = !_wordsPerPartAuto">
+                                <i class="bi @(_wordsPerPartAuto ? "bi-magic" : "bi-input-cursor")"></i>
+                                @(_wordsPerPartAuto ? "Auto" : "Manual")
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseProcessModal">Cancel</button>
+                    <button type="button" class="btn btn-warning" @onclick="ConfirmProcessWithAI">
+                        <i class="bi bi-cpu me-1"></i>
+                        @(Post?.Status == SourcePostStatus.Processed ? "Re-process" : "Process")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @if (Post == null)
 {
     <div class="container mt-4">
@@ -255,46 +315,8 @@ else
                     </div>
                 </div>
 
-                <!-- AI Settings -->
-                <div class="ai-settings-panel mb-3">
-                    <div class="panel-section-title">AI Processing Settings</div>
-                    <div class="mb-2">
-                        <label class="form-label">LLM Provider</label>
-                        <select class="form-select form-select-sm" @bind="_llmProvider" disabled="@(_isProcessing || _isEditing)">
-                            <option value="@LlmProvider.Gemini">Google Gemini</option>
-                            <option value="@LlmProvider.OpenAI">OpenAI ChatGPT</option>
-                        </select>
-                    </div>
-                    <div class="input-auto-row">
-                        <div>
-                            <label class="form-label">Parts Count</label>
-                            <input type="number" class="compact-number-input" @bind="_partsCount"
-                                   min="1" max="20" disabled="@(_partsCountAuto || _isProcessing || _isEditing)" />
-                        </div>
-                        <button class="auto-toggle @(_partsCountAuto ? "active" : "")"
-                                @onclick="() => _partsCountAuto = !_partsCountAuto"
-                                disabled="@(_isProcessing || _isEditing)">
-                            <i class="bi @(_partsCountAuto ? "bi-magic" : "bi-input-cursor")"></i>
-                            @(_partsCountAuto ? "Auto" : "Manual")
-                        </button>
-                    </div>
-                    <div class="input-auto-row">
-                        <div>
-                            <label class="form-label">Words per Part</label>
-                            <input type="number" class="compact-number-input" @bind="_wordsPerPart"
-                                   min="50" max="2000" disabled="@(_wordsPerPartAuto || _isProcessing || _isEditing)" />
-                        </div>
-                        <button class="auto-toggle @(_wordsPerPartAuto ? "active" : "")"
-                                @onclick="() => _wordsPerPartAuto = !_wordsPerPartAuto"
-                                disabled="@(_isProcessing || _isEditing)">
-                            <i class="bi @(_wordsPerPartAuto ? "bi-magic" : "bi-input-cursor")"></i>
-                            @(_wordsPerPartAuto ? "Auto" : "Manual")
-                        </button>
-                    </div>
-                </div>
-
                 <div class="d-grid gap-2 mb-4">
-                     <button type="button" class="btn btn-warning" @onclick="ProcessWithAI" disabled="@(_isProcessing || _isEditing)">
+                    <button type="button" class="btn btn-warning" @onclick="OpenProcessModal" disabled="@(_isProcessing || _isEditing)">
                         @if (_isProcessing)
                         {
                             <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
@@ -532,6 +554,7 @@ else
     private bool _isEditing = false;
     private bool _isCanceling = false;
     private bool _showGenerateDialog = false;
+    private bool _showProcessModal = false;
     private string? _previewVideoUrl;
 
     // AI settings
@@ -587,6 +610,15 @@ else
                 _partHashtags[part] = string.Join(", ", part.Hashtags);
             }
         }
+    }
+
+    private void OpenProcessModal() => _showProcessModal = true;
+    private void CloseProcessModal() => _showProcessModal = false;
+
+    private async Task ConfirmProcessWithAI()
+    {
+        _showProcessModal = false;
+        await ProcessWithAI();
     }
 
     private async Task ProcessWithAI()

@@ -70,16 +70,7 @@ else
                 {
                     <tr>
                         <td>
-                            @if (!string.IsNullOrEmpty(item.ThumbnailUrl))
-                            {
-                                <img src="@item.ThumbnailUrl" class="asset-thumbnail" alt="@item.FileName" />
-                            }
-                            else
-                            {
-                                <div class="asset-thumbnail-placeholder">
-                                    <i class="bi bi-camera-video"></i>
-                                </div>
-                            }
+                            <video src="@(item.SasUri + "#t=0.5")" class="asset-thumbnail" muted preload="metadata"></video>
                         </td>
                         <td style="overflow:hidden;">
                             <div style="font-size:0.8125rem;font-weight:500;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
