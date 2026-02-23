@@ -1,5 +1,6 @@
 using MediatR;
 using TheContentor.Domain.Entities;
+using TheContentor.Domain.Enums;
 using TheContentor.Infrastructure;
 using TheContentor.Infrastructure.Interfaces;
 
@@ -10,8 +11,8 @@ public record CreateAssetCommand : IRequest<Guid>
 {
     /// <summary>User-facing asset name.</summary>
     public string Name { get; set; } = string.Empty;
-    /// <summary>Tag string for filtering.</summary>
-    public string Tags { get; set; } = string.Empty;
+    /// <summary>Predefined content tag. Null means untagged.</summary>
+    public AssetContentTag? ContentTag { get; set; }
     /// <summary>Stream containing the asset file.</summary>
     public Stream? FileStream { get; set; }
     /// <summary>Content type for the uploaded file.</summary>
@@ -75,7 +76,7 @@ public class CreateAssetCommandHandler(
         {
             Name = request.Name,
             BlobPath = localPath,
-            Tags = request.Tags,
+            ContentTag = request.ContentTag,
             Duration = duration,
             IsActive = true
         };

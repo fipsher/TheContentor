@@ -1,29 +1,29 @@
-<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">TheContentor.API</a>
+@inject NavigationManager NavigationManager
+
+<div class="sidebar-header">
+    <div class="sidebar-logo">
+        <i class="bi bi-film sidebar-logo-icon"></i>
+        <span class="sidebar-brand">TheContentor</span>
     </div>
 </div>
 
-<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
-
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="nav flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-calendar3-nav-menu" aria-hidden="true"></span> Schedule
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="source-posts">
-                <span class="bi bi-file-earmark-text-fill-nav-menu" aria-hidden="true"></span> Source Posts
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="assets">
-                <span class="bi bi-camera-video-fill-nav-menu" aria-hidden="true"></span> Asset Library
-            </NavLink>
-        </div>
-    </nav>
-</div>
+<nav class="sidebar-nav">
+    <div class="nav-item-wrapper" title="Schedule">
+        <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+            <i class="bi bi-calendar3 nav-icon"></i>
+            <span class="nav-label">Schedule</span>
+        </NavLink>
+    </div>
+    <div class="nav-item-wrapper" title="Source Posts">
+        <NavLink class="nav-link" href="source-posts">
+            <i class="bi bi-file-earmark-text nav-icon"></i>
+            <span class="nav-label">Source Posts</span>
+        </NavLink>
+    </div>
+    <div class="nav-item-wrapper" title="Asset Library">
+        <NavLink class="nav-link" href="assets">
+            <i class="bi bi-collection-play nav-icon"></i>
+            <span class="nav-label">Asset Library</span>
+        </NavLink>
+    </div>
+</nav>

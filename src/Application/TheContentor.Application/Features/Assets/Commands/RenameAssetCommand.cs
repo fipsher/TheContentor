@@ -1,11 +1,12 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using TheContentor.Domain.Enums;
 using TheContentor.Infrastructure;
 
 namespace TheContentor.Application.Features.Assets.Commands;
 
-/// <summary>Renames an existing asset and updates its tags.</summary>
-public record RenameAssetCommand(Guid Id, string NewName, string Tags) : IRequest<bool>;
+/// <summary>Renames an existing asset and updates its content tag.</summary>
+public record RenameAssetCommand(Guid Id, string NewName, AssetContentTag? ContentTag) : IRequest<bool>;
 
 /// <summary>Handles <see cref="RenameAssetCommand"/>.</summary>
 public class RenameAssetCommandHandler(TheContentorDbContext context)
@@ -26,7 +27,7 @@ public class RenameAssetCommandHandler(TheContentorDbContext context)
             throw new InvalidOperationException($"Asset name '{request.NewName}' is already taken.");
 
         entity.Name = request.NewName;
-        entity.Tags = request.Tags;
+        entity.ContentTag = request.ContentTag;
         await context.SaveChangesAsync(cancellationToken);
         return true;
     }

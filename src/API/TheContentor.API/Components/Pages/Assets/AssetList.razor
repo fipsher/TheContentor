@@ -1,7 +1,9 @@
 @page "/assets"
 @using MediatR
+@using System.Text.RegularExpressions
 @using TheContentor.Application.Features.Assets.Models
 @using TheContentor.Application.Features.Assets.Queries
+@using TheContentor.Application.Features.Assets.Queries.GetYouTubeVideoMetadata
 @using TheContentor.Application.Features.Assets.Commands
 @using TheContentor.Domain.Enums
 @inject IMediator Mediator
@@ -10,104 +12,164 @@
 
 <PageTitle>Asset Library</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-3">
     <h1>Asset Library</h1>
-    <button class="btn btn-primary" @onclick="CreateNew">
-        <i class="bi bi-plus-lg"></i> Add New Asset
-    </button>
-    <button class="btn btn-secondary" @onclick="ShowYouTubeUploadModal">
-        <i class="bi bi-youtube"></i> Upload YouTube Asset
-    </button>
+    <div class="d-flex align-items-center gap-2">
+        <button class="status-pill @(_activeOnly ? "active pill-success" : "")"
+                style="cursor:pointer;border:1px solid var(--border-color);border-radius:6px;padding:5px 12px;"
+                @onclick="ToggleActiveOnly">
+            <i class="bi @(_activeOnly ? "bi-eye" : "bi-eye-slash")"></i>
+            @(_activeOnly ? "Active Only" : "Show All")
+        </button>
+        <button class="btn btn-primary btn-sm" @onclick="() => OpenAddModal(0)">
+            <i class="bi bi-plus-lg"></i> Add Asset
+        </button>
+    </div>
 </div>
 
 @if (_assets == null)
 {
-    <p><em>Loading...</em></p>
+    <div class="text-center py-5"><span class="spinner-border"></span></div>
 }
 else if (!_assets.Any())
 {
-    <div class="alert alert-info">
-        No assets found. Click "Add New Asset" to get started.
+    <div class="empty-state">
+        <div class="empty-state-icon"><i class="bi bi-collection-play"></i></div>
+        <div class="empty-state-text">No assets found. Add one to get started.</div>
+        <button class="btn btn-sm btn-primary mt-2" @onclick="() => OpenAddModal(0)">Add Asset</button>
     </div>
 }
 else
 {
-    <table class="table table-hover">
-        <thead>
-            <tr>
-                <th>File Name</th>
-                <th>Source</th>
-                <th>Duration</th>
-                <th>Quality</th>
-                <th>Tags</th>
-                <th>Status</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var item in _assets)
-            {
+    <div class="table-responsive">
+        <table class="table table-hover" style="table-layout:fixed;">
+            <colgroup>
+                <col style="width:120px;" />
+                <col />
+                <col style="width:90px;" />
+                <col style="width:70px;" />
+                <col style="width:80px;" />
+                <col style="width:90px;" />
+                <col style="width:80px;" />
+                <col style="width:155px;" />
+            </colgroup>
+            <thead>
                 <tr>
-                    <td>@item.FileName</td>
-                    <td>
-                        @if (item.Type == AssetType.YouTube && !string.IsNullOrEmpty(item.OriginalUrl))
-                        {
-                            <a href="@item.OriginalUrl" target="_blank" class="btn btn-sm btn-outline-danger" title="Open original YouTube video">
-                                <i class="bi bi-youtube"></i> YouTube
-                            </a>
-                        }
-                        else
-                        {
-                            <span class="text-muted">Manual</span>
-                        }
-                    </td>
-                    <td>@item.Duration?.ToString(@"mm\:ss")</td>
-                    <td>@(item.Quality.HasValue ? QualityLabel(item.Quality.Value) : "-")</td>
-                    <td>
-                        @foreach (var tag in item.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries))
-                        {
-                            <span class="badge bg-info text-dark me-1">@tag.Trim()</span>
-                        }
-                    </td>
-                    <td>
-                        <span class="badge @(item.IsActive ? "bg-success" : "bg-secondary")">
-                            @(item.IsActive ? "Active" : "Inactive")
-                        </span>
-                    </td>
-                    <td>
-                        <div class="btn-group">
-                            <button class="btn btn-sm btn-outline-primary" @onclick="() => ViewAsset(item)">
-                                <i class="bi bi-play-circle"></i> View
-                            </button>
-                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => EditAsset(item.Id)">
-                                <i class="bi bi-pencil"></i> Rename
-                            </button>
-                            <button class="btn btn-sm @(item.IsActive ? "btn-outline-warning" : "btn-outline-success")"
-                                    @onclick="() => ToggleStatus(item.Id)">
-                                <i class="bi @(item.IsActive ? "bi-eye-slash" : "bi-eye")"></i>
-                                @(item.IsActive ? "Deactivate" : "Activate")
-                            </button>
-                        </div>
-                    </td>
+                    <th>Preview</th>
+                    <th>Name</th>
+                    <th>Source</th>
+                    <th>Duration</th>
+                    <th>Quality</th>
+                    <th>Tag</th>
+                    <th>Status</th>
+                    <th>Actions</th>
                 </tr>
-            }
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @foreach (var item in _assets)
+                {
+                    <tr>
+                        <td>
+                            @if (!string.IsNullOrEmpty(item.ThumbnailUrl))
+                            {
+                                <img src="@item.ThumbnailUrl" class="asset-thumbnail" alt="@item.FileName" />
+                            }
+                            else
+                            {
+                                <div class="asset-thumbnail-placeholder">
+                                    <i class="bi bi-camera-video"></i>
+                                </div>
+                            }
+                        </td>
+                        <td style="overflow:hidden;">
+                            <div style="font-size:0.8125rem;font-weight:500;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                                @(item.Title ?? item.FileName)
+                            </div>
+                            @if (!string.IsNullOrEmpty(item.Title) && item.Title != item.FileName)
+                            {
+                                <div style="font-size:0.7rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                                    @item.FileName
+                                </div>
+                            }
+                        </td>
+                        <td>
+                            @if (item.Type == AssetType.YouTube && !string.IsNullOrEmpty(item.OriginalUrl))
+                            {
+                                <a href="@item.OriginalUrl" target="_blank" class="btn btn-sm btn-outline-danger" title="Open YouTube">
+                                    <i class="bi bi-youtube"></i>
+                                </a>
+                            }
+                            else
+                            {
+                                <span class="tag-chip">Manual</span>
+                            }
+                        </td>
+                        <td style="color:var(--text-secondary);font-size:0.8125rem;">
+                            @item.Duration?.ToString(@"mm\:ss")
+                        </td>
+                        <td>
+                            @if (item.Quality.HasValue)
+                            {
+                                <span class="quality-badge @GetQualityClass(item.Quality.Value)">@QualityLabel(item.Quality.Value)</span>
+                            }
+                            else
+                            {
+                                <span style="color:var(--text-muted);">—</span>
+                            }
+                        </td>
+                        <td>
+                            @if (item.ContentTag.HasValue)
+                            {
+                                <span class="tag-chip">@item.ContentTag.Value</span>
+                            }
+                            else
+                            {
+                                <span style="color:var(--text-muted);">—</span>
+                            }
+                        </td>
+                        <td>
+                            <span class="status-badge @(item.IsActive ? "badge-active" : "badge-inactive")">
+                                @(item.IsActive ? "Active" : "Inactive")
+                            </span>
+                        </td>
+                        <td>
+                            <div class="d-flex gap-1">
+                                <button class="icon-btn" title="Preview" @onclick="() => ViewAsset(item)">
+                                    <i class="bi bi-play-circle"></i>
+                                </button>
+                                <button class="icon-btn" title="Edit" @onclick="() => EditAsset(item.Id)">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="icon-btn" title="@ToggleTitle(item.IsActive)"
+                                        style="@(item.IsActive ? "color:var(--accent-warning);" : "color:var(--accent-success);")"
+                                        @onclick="() => ToggleStatus(item.Id)">
+                                    <i class="bi @(item.IsActive ? "bi-eye-slash" : "bi-eye")"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <div style="font-size:0.75rem;color:var(--text-muted);text-align:right;margin-top:-4px;">
+        @_assets.Count asset@(_assets.Count == 1 ? "" : "s")
+    </div>
 }
 
+<!-- Video preview modal -->
 @if (_selectedAsset != null)
 {
-    <div class="modal fade show" style="display: block; background-color: rgba(0,0,0,0.5);" tabindex="-1">
-        <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal fade show" style="display:block;" tabindex="-1" @onclick="CloseModal">
+        <div class="modal-dialog modal-lg modal-dialog-centered" @onclick:stopPropagation>
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Viewing: @_selectedAsset.FileName</h5>
+                    <h5 class="modal-title">@(_selectedAsset.Title ?? _selectedAsset.FileName)</h5>
                     <button type="button" class="btn-close" @onclick="CloseModal"></button>
                 </div>
                 <div class="modal-body text-center">
-                    <video controls autoplay class="img-fluid" style="max-height: 70vh;">
+                    <video controls autoplay class="img-fluid" style="max-height:70vh;">
                         <source src="@_selectedAsset.SasUri.ToString()" type="video/mp4">
-                        Your browser does not support the video tag.
                     </video>
                 </div>
                 <div class="modal-footer">
@@ -118,34 +180,179 @@ else
     </div>
 }
 
-@if (_showYouTubeUploadModal)
+<!-- Add Asset consolidated modal -->
+@if (_showAddModal)
 {
-    <YouTubeUploadModal ShowModal="_showYouTubeUploadModal"
-                        OnClose="HideYouTubeUploadModal"
-                        OnUploadComplete="HandleUploadComplete" />
+    <div class="modal fade show" style="display:block;" tabindex="-1" @onclick="CloseAddModal">
+        <div class="modal-dialog modal-dialog-centered" @onclick:stopPropagation>
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Asset</h5>
+                    <button type="button" class="btn-close" @onclick="CloseAddModal" disabled="@_addLoading"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Tabs -->
+                    <div class="d-flex gap-1 mb-3" style="border-bottom:1px solid var(--border-color);padding-bottom:8px;">
+                        <button class="btn btn-sm @(_addTab == 0 ? "btn-primary" : "btn-outline-secondary")" @onclick="() => SwitchAddTab(0)">
+                            <i class="bi bi-upload"></i> Upload File
+                        </button>
+                        <button class="btn btn-sm @(_addTab == 1 ? "btn-primary" : "btn-outline-secondary")" @onclick="() => SwitchAddTab(1)">
+                            <i class="bi bi-youtube"></i> YouTube
+                        </button>
+                    </div>
+
+                    @if (_addTab == 0)
+                    {
+                        <!-- Upload File tab -->
+                        <div class="mb-3">
+                            <label class="form-label">Name</label>
+                            <input type="text" class="form-control" @bind="_uploadName" placeholder="e.g. park_drone_shot.mp4" disabled="@_addLoading" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Video File</label>
+                            <InputFile class="form-control" OnChange="OnUploadFileChange" accept="video/*" disabled="@_addLoading" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Content Tag</label>
+                            <select class="form-select" @bind="_uploadTag" disabled="@_addLoading">
+                                <option value="">— None —</option>
+                                @foreach (var tag in Enum.GetValues<AssetContentTag>())
+                                {
+                                    <option value="@tag">@tag</option>
+                                }
+                            </select>
+                        </div>
+                    }
+                    else
+                    {
+                        <!-- YouTube tab -->
+                        @if (_ytPhase == YtPhase.Url)
+                        {
+                            <div class="mb-3">
+                                <label class="form-label">YouTube Video URL</label>
+                                <input type="text" class="form-control"
+                                       @bind-value="_ytUrl" @bind-value:event="oninput"
+                                       @onblur="ValidateYtUrl"
+                                       placeholder="https://www.youtube.com/watch?v=..."
+                                       disabled="@_addLoading" />
+                                @if (!string.IsNullOrEmpty(_ytUrlError))
+                                {
+                                    <div class="text-danger mt-1" style="font-size:0.75rem;">@_ytUrlError</div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="mb-3">
+                                <label class="form-label">Asset Name</label>
+                                <input type="text" class="form-control" @bind="_ytName" placeholder="Asset name" disabled="@_addLoading" />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Quality</label>
+                                <select class="form-select" @bind="_ytQuality" disabled="@_addLoading">
+                                    @foreach (var q in _ytQualities)
+                                    {
+                                        <option value="@q">@QualityLabel(q)</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Content Tag</label>
+                                <select class="form-select" @bind="_ytTag" disabled="@_addLoading">
+                                    <option value="">— None —</option>
+                                    @foreach (var tag in Enum.GetValues<AssetContentTag>())
+                                    {
+                                        <option value="@tag">@tag</option>
+                                    }
+                                </select>
+                            </div>
+                        }
+                    }
+
+                    @if (!string.IsNullOrEmpty(_addError))
+                    {
+                        <div class="alert alert-danger mt-2">@_addError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    @if (_addTab == 0)
+                    {
+                        <button type="button" class="btn btn-secondary" @onclick="CloseAddModal" disabled="@_addLoading">Cancel</button>
+                        <button type="button" class="btn btn-primary" @onclick="UploadFile"
+                                disabled="@(_addLoading || string.IsNullOrWhiteSpace(_uploadName))">
+                            @if (_addLoading) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            Upload
+                        </button>
+                    }
+                    else if (_ytPhase == YtPhase.Url)
+                    {
+                        <button type="button" class="btn btn-secondary" @onclick="CloseAddModal" disabled="@_addLoading">Cancel</button>
+                        <button type="button" class="btn btn-primary" @onclick="FetchYtMetadata"
+                                disabled="@(!_ytUrlValid || _addLoading)">
+                            @if (_addLoading) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            Next
+                        </button>
+                    }
+                    else
+                    {
+                        <button type="button" class="btn btn-link px-0 me-auto" @onclick="() => _ytPhase = YtPhase.Url" disabled="@_addLoading">← Back</button>
+                        <button type="button" class="btn btn-secondary" @onclick="CloseAddModal" disabled="@_addLoading">Cancel</button>
+                        <button type="button" class="btn btn-primary" @onclick="UploadYouTube"
+                                disabled="@(_addLoading || string.IsNullOrWhiteSpace(_ytName))">
+                            @if (_addLoading) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            Upload
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
 }
 
 @code {
     private List<AssetDto>? _assets;
     private AssetDto? _selectedAsset;
-    private bool _showYouTubeUploadModal;
+    private bool _activeOnly;
 
-    protected override async Task OnInitializedAsync()
-    {
-        await LoadAssets();
-    }
+    // Add modal
+    private bool _showAddModal;
+    private int _addTab;
+    private bool _addLoading;
+    private string? _addError;
+
+    // Upload file tab
+    private string _uploadName = "";
+    private IBrowserFile? _uploadFile;
+    private string? _uploadContentType;
+    private AssetContentTag? _uploadTag;
+
+    // YouTube tab
+    private enum YtPhase { Url, Details }
+    private YtPhase _ytPhase = YtPhase.Url;
+    private string _ytUrl = "";
+    private bool _ytUrlValid;
+    private string _ytUrlError = "";
+    private string _ytName = "";
+    private IReadOnlyList<YouTubeVideoQuality> _ytQualities = [];
+    private YouTubeVideoQuality _ytQuality;
+    private AssetContentTag? _ytTag;
+
+    protected override async Task OnInitializedAsync() => await LoadAssets();
 
     private async Task LoadAssets()
     {
-        _assets = await Mediator.Send(new GetAssetListQuery());
+        _assets = await Mediator.Send(new GetAssetListQuery(_activeOnly));
     }
 
-    private void CreateNew() => NavigationManager.NavigateTo("/assets/create");
+    private async Task ToggleActiveOnly()
+    {
+        _activeOnly = !_activeOnly;
+        await LoadAssets();
+    }
 
-    private void EditAsset(Guid id) => NavigationManager.NavigateTo($"/assets/edit/{id}");
+    private void EditAsset(Guid id) => NavigationManager.NavigateTo("/assets/edit/" + id);
 
     private void ViewAsset(AssetDto asset) => _selectedAsset = asset;
-
     private void CloseModal() => _selectedAsset = null;
 
     private async Task ToggleStatus(Guid id)
@@ -154,25 +361,149 @@ else
             await LoadAssets();
     }
 
-    private void ShowYouTubeUploadModal() => _showYouTubeUploadModal = true;
-
-    private void HideYouTubeUploadModal() => _showYouTubeUploadModal = false;
-
-    private async Task HandleUploadComplete()
+    private void OpenAddModal(int tab)
     {
-        _showYouTubeUploadModal = false;
-        await LoadAssets();
+        _addTab = tab;
+        _showAddModal = true;
+        _addError = null;
     }
 
-    private static string QualityLabel(TheContentor.Domain.Enums.YouTubeVideoQuality q) => q switch
+    private void CloseAddModal()
     {
-        TheContentor.Domain.Enums.YouTubeVideoQuality.P144  => "144p",
-        TheContentor.Domain.Enums.YouTubeVideoQuality.P360  => "360p",
-        TheContentor.Domain.Enums.YouTubeVideoQuality.P480  => "480p",
-        TheContentor.Domain.Enums.YouTubeVideoQuality.P720  => "720p HD",
-        TheContentor.Domain.Enums.YouTubeVideoQuality.P1080 => "1080p Full HD",
-        TheContentor.Domain.Enums.YouTubeVideoQuality.P1440 => "1440p 2K",
-        TheContentor.Domain.Enums.YouTubeVideoQuality.P2160 => "2160p 4K",
+        if (_addLoading) return;
+        _showAddModal = false;
+        ResetAddModal();
+    }
+
+    private void ResetAddModal()
+    {
+        _uploadName = "";
+        _uploadFile = null;
+        _uploadContentType = null;
+        _uploadTag = null;
+        _ytPhase = YtPhase.Url;
+        _ytUrl = "";
+        _ytUrlValid = false;
+        _ytUrlError = "";
+        _ytName = "";
+        _ytQualities = [];
+        _ytQuality = default;
+        _ytTag = null;
+        _addError = null;
+    }
+
+    private void SwitchAddTab(int tab)
+    {
+        _addTab = tab;
+        _addError = null;
+    }
+
+    private void OnUploadFileChange(InputFileChangeEventArgs e)
+    {
+        _uploadFile = e.File;
+        if (string.IsNullOrEmpty(_uploadName))
+            _uploadName = e.File.Name;
+        _uploadContentType = e.File.ContentType;
+    }
+
+    private async Task UploadFile()
+    {
+        if (string.IsNullOrWhiteSpace(_uploadName)) return;
+        _addLoading = true;
+        _addError = null;
+        try
+        {
+            Stream? stream = _uploadFile?.OpenReadStream(maxAllowedSize: 500 * 1024 * 1024);
+            await Mediator.Send(new CreateAssetCommand
+            {
+                Name = _uploadName,
+                ContentTag = _uploadTag,
+                FileStream = stream,
+                ContentType = _uploadContentType
+            });
+            _showAddModal = false;
+            ResetAddModal();
+            await LoadAssets();
+        }
+        catch (Exception ex)
+        {
+            _addError = ex.Message;
+        }
+        finally
+        {
+            _addLoading = false;
+        }
+    }
+
+    private void ValidateYtUrl()
+    {
+        if (string.IsNullOrWhiteSpace(_ytUrl))
+        { _ytUrlValid = false; _ytUrlError = "URL cannot be empty."; return; }
+        if (!Regex.IsMatch(_ytUrl, @"^(https?://)?(www\.)?(youtube\.com|youtu\.be)/.+$"))
+        { _ytUrlValid = false; _ytUrlError = "Invalid YouTube URL."; return; }
+        _ytUrlValid = true;
+        _ytUrlError = "";
+    }
+
+    private async Task FetchYtMetadata()
+    {
+        ValidateYtUrl();
+        if (!_ytUrlValid) return;
+        _addLoading = true;
+        _addError = null;
+        try
+        {
+            var metadata = await Mediator.Send(new GetYouTubeVideoMetadataQuery(_ytUrl));
+            _ytName = metadata.Title;
+            _ytQualities = metadata.AvailableQualities;
+            _ytQuality = _ytQualities.Count > 0 ? _ytQualities[^1] : YouTubeVideoQuality.P1080;
+            _ytPhase = YtPhase.Details;
+        }
+        catch (Exception ex) { _addError = ex.Message; }
+        finally { _addLoading = false; }
+    }
+
+    private async Task UploadYouTube()
+    {
+        if (string.IsNullOrWhiteSpace(_ytName)) return;
+        _addLoading = true;
+        _addError = null;
+        try
+        {
+            await Mediator.Send(new UploadYouTubeAssetCommand(_ytUrl, _ytName, _ytQuality, _ytTag));
+            _showAddModal = false;
+            ResetAddModal();
+            await LoadAssets();
+        }
+        catch (Exception ex) { _addError = ex.Message; }
+        finally { _addLoading = false; }
+    }
+
+    private static string ToggleTitle(bool isActive) => isActive ? "Deactivate" : "Activate";
+
+    private static string QualityLabel(YouTubeVideoQuality q) => q switch
+    {
+        YouTubeVideoQuality.P144  => "144p",
+        YouTubeVideoQuality.P240  => "240p",
+        YouTubeVideoQuality.P360  => "360p",
+        YouTubeVideoQuality.P480  => "480p",
+        YouTubeVideoQuality.P720  => "720p HD",
+        YouTubeVideoQuality.P1080 => "1080p FHD",
+        YouTubeVideoQuality.P1440 => "1440p 2K",
+        YouTubeVideoQuality.P2160 => "2160p 4K",
         _ => q.ToString()
+    };
+
+    private static string GetQualityClass(YouTubeVideoQuality q) => q switch
+    {
+        YouTubeVideoQuality.P144  => "quality-144",
+        YouTubeVideoQuality.P240  => "quality-240",
+        YouTubeVideoQuality.P360  => "quality-360",
+        YouTubeVideoQuality.P480  => "quality-480",
+        YouTubeVideoQuality.P720  => "quality-720",
+        YouTubeVideoQuality.P1080 => "quality-1080",
+        YouTubeVideoQuality.P1440 => "quality-1440",
+        YouTubeVideoQuality.P2160 => "quality-2160",
+        _ => ""
     };
 }

@@ -10,7 +10,8 @@ namespace TheContentor.Application.Features.Assets.Commands;
 public record UploadYouTubeAssetCommand(
     string YouTubeUrl,
     string Name,
-    YouTubeVideoQuality Quality) : IRequest<Guid>;
+    YouTubeVideoQuality Quality,
+    AssetContentTag? ContentTag = null) : IRequest<Guid>;
 
 /// <summary>Handles YouTube video asset uploads and persistence.</summary>
 public class UploadYouTubeAssetCommandHandler(
@@ -57,7 +58,7 @@ public class UploadYouTubeAssetCommandHandler(
                 Quality = request.Quality,
                 BlobPath = localPath,
                 IsActive = true,
-                Tags = string.Empty
+                ContentTag = request.ContentTag
             };
 
             context.Assets.Add(newAsset);

@@ -144,6 +144,7 @@
 @using TheContentor.Application.Features.ProcessedPosts.Commands
 @using TheContentor.Application.Features.ProcessedPosts.Models
 @using TheContentor.Domain.Enums
+@using System.Linq
 @inject IMediator Mediator
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JS
@@ -189,66 +190,106 @@
 else
 {
     <div class="container mt-4 pb-5">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <div>
-                <h2>@Post.Title</h2>
-                <small class="text-muted">
-                    Posted by u/@Post.AuthorName in r/@Post.Community
-                    • @Post.CreatedUtc.ToString("f")
+        <div class="d-flex justify-content-between align-items-start mb-3">
+            <div style="flex:1;min-width:0;">
+                <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                    <span style="@GetCommunityBadgeStyle(Post.Community);display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:12px;font-size:0.8rem;font-weight:700;">
+                        <i class="bi bi-reddit"></i> r/@Post.Community
+                    </span>
+                    <span class="status-badge @GetStatusClass(Post.Status)">@Post.Status</span>
+                </div>
+                <h2 style="font-size:1.2rem;font-weight:600;line-height:1.3;margin-bottom:2px;">@Post.Title</h2>
+                <small style="color:var(--text-muted);">
+                    u/@Post.AuthorName • @Post.CreatedUtc.ToString("MMM d, yyyy")
+                    • ↑ @Post.Score pts • @Post.WordCount words
                 </small>
             </div>
-            <div>
-                <button class="btn btn-outline-secondary me-2" @onclick="GoBack">Back to List</button>
+            <div class="d-flex gap-2 flex-shrink-0 ms-3">
+                <button class="btn btn-sm btn-outline-secondary" @onclick="GoBack">
+                    <i class="bi bi-arrow-left"></i> Back
+                </button>
                 @if (!_isEditing)
                 {
-                    <button class="btn btn-primary" @onclick="StartEditing">Edit</button>
+                    <button class="btn btn-sm btn-primary" @onclick="StartEditing">
+                        <i class="bi bi-pencil"></i> Edit
+                    </button>
                 }
                 else
                 {
-                    <button class="btn btn-success me-2" @onclick="UpdateProcessedPost">Save</button>
-                    <button class="btn btn-secondary" @onclick="CancelEditing">Cancel</button>
+                    <button class="btn btn-sm btn-success" @onclick="UpdateProcessedPost">
+                        <i class="bi bi-check2"></i> Save
+                    </button>
+                    <button class="btn btn-sm btn-secondary" @onclick="CancelEditing">Cancel</button>
                 }
             </div>
         </div>
 
         <div class="row">
             <div class="col-md-4">
-                <div class="card mb-4 shadow-sm">
-                    <div class="card-header bg-light fw-bold">Post Info</div>
-                    <div class="card-body">
-                        <div class="mb-3">
-                            <span class="badge bg-secondary me-1">@Post.Platform</span>
-                            <span class="badge bg-info me-1">@Post.Score points</span>
-                            @if (Post.UpvoteRatio.HasValue)
-                            {
-                                <span class="badge bg-info me-1">@(Post.UpvoteRatio.Value.ToString("P0")) Upvoted</span>
-                            }
-                            <span class="badge bg-dark me-1">@Post.WordCount words</span>
-                            <span class="badge @GetStatusClass(Post.Status) me-1">@Post.Status</span>
+                <!-- Post actions row -->
+                <div class="d-flex gap-2 flex-wrap mb-3">
+                    <a href="@Post.ExternalUrl" target="_blank" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-box-arrow-up-right"></i> View on @Post.Platform
+                    </a>
+                    @if (Post.ProcessedPost != null)
+                    {
+                        <button class="btn btn-sm @(Post.ProcessedPost.IsPosted ? "btn-success" : "btn-outline-success")"
+                                @onclick="TogglePostedStatus" disabled="@_isEditing">
+                            <i class="bi @(Post.ProcessedPost.IsPosted ? "bi-check2-circle" : "bi-circle")"></i>
+                            @(Post.ProcessedPost.IsPosted ? "Posted" : "Mark as Posted")
+                        </button>
+                    }
+                    <button class="btn btn-sm @(Post.Status == SourcePostStatus.Skipped ? "btn-warning" : "btn-outline-warning")"
+                            @onclick="ToggleSkip" disabled="@_isEditing"
+                            title="@(Post.Status == SourcePostStatus.Skipped ? "Restore post" : "Skip post")">
+                        <i class="bi @(Post.Status == SourcePostStatus.Skipped ? "bi-arrow-counterclockwise" : "bi-x-circle")"></i>
+                        @(Post.Status == SourcePostStatus.Skipped ? "Restore" : "Skip")
+                    </button>
+                </div>
+
+                <!-- Raw text -->
+                <div class="card mb-3">
+                    <div class="card-header">Original Post</div>
+                    <div class="card-body" style="white-space:pre-wrap;max-height:300px;overflow-y:auto;font-size:0.875rem;color:var(--text-secondary);">
+                        @Post.RawText
+                    </div>
+                </div>
+
+                <!-- AI Settings -->
+                <div class="ai-settings-panel mb-3">
+                    <div class="panel-section-title">AI Processing Settings</div>
+                    <div class="mb-2">
+                        <label class="form-label">LLM Provider</label>
+                        <select class="form-select form-select-sm" @bind="_llmProvider" disabled="@(_isProcessing || _isEditing)">
+                            <option value="@LlmProvider.Gemini">Google Gemini</option>
+                            <option value="@LlmProvider.OpenAI">OpenAI ChatGPT</option>
+                        </select>
+                    </div>
+                    <div class="input-auto-row">
+                        <div>
+                            <label class="form-label">Parts Count</label>
+                            <input type="number" class="compact-number-input" @bind="_partsCount"
+                                   min="1" max="20" disabled="@(_partsCountAuto || _isProcessing || _isEditing)" />
                         </div>
-                        <div class="mb-3 d-flex gap-2 flex-wrap">
-                            <a href="@Post.ExternalUrl" target="_blank" class="btn btn-sm btn-outline-primary">View on @Post.Platform</a>
-                            @if (Post.ProcessedPost != null)
-                            {
-                                <button class="btn btn-sm @(Post.ProcessedPost.IsPosted ? "btn-success" : "btn-outline-success")"
-                                        @onclick="TogglePostedStatus"
-                                        disabled="@_isEditing">
-                                    <i class="bi @(Post.ProcessedPost.IsPosted ? "bi-check2-circle" : "bi-circle")"></i>
-                                    @(Post.ProcessedPost.IsPosted ? "Posted" : "Mark as Posted")
-                                </button>
-                            }
-                            <button class="btn btn-sm @(Post.Status == SourcePostStatus.Skipped ? "btn-warning" : "btn-outline-warning")"
-                                    @onclick="ToggleSkip"
-                                    disabled="@_isEditing"
-                                    title="@(Post.Status == SourcePostStatus.Skipped ? "Restore post — it will be eligible for scheduling again" : "Mark as not good enough — excludes from auto-scheduling")">
-                                <i class="bi @(Post.Status == SourcePostStatus.Skipped ? "bi-arrow-counterclockwise" : "bi-x-circle")"></i>
-                                @(Post.Status == SourcePostStatus.Skipped ? "Restore" : "Skip")
-                            </button>
+                        <button class="auto-toggle @(_partsCountAuto ? "active" : "")"
+                                @onclick="() => _partsCountAuto = !_partsCountAuto"
+                                disabled="@(_isProcessing || _isEditing)">
+                            <i class="bi @(_partsCountAuto ? "bi-magic" : "bi-input-cursor")"></i>
+                            @(_partsCountAuto ? "Auto" : "Manual")
+                        </button>
+                    </div>
+                    <div class="input-auto-row">
+                        <div>
+                            <label class="form-label">Words per Part</label>
+                            <input type="number" class="compact-number-input" @bind="_wordsPerPart"
+                                   min="50" max="2000" disabled="@(_wordsPerPartAuto || _isProcessing || _isEditing)" />
                         </div>
-                        <hr/>
-                        <div class="post-content" style="white-space: pre-wrap; max-height: 500px; overflow-y: auto; font-size: 0.9rem;">
-                            @Post.RawText
-                        </div>
+                        <button class="auto-toggle @(_wordsPerPartAuto ? "active" : "")"
+                                @onclick="() => _wordsPerPartAuto = !_wordsPerPartAuto"
+                                disabled="@(_isProcessing || _isEditing)">
+                            <i class="bi @(_wordsPerPartAuto ? "bi-magic" : "bi-input-cursor")"></i>
+                            @(_wordsPerPartAuto ? "Auto" : "Manual")
+                        </button>
                     </div>
                 </div>
 
@@ -336,7 +377,7 @@ else
                 @if (Post.ProcessedPost != null)
                 {
                     <div class="card mb-4 border-primary shadow-sm">
-                        <div class="card-header bg-primary text-white fw-bold">
+                        <div class="card-header fw-bold" style="background:var(--accent-primary-dim);color:var(--accent-primary);border-color:var(--accent-primary);">
                             AI Processed Content
                         </div>
                         <div class="card-body">
@@ -348,7 +389,7 @@ else
                                 }
                                 else
                                 {
-                                    <div class="p-2 border rounded bg-light">@Post.ProcessedPost.Title</div>
+                                    <div class="content-display-field">@Post.ProcessedPost.Title</div>
                                 }
                             </div>
                             <div class="mb-3">
@@ -359,7 +400,7 @@ else
                                 }
                                 else
                                 {
-                                    <div class="p-2 border rounded bg-light" style="white-space: pre-wrap;">@Post.ProcessedPost.Description</div>
+                                    <div class="content-display-field" style="white-space: pre-wrap;">@Post.ProcessedPost.Description</div>
                                     @if (!string.IsNullOrEmpty(Post.ProcessedPost.DescriptionAudioBlobPath?.SasUrl))
                                     {
                                         <div class="mt-2">
@@ -379,7 +420,7 @@ else
                                 }
                                 else
                                 {
-                                    <div class="p-2 border rounded bg-light">@_hashtagsText</div>
+                                    <div class="content-display-field">@_hashtagsText</div>
                                 }
                             </div>
                             <div class="mb-3">
@@ -395,7 +436,7 @@ else
                                 }
                                 else
                                 {
-                                    <div class="p-2 border rounded bg-light">@Post.ProcessedPost.NarratorGender</div>
+                                    <div class="content-display-field">@Post.ProcessedPost.NarratorGender</div>
                                 }
                             </div>
                         </div>
@@ -412,7 +453,7 @@ else
                     @foreach (var part in Post.ProcessedPost.Parts.OrderBy(p => p.Part))
                     {
                         <div class="card mb-3 border-secondary shadow-sm" @key="part">
-                            <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
+                            <div class="card-header d-flex justify-content-between align-items-center py-2">
                                 <div class="d-flex align-items-center">
                                     <span class="badge bg-secondary me-3">Part @part.Part</span>
                                     @if (_isEditing)
@@ -463,7 +504,7 @@ else
                                     }
                                     else
                                     {
-                                        <div class="p-2 border rounded bg-light" style="white-space: pre-wrap;">@part.ProcessedText</div>
+                                        <div class="content-display-field" style="white-space: pre-wrap;">@part.ProcessedText</div>
                                     }
                                 </div>
                             </div>
@@ -492,6 +533,13 @@ else
     private bool _isCanceling = false;
     private bool _showGenerateDialog = false;
     private string? _previewVideoUrl;
+
+    // AI settings
+    private LlmProvider _llmProvider = LlmProvider.Gemini;
+    private bool _partsCountAuto = true;
+    private int _partsCount = 3;
+    private bool _wordsPerPartAuto = true;
+    private int _wordsPerPart = 300;
     private HubConnection? _hubConnection;
     private GenerationProgressModel? _currentProgress;
     private Guid? _copiedPartId;
@@ -547,7 +595,9 @@ else
         _isProcessing = true;
         try
         {
-            await Mediator.Send(new ProcessSourcePostCommand(Post.Id));
+            var partsCount = _partsCountAuto ? (int?)null : _partsCount;
+            var wordsPerPart = _wordsPerPartAuto ? (int?)null : _wordsPerPart;
+            await Mediator.Send(new ProcessSourcePostCommand(Post.Id, partsCount, wordsPerPart, _llmProvider));
             await LoadPost();
             _isEditing = false;
         }
@@ -634,14 +684,28 @@ else
         NavigationManager.NavigateTo("/source-posts");
     }
 
-    private string GetStatusClass(SourcePostStatus status) => status switch
+    private static string GetStatusClass(SourcePostStatus status) => status switch
     {
-        SourcePostStatus.Raw => "bg-info",
-        SourcePostStatus.Processed => "bg-primary",
-        SourcePostStatus.Approved => "bg-success",
-        SourcePostStatus.Rejected => "bg-danger",
-        _ => "bg-secondary"
+        SourcePostStatus.Raw       => "badge-raw",
+        SourcePostStatus.Processed => "badge-processed",
+        SourcePostStatus.Approved  => "badge-approved",
+        SourcePostStatus.Rejected  => "badge-rejected",
+        SourcePostStatus.Skipped   => "badge-skipped",
+        _ => "badge-inactive"
     };
+
+    private static readonly string[] _communityColors =
+    [
+        "#5b6af0", "#e67e22", "#1abc9c", "#9b59b6",
+        "#e74c3c", "#2ecc71", "#f39c12", "#3498db"
+    ];
+
+    private static string GetCommunityBadgeStyle(string community)
+    {
+        var hash = community.Aggregate(0, (acc, c) => acc * 31 + c);
+        var color = _communityColors[Math.Abs(hash) % _communityColors.Length];
+        return $"background:{color}25;color:{color};border:1px solid {color}60;";
+    }
 
     private void ShowGenerateDialog()
     {

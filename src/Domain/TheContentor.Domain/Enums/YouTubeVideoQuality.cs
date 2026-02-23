@@ -6,6 +6,9 @@ public enum YouTubeVideoQuality
     /// <summary>144p</summary>
     P144 = 144,
 
+    /// <summary>240p</summary>
+    P240 = 240,
+
     /// <summary>360p</summary>
     P360 = 360,
 

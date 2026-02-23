@@ -5,6 +5,7 @@ using TheContentor.Application.Features.Assets.Commands;
 using TheContentor.Application.Features.Assets.Models;
 using TheContentor.Application.Features.Assets.Queries;
 using TheContentor.Application.Features.Assets.Queries.GetYouTubeVideoMetadata;
+using TheContentor.Domain.Enums;
 
 namespace TheContentor.API.Controllers;
 
@@ -36,7 +37,7 @@ public class AssetController(IMediator mediator) : ControllerBase
         var command = new CreateAssetCommand
         {
             Name = model.FileName ?? model.File.FileName,
-            Tags = model.Tags ?? string.Empty,
+            ContentTag = model.ContentTag,
             FileStream = stream,
             ContentType = model.File.ContentType
         };
@@ -60,7 +61,7 @@ public class AssetController(IMediator mediator) : ControllerBase
     [HttpPost("youtube")]
     public async Task<ActionResult<Guid>> UploadYouTube([FromBody] YouTubeAssetUploadModel model)
     {
-        var id = await mediator.Send(new UploadYouTubeAssetCommand(model.YouTubeUrl, model.Name, model.Quality));
+        var id = await mediator.Send(new UploadYouTubeAssetCommand(model.YouTubeUrl, model.Name, model.Quality, model.ContentTag));
         return CreatedAtAction(nameof(GetById), new { id }, id);
     }
 
@@ -78,7 +79,7 @@ public class AssetController(IMediator mediator) : ControllerBase
     [HttpPut("{id:guid}")]
     public async Task<ActionResult> Rename(Guid id, [FromBody] RenameAssetRequest request)
     {
-        var ok = await mediator.Send(new RenameAssetCommand(id, request.Name, request.Tags));
+        var ok = await mediator.Send(new RenameAssetCommand(id, request.Name, request.ContentTag));
         if (!ok) return NotFound();
         return NoContent();
     }
@@ -89,6 +90,6 @@ public class RenameAssetRequest
 {
     /// <summary>New asset name.</summary>
     public string Name { get; set; } = string.Empty;
-    /// <summary>Updated tag string.</summary>
-    public string Tags { get; set; } = string.Empty;
+    /// <summary>Updated content tag. Null means untagged.</summary>
+    public AssetContentTag? ContentTag { get; set; }
 }

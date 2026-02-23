@@ -11,101 +11,113 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1>Source Posts</h1>
-    <button class="btn btn-primary" @onclick="() => _showScrapDialog = true">Scrap Reddit</button>
+    <button class="btn btn-primary btn-sm" @onclick="() => _showScrapDialog = true">
+        <i class="bi bi-reddit"></i> Scrap Reddit
+    </button>
 </div>
 
 <ScrapRedditDialog Show="_showScrapDialog" OnClose="() => _showScrapDialog = false" OnScrapped="RefreshList" />
 
-<div class="card mb-4">
-    <div class="card-body">
-        <div class="row g-3">
-            <div class="col-md-4">
-                <label class="form-label">Search Title</label>
-                <input type="text" class="form-control" @bind="_searchTitle" @bind:event="oninput" placeholder="Filter by title..." />
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">Platform</label>
-                <select class="form-select" @bind="_filterPlatform">
-                    <option value="">All</option>
-                    @foreach (var platform in Enum.GetValues<SourcePlatform>())
-                    {
-                        <option value="@platform">@platform</option>
-                    }
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">Status</label>
-                <select class="form-select" @bind="_filterStatus">
-                    <option value="">All</option>
-                    @foreach (var status in Enum.GetValues<SourcePostStatus>())
-                    {
-                        <option value="@status">@status</option>
-                    }
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">TTS</label>
-                <select class="form-select" @bind="_filterTtsStatus">
-                    <option value="">All</option>
-                    @foreach (var s in Enum.GetValues<TtsStatus>())
-                    {
-                        <option value="@s">@s</option>
-                    }
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">Video</label>
-                <select class="form-select" @bind="_filterVideoStatus">
-                    <option value="">All</option>
-                    @foreach (var s in Enum.GetValues<VideoStatus>())
-                    {
-                        <option value="@s">@s</option>
-                    }
-                </select>
+<div class="filter-bar">
+    <!-- Search + Community chips -->
+    <div class="filter-row" style="flex-wrap:wrap;gap:6px;">
+        <input type="text" class="form-control form-control-sm" style="width:220px;flex-shrink:0;"
+               @bind="_searchTitle" @bind:event="oninput" placeholder="Search title..." />
+        @if (UniqueCommunities.Any())
+        {
+            <span class="filter-row-label" style="margin-left:4px;">r/</span>
+            @foreach (var c in UniqueCommunities)
+            {
+                var isActive = _filterCommunity == c;
+                var color = GetCommunityColor(c);
+                <button class="tag-chip"
+                        style="cursor:pointer;@(isActive ? $"background:{color}28;color:{color};border-color:{color};" : "")"
+                        @onclick="() => ToggleCommunity(c)">
+                    @c
+                </button>
+            }
+        }
+    </div>
+
+    <!-- Status pills -->
+    <div class="filter-row">
+        <span class="filter-row-label">Status</span>
+        <div class="status-pill-group">
+            <button class="status-pill @(_filterStatus == null ? "active" : "")" @onclick="() => _filterStatus = null">All</button>
+            <button class="status-pill @(_filterStatus == SourcePostStatus.Raw ? "active pill-info" : "")" @onclick="() => _filterStatus = SourcePostStatus.Raw">Raw</button>
+            <button class="status-pill @(_filterStatus == SourcePostStatus.Processed ? "active pill-purple" : "")" @onclick="() => _filterStatus = SourcePostStatus.Processed">Processed</button>
+            <button class="status-pill @(_filterStatus == SourcePostStatus.Approved ? "active pill-success" : "")" @onclick="() => _filterStatus = SourcePostStatus.Approved">Approved</button>
+            <button class="status-pill @(_filterStatus == SourcePostStatus.Rejected ? "active pill-danger" : "")" @onclick="() => _filterStatus = SourcePostStatus.Rejected">Rejected</button>
+            <button class="status-pill @(_filterStatus == SourcePostStatus.Skipped ? "active" : "")" @onclick="() => _filterStatus = SourcePostStatus.Skipped">Skipped</button>
+        </div>
+    </div>
+
+    <!-- Video + TTS row -->
+    <div class="filter-row" style="flex-wrap:wrap;gap:16px;">
+        <div class="d-flex align-items-center gap-2">
+            <span class="filter-row-label">Video</span>
+            <div class="status-pill-group">
+                <button class="status-pill @(_filterVideoStatus == null && !_filterVideoNone ? "active" : "")"
+                        @onclick="() => { _filterVideoStatus = null; _filterVideoNone = false; }">All</button>
+                <button class="status-pill @(_filterVideoStatus == VideoStatus.Generated ? "active pill-success" : "")"
+                        @onclick="() => { _filterVideoStatus = VideoStatus.Generated; _filterVideoNone = false; }">Generated</button>
+                <button class="status-pill @(_filterVideoStatus == VideoStatus.InProgress ? "active pill-warning" : "")"
+                        @onclick="() => { _filterVideoStatus = VideoStatus.InProgress; _filterVideoNone = false; }">In Progress</button>
+                <button class="status-pill @(_filterVideoStatus == VideoStatus.Failed ? "active pill-danger" : "")"
+                        @onclick="() => { _filterVideoStatus = VideoStatus.Failed; _filterVideoNone = false; }">Failed</button>
+                <button class="status-pill @(_filterVideoNone ? "active" : "")"
+                        @onclick="() => { _filterVideoStatus = null; _filterVideoNone = true; }">None</button>
             </div>
         </div>
-        <div class="row g-3 mt-1">
-            <div class="col-md-2">
-                <label class="form-label">Posted</label>
-                <select class="form-select" @bind="_filterIsPostedStr">
-                    <option value="">All</option>
-                    <option value="true">Posted</option>
-                    <option value="false">Not Posted</option>
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">Words min</label>
-                <input type="number" class="form-control" @bind="_filterWordCountMin" placeholder="e.g. 300" />
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">Words max</label>
-                <input type="number" class="form-control" @bind="_filterWordCountMax" placeholder="e.g. 2000" />
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">Ingested from</label>
-                <input type="date" class="form-control" @bind="_filterDateFrom" />
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">Ingested to</label>
-                <input type="date" class="form-control" @bind="_filterDateTo" />
+        <div class="d-flex align-items-center gap-2">
+            <span class="filter-row-label">TTS</span>
+            <div class="status-pill-group">
+                <button class="status-pill @(_filterTtsStatus == null && !_filterTtsNone ? "active" : "")"
+                        @onclick="() => { _filterTtsStatus = null; _filterTtsNone = false; }">All</button>
+                <button class="status-pill @(_filterTtsStatus == TtsStatus.Generated ? "active pill-success" : "")"
+                        @onclick="() => { _filterTtsStatus = TtsStatus.Generated; _filterTtsNone = false; }">Generated</button>
+                <button class="status-pill @(_filterTtsStatus == TtsStatus.InProgress ? "active pill-warning" : "")"
+                        @onclick="() => { _filterTtsStatus = TtsStatus.InProgress; _filterTtsNone = false; }">In Progress</button>
+                <button class="status-pill @(_filterTtsStatus == TtsStatus.Failed ? "active pill-danger" : "")"
+                        @onclick="() => { _filterTtsStatus = TtsStatus.Failed; _filterTtsNone = false; }">Failed</button>
+                <button class="status-pill @(_filterTtsNone ? "active" : "")"
+                        @onclick="() => { _filterTtsStatus = null; _filterTtsNone = true; }">None</button>
             </div>
         </div>
-        <div class="row mt-2">
-            <div class="col-auto">
-                <button class="btn btn-outline-secondary btn-sm" @onclick="ClearFilters">Clear Filters</button>
+    </div>
+
+    <!-- Posted + word count + clear -->
+    <div class="filter-row" style="flex-wrap:wrap;gap:12px;">
+        <div class="d-flex align-items-center gap-2">
+            <span class="filter-row-label">Posted</span>
+            <div class="status-pill-group">
+                <button class="status-pill @(_filterIsPostedStr == "" ? "active" : "")" @onclick='() => _filterIsPostedStr = ""'>All</button>
+                <button class="status-pill @(_filterIsPostedStr == "true" ? "active pill-success" : "")" @onclick='() => _filterIsPostedStr = "true"'>Posted</button>
+                <button class="status-pill @(_filterIsPostedStr == "false" ? "active" : "")" @onclick='() => _filterIsPostedStr = "false"'>Not Posted</button>
             </div>
+        </div>
+        <div class="d-flex align-items-center gap-2 ms-auto">
+            <span style="font-size:0.7rem;color:var(--text-muted);">Words</span>
+            <input type="number" class="form-control form-control-sm" style="width:72px;" @bind="_filterWordCountMin" placeholder="min" />
+            <span style="color:var(--text-muted);">–</span>
+            <input type="number" class="form-control form-control-sm" style="width:72px;" @bind="_filterWordCountMax" placeholder="max" />
+            <button class="btn btn-sm btn-outline-secondary" @onclick="ClearFilters">
+                <i class="bi bi-x-lg"></i> Clear
+            </button>
         </div>
     </div>
 </div>
 
 @if (_posts == null)
 {
-    <p><em>Loading...</em></p>
+    <div class="text-center py-5"><span class="spinner-border"></span></div>
 }
 else if (!FilteredPosts.Any())
 {
-    <div class="alert alert-info">
-        No source posts found matching filters.
+    <div class="empty-state">
+        <div class="empty-state-icon"><i class="bi bi-file-earmark-x"></i></div>
+        <div class="empty-state-text">No posts match the current filters.</div>
+        <button class="btn btn-sm btn-outline-secondary mt-2" @onclick="ClearFilters">Clear Filters</button>
     </div>
 }
 else
@@ -114,101 +126,58 @@ else
         <table class="table table-hover">
             <thead>
                 <tr>
-                    <th style="cursor: pointer" @onclick='() => SetSort("Platform")'>
-                        Source @GetSortIcon("Platform")
-                    </th>
-                    <th style="cursor: pointer" @onclick='() => SetSort("Community")'>
-                        Community @GetSortIcon("Community")
-                    </th>
-                    <th style="cursor: pointer" @onclick='() => SetSort("Title")'>
-                        Title @GetSortIcon("Title")
-                    </th>
-                    <th style="cursor: pointer" @onclick='() => SetSort("WordCount")'>
-                        Words @GetSortIcon("WordCount")
-                    </th>
-                    <th style="cursor: pointer" @onclick='() => SetSort("Score")'>
-                        Score @GetSortIcon("Score")
-                    </th>
-                    <th style="cursor: pointer" @onclick='() => SetSort("UpvoteRatio")'>
-                        Ratio @GetSortIcon("UpvoteRatio")
-                    </th>
-                    <th style="cursor: pointer" @onclick='() => SetSort("CreatedUtc")'>
-                        Created @GetSortIcon("CreatedUtc")
-                    </th>
-                    <th style="cursor: pointer" @onclick='() => SetSort("IngestedUtc")'>
-                        Ingested @GetSortIcon("IngestedUtc")
-                    </th>
-                    <th style="cursor: pointer" @onclick='() => SetSort("Status")'>
-                        Status @GetSortIcon("Status")
-                    </th>
-                    <th style="cursor: pointer" @onclick='() => SetSort("TtsStatus")'>
-                        TTS @GetSortIcon("TtsStatus")
-                    </th>
-                    <th style="cursor: pointer" @onclick='() => SetSort("VideoStatus")'>
-                        Video @GetSortIcon("VideoStatus")
-                    </th>
-                    <th style="cursor: pointer" @onclick='() => SetSort("IsPosted")'>
-                        Posted @GetSortIcon("IsPosted")
-                    </th>
-                    <th>Actions</th>
+                    <th style="cursor:pointer;width:130px;" @onclick='() => SetSort("Community")'>Community @SortIcon("Community")</th>
+                    <th style="cursor:pointer;" @onclick='() => SetSort("Title")'>Title @SortIcon("Title")</th>
+                    <th style="cursor:pointer;width:65px;" @onclick='() => SetSort("WordCount")'>Words @SortIcon("WordCount")</th>
+                    <th style="cursor:pointer;width:65px;" @onclick='() => SetSort("Score")'>Score @SortIcon("Score")</th>
+                    <th style="cursor:pointer;width:90px;" @onclick='() => SetSort("IngestedUtc")'>Ingested @SortIcon("IngestedUtc")</th>
+                    <th style="cursor:pointer;width:110px;" @onclick='() => SetSort("Status")'>Status @SortIcon("Status")</th>
+                    <th style="cursor:pointer;width:115px;" @onclick='() => SetSort("VideoStatus")'>Video @SortIcon("VideoStatus")</th>
+                    <th style="width:60px;">Posted</th>
+                    <th style="width:36px;"></th>
                 </tr>
             </thead>
             <tbody>
                 @foreach (var post in SortedPosts)
                 {
-                    <tr>
+                    <tr style="cursor:pointer;" @onclick="() => GoToPost(post.Id)">
                         <td>
-                            <span class="badge bg-secondary">@post.Platform</span>
+                            <span style="@GetCommunityChipStyle(post.Community);display:inline-block;padding:2px 8px;border-radius:10px;font-size:0.6875rem;font-weight:600;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis;">
+                                r/@post.Community
+                            </span>
                         </td>
-                        <td>@post.Community</td>
-                        <td>
+                        <td style="max-width:320px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:0.8125rem;">
                             @post.Title
                         </td>
-                        <td>@post.WordCount</td>
-                        <td>@post.Score</td>
-                        <td>@(post.UpvoteRatio?.ToString("P0") ?? "N/A")</td>
-                        <td>@post.CreatedUtc.ToString("yyyy-MM-dd HH:mm")</td>
-                        <td>@post.IngestedUtc.ToString("yyyy-MM-dd HH:mm")</td>
-                        <td>
-                            <span class="badge @GetStatusClass(post.Status)">@post.Status</span>
+                        <td style="color:var(--text-secondary);font-size:0.8125rem;">@post.WordCount</td>
+                        <td style="color:var(--text-secondary);font-size:0.8125rem;">@post.Score</td>
+                        <td style="white-space:nowrap;color:var(--text-muted);font-size:0.75rem;">
+                            @post.IngestedUtc.ToString("MMM d, yy")
                         </td>
-                        <td>
-                            @if (post.TtsStatus.HasValue)
-                            {
-                                <span class="badge @GetTtsStatusClass(post.TtsStatus.Value)">@post.TtsStatus</span>
-                            }
-                            else
-                            {
-                                <span class="text-muted">—</span>
-                            }
-                        </td>
+                        <td><span class="status-badge @GetStatusBadgeClass(post.Status)">@post.Status</span></td>
                         <td>
                             @if (post.VideoStatus.HasValue)
                             {
-                                <span class="badge @GetVideoStatusClass(post.VideoStatus.Value)">@post.VideoStatus</span>
+                                <span class="status-badge @GetVideoBadgeClass(post.VideoStatus.Value)">@post.VideoStatus</span>
                             }
                             else
                             {
-                                <span class="text-muted">—</span>
+                                <span style="color:var(--text-muted);">—</span>
                             }
                         </td>
                         <td>
                             @if (post.IsPosted == true)
                             {
-                                <span class="badge bg-success">Posted</span>
-                            }
-                            else if (post.IsPosted == false)
-                            {
-                                <span class="text-muted">—</span>
+                                <span class="status-badge badge-posted"><i class="bi bi-check2-circle"></i></span>
                             }
                             else
                             {
-                                <span class="text-muted">—</span>
+                                <span style="color:var(--text-muted);">—</span>
                             }
                         </td>
-                        <td>
-                            <a class="btn btn-sm btn-outline-info" href="/source-posts/@post.Id">
-                                View
+                        <td @onclick:stopPropagation>
+                            <a class="icon-btn" href="/source-posts/@post.Id" title="Open">
+                                <i class="bi bi-arrow-right"></i>
                             </a>
                         </td>
                     </tr>
@@ -216,32 +185,43 @@ else
             </tbody>
         </table>
     </div>
+    <div style="font-size:0.75rem;color:var(--text-muted);text-align:right;margin-top:-4px;">
+        @FilteredPosts.Count() of @_posts.Count posts
+    </div>
 }
 
 @code {
     private bool _showScrapDialog;
     private List<SourcePostListItemDto>? _posts;
     private string _searchTitle = "";
-    private SourcePlatform? _filterPlatform;
+    private string? _filterCommunity;
     private SourcePostStatus? _filterStatus;
     private TtsStatus? _filterTtsStatus;
+    private bool _filterTtsNone;
     private VideoStatus? _filterVideoStatus;
+    private bool _filterVideoNone;
     private string _filterIsPostedStr = "";
     private int? _filterWordCountMin;
     private int? _filterWordCountMax;
-    private DateTimeOffset? _filterDateFrom;
-    private DateTimeOffset? _filterDateTo;
     private string _sortColumn = "IngestedUtc";
     private bool _sortAscending = false;
 
-    protected override async Task OnInitializedAsync()
-    {
-        await RefreshList();
-    }
+    protected override async Task OnInitializedAsync() => await RefreshList();
 
     private async Task RefreshList()
     {
         _posts = await Mediator.Send(new GetSourcePostListQuery());
+    }
+
+    private IEnumerable<string> UniqueCommunities =>
+        _posts?.GroupBy(p => p.Community)
+               .OrderByDescending(g => g.Count())
+               .Take(12)
+               .Select(g => g.Key) ?? [];
+
+    private void ToggleCommunity(string community)
+    {
+        _filterCommunity = _filterCommunity == community ? null : community;
     }
 
     private bool? FilterIsPosted => _filterIsPostedStr switch
@@ -256,101 +236,90 @@ else
         get
         {
             if (_posts == null) return [];
-
             return _posts.Where(p =>
                 (string.IsNullOrWhiteSpace(_searchTitle) || p.Title.Contains(_searchTitle, StringComparison.OrdinalIgnoreCase)) &&
-                (_filterPlatform == null || p.Platform == _filterPlatform) &&
+                (_filterCommunity == null || p.Community == _filterCommunity) &&
                 (_filterStatus == null || p.Status == _filterStatus) &&
-                (_filterTtsStatus == null || p.TtsStatus == _filterTtsStatus) &&
-                (_filterVideoStatus == null || p.VideoStatus == _filterVideoStatus) &&
+                (_filterTtsNone ? p.TtsStatus == null : (_filterTtsStatus == null || p.TtsStatus == _filterTtsStatus)) &&
+                (_filterVideoNone ? p.VideoStatus == null : (_filterVideoStatus == null || p.VideoStatus == _filterVideoStatus)) &&
                 (FilterIsPosted == null || p.IsPosted == FilterIsPosted) &&
                 (_filterWordCountMin == null || p.WordCount >= _filterWordCountMin) &&
-                (_filterWordCountMax == null || p.WordCount <= _filterWordCountMax) &&
-                (_filterDateFrom == null || p.IngestedUtc >= _filterDateFrom) &&
-                (_filterDateTo == null || p.IngestedUtc <= _filterDateTo.Value.AddDays(1))
+                (_filterWordCountMax == null || p.WordCount <= _filterWordCountMax)
             );
         }
     }
 
-    private void ClearFilters()
+    private IEnumerable<SourcePostListItemDto> SortedPosts => _sortColumn switch
     {
-        _searchTitle = "";
-        _filterPlatform = null;
-        _filterStatus = null;
-        _filterTtsStatus = null;
-        _filterVideoStatus = null;
-        _filterIsPostedStr = "";
-        _filterWordCountMin = null;
-        _filterWordCountMax = null;
-        _filterDateFrom = null;
-        _filterDateTo = null;
-    }
-
-    private IEnumerable<SourcePostListItemDto> SortedPosts
-    {
-        get
-        {
-            var filtered = FilteredPosts;
-            return _sortColumn switch
-            {
-                "Platform" => _sortAscending ? filtered.OrderBy(p => p.Platform) : filtered.OrderByDescending(p => p.Platform),
-                "Community" => _sortAscending ? filtered.OrderBy(p => p.Community) : filtered.OrderByDescending(p => p.Community),
-                "Title" => _sortAscending ? filtered.OrderBy(p => p.Title) : filtered.OrderByDescending(p => p.Title),
-                "WordCount" => _sortAscending ? filtered.OrderBy(p => p.WordCount) : filtered.OrderByDescending(p => p.WordCount),
-                "Score" => _sortAscending ? filtered.OrderBy(p => p.Score) : filtered.OrderByDescending(p => p.Score),
-                "UpvoteRatio" => _sortAscending ? filtered.OrderBy(p => p.UpvoteRatio) : filtered.OrderByDescending(p => p.UpvoteRatio),
-                "CreatedUtc" => _sortAscending ? filtered.OrderBy(p => p.CreatedUtc) : filtered.OrderByDescending(p => p.CreatedUtc),
-                "IngestedUtc" => _sortAscending ? filtered.OrderBy(p => p.IngestedUtc) : filtered.OrderByDescending(p => p.IngestedUtc),
-                "Status" => _sortAscending ? filtered.OrderBy(p => p.Status) : filtered.OrderByDescending(p => p.Status),
-                "TtsStatus" => _sortAscending ? filtered.OrderBy(p => p.TtsStatus) : filtered.OrderByDescending(p => p.TtsStatus),
-                "VideoStatus" => _sortAscending ? filtered.OrderBy(p => p.VideoStatus) : filtered.OrderByDescending(p => p.VideoStatus),
-                "IsPosted" => _sortAscending ? filtered.OrderBy(p => p.IsPosted) : filtered.OrderByDescending(p => p.IsPosted),
-                _ => filtered
-            };
-        }
-    }
+        "Community"   => _sortAscending ? FilteredPosts.OrderBy(p => p.Community)   : FilteredPosts.OrderByDescending(p => p.Community),
+        "Title"       => _sortAscending ? FilteredPosts.OrderBy(p => p.Title)       : FilteredPosts.OrderByDescending(p => p.Title),
+        "WordCount"   => _sortAscending ? FilteredPosts.OrderBy(p => p.WordCount)   : FilteredPosts.OrderByDescending(p => p.WordCount),
+        "Score"       => _sortAscending ? FilteredPosts.OrderBy(p => p.Score)       : FilteredPosts.OrderByDescending(p => p.Score),
+        "IngestedUtc" => _sortAscending ? FilteredPosts.OrderBy(p => p.IngestedUtc) : FilteredPosts.OrderByDescending(p => p.IngestedUtc),
+        "Status"      => _sortAscending ? FilteredPosts.OrderBy(p => p.Status)      : FilteredPosts.OrderByDescending(p => p.Status),
+        "VideoStatus" => _sortAscending ? FilteredPosts.OrderBy(p => p.VideoStatus) : FilteredPosts.OrderByDescending(p => p.VideoStatus),
+        "IsPosted"    => _sortAscending ? FilteredPosts.OrderBy(p => p.IsPosted)    : FilteredPosts.OrderByDescending(p => p.IsPosted),
+        _ => FilteredPosts
+    };
 
     private void SetSort(string column)
     {
-        if (_sortColumn == column)
-        {
-            _sortAscending = !_sortAscending;
-        }
-        else
-        {
-            _sortColumn = column;
-            _sortAscending = true;
-        }
+        if (_sortColumn == column) _sortAscending = !_sortAscending;
+        else { _sortColumn = column; _sortAscending = true; }
     }
 
-    private string GetSortIcon(string column)
+    private string SortIcon(string col) =>
+        _sortColumn != col ? "" : (_sortAscending ? " ↑" : " ↓");
+
+    private void GoToPost(Guid id) => NavigationManager.NavigateTo("/source-posts/" + id);
+
+    private void ClearFilters()
     {
-        if (_sortColumn != column) return "";
-        return _sortAscending ? "↑" : "↓";
+        _searchTitle = "";
+        _filterCommunity = null;
+        _filterStatus = null;
+        _filterTtsStatus = null;
+        _filterTtsNone = false;
+        _filterVideoStatus = null;
+        _filterVideoNone = false;
+        _filterIsPostedStr = "";
+        _filterWordCountMin = null;
+        _filterWordCountMax = null;
     }
 
-    private string GetStatusClass(SourcePostStatus status) => status switch
+    private static string GetStatusBadgeClass(SourcePostStatus status) => status switch
     {
-        SourcePostStatus.Raw => "bg-info",
-        SourcePostStatus.Processed => "bg-primary",
-        SourcePostStatus.Approved => "bg-success",
-        SourcePostStatus.Rejected => "bg-danger",
-        _ => "bg-secondary"
+        SourcePostStatus.Raw      => "badge-raw",
+        SourcePostStatus.Processed => "badge-processed",
+        SourcePostStatus.Approved  => "badge-approved",
+        SourcePostStatus.Rejected  => "badge-rejected",
+        SourcePostStatus.Skipped   => "badge-skipped",
+        _ => "badge-inactive"
     };
 
-    private static string GetTtsStatusClass(TtsStatus status) => status switch
+    private static string GetVideoBadgeClass(VideoStatus status) => status switch
     {
-        TtsStatus.Generated => "bg-success",
-        TtsStatus.InProgress => "bg-warning text-dark",
-        TtsStatus.Failed => "bg-danger",
-        _ => "bg-secondary"
+        VideoStatus.Generated  => "badge-generated",
+        VideoStatus.InProgress => "badge-in-progress",
+        VideoStatus.Failed     => "badge-failed",
+        _ => "badge-not-generated"
     };
 
-    private static string GetVideoStatusClass(VideoStatus status) => status switch
+    private static readonly string[] _communityColors =
+    [
+        "#5b6af0", "#e67e22", "#1abc9c", "#9b59b6",
+        "#e74c3c", "#2ecc71", "#f39c12", "#3498db"
+    ];
+
+    private static string GetCommunityColor(string community)
     {
-        VideoStatus.Generated => "bg-success",
-        VideoStatus.InProgress => "bg-warning text-dark",
-        VideoStatus.Failed => "bg-danger",
-        _ => "bg-secondary"
-    };
+        var hash = community.Aggregate(0, (acc, c) => acc * 31 + c);
+        return _communityColors[Math.Abs(hash) % _communityColors.Length];
+    }
+
+    private static string GetCommunityChipStyle(string community)
+    {
+        var color = GetCommunityColor(community);
+        return $"background:{color}20;color:{color};border-left:3px solid {color};";
+    }
 }

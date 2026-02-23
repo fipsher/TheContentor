@@ -3,6 +3,7 @@
 @using MediatR
 @using TheContentor.Application.Features.Assets.Commands
 @using TheContentor.Application.Features.Assets.Queries
+@using TheContentor.Domain.Enums
 @inject IMediator Mediator
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
@@ -40,8 +41,14 @@
             }
 
             <div class="mb-3">
-                <label for="tags" class="form-label">Tags (comma separated)</label>
-                <InputText id="tags" class="form-control" @bind-Value="_model.Tags" placeholder="nature, relaxing, drone" />
+                <label for="contentTag" class="form-label">Content Tag</label>
+                <InputSelect id="contentTag" class="form-select" @bind-Value="_model.ContentTag">
+                    <option value="">— None —</option>
+                    @foreach (var tag in Enum.GetValues<AssetContentTag>())
+                    {
+                        <option value="@tag">@tag</option>
+                    }
+                </InputSelect>
             </div>
 
             <div class="mt-4">
@@ -82,7 +89,7 @@
             if (asset != null)
             {
                 _model.FileName = asset.FileName;
-                _model.Tags = asset.Tags;
+                _model.ContentTag = asset.ContentTag;
             }
         }
     }
@@ -96,7 +103,7 @@
 
             if (_isEditMode)
             {
-                await Mediator.Send(new RenameAssetCommand(Id, _model.FileName, _model.Tags));
+                await Mediator.Send(new RenameAssetCommand(Id, _model.FileName, _model.ContentTag));
             }
             else
             {
@@ -109,7 +116,7 @@
                 var command = new CreateAssetCommand
                 {
                     Name = _model.FileName,
-                    Tags = _model.Tags,
+                    ContentTag = _model.ContentTag,
                     FileStream = stream,
                     ContentType = _contentType
                 };
@@ -135,7 +142,7 @@
     private class AssetFormModel
     {
         public string FileName { get; set; } = string.Empty;
-        public string Tags { get; set; } = string.Empty;
+        public AssetContentTag? ContentTag { get; set; }
         public bool IsActive { get; set; } = true;
     }
 }

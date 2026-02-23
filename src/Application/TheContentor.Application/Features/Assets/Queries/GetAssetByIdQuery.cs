@@ -23,12 +23,14 @@ public class GetAssetByIdQueryHandler(TheContentorDbContext context, IBlobServic
                 Id = b.Id,
                 FileName = b.Name,
                 BlobPath = b.BlobPath,
-                Tags = b.Tags,
+                ContentTag = b.ContentTag,
                 Duration = b.Duration,
                 IsActive = b.IsActive,
                 Type = b.Type,
                 OriginalUrl = b.OriginalUrl,
-                Quality = b.Quality
+                Quality = b.Quality,
+                Title = b.Title,
+                ThumbnailPath = b.ThumbnailPath
             })
             .FirstOrDefaultAsync(cancellationToken);
 

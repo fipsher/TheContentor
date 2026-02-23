@@ -3,6 +3,7 @@ using Google.GenAI.Types;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenAI.Chat;
+using TheContentor.Domain.Enums;
 using TheContentor.Infrastructure.Constants;
 using TheContentor.Infrastructure.Interfaces;
 using TheContentor.Infrastructure.Models;
@@ -24,24 +25,34 @@ public class PostProcessor(
     public async Task<ProcessedPostResponse> ProcessAsync(
         string title,
         string content,
+        int? partsCount = null,
+        int? wordsPerPart = null,
+        LlmProvider provider = LlmProvider.Gemini,
         CancellationToken cancellationToken = default)
     {
-        logger.LogInformation("Processing post. Title: {Title}", title);
+        logger.LogInformation("Processing post with {Provider}. Title: {Title}", provider, title);
 
         try
         {
-            return await ProcessWithGeminiAsync(title, content, cancellationToken);
+            var systemPrompt = PromptConstants.BuildSystemPrompt(partsCount, wordsPerPart);
+            var userPrompt = PromptConstants.GetUserPrompt(title, content);
+
+            return provider switch
+            {
+                LlmProvider.OpenAI => await ProcessWithChatGPTAsync(systemPrompt, userPrompt, cancellationToken),
+                _ => await ProcessWithGeminiAsync(systemPrompt, userPrompt, cancellationToken)
+            };
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error processing post");
+            logger.LogError(ex, "Error processing post with {Provider}", provider);
             throw;
         }
     }
 
     private async Task<ProcessedPostResponse> ProcessWithGeminiAsync(
-        string title,
-        string content,
+        string systemPrompt,
+        string userPrompt,
         CancellationToken cancellationToken)
     {
         var apiKey = _options.Gemini.ApiKey;
@@ -58,8 +69,8 @@ public class PostProcessor(
                 {
                     Parts =
                     [
-                        new Part { Text = PromptConstants.SystemPrompt },
-                        new Part { Text = PromptConstants.GetUserPrompt(title, content) }
+                        new Part { Text = systemPrompt },
+                        new Part { Text = userPrompt }
                     ],
                     Role = "user"
                 },
@@ -81,8 +92,8 @@ public class PostProcessor(
     }
 
     private async Task<ProcessedPostResponse> ProcessWithChatGPTAsync(
-        string title,
-        string content,
+        string systemPrompt,
+        string userPrompt,
         CancellationToken cancellationToken)
     {
         var apiKey = _options.ChatGPT.ApiKey;
@@ -99,8 +110,8 @@ public class PostProcessor(
 
         ChatCompletion completion = await client.CompleteChatAsync(
             [
-                new SystemChatMessage(PromptConstants.SystemPrompt),
-                new UserChatMessage(PromptConstants.GetUserPrompt(title, content))
+                new SystemChatMessage(systemPrompt),
+                new UserChatMessage(userPrompt)
             ],
             options,
             cancellationToken);

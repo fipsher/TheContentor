@@ -196,15 +196,15 @@ else
         font-weight: 600;
         font-size: 0.75rem;
         padding: 4px 2px;
-        color: #6c757d;
+        color: var(--text-muted);
         text-transform: uppercase;
         min-width: 0;
     }
 
     .calendar-cell {
         min-height: 120px;
-        background: #fff;
-        border: 1px solid #dee2e6;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
         border-radius: 6px;
         padding: 5px;
         display: flex;
@@ -215,18 +215,19 @@ else
     }
 
     .calendar-cell--empty {
-        background: #f8f9fa;
+        background: var(--bg-primary);
         border-color: transparent;
     }
 
     .calendar-cell--this-week {
-        background: #f0f7ff;
+        background: var(--bg-tertiary);
+        border-color: var(--border-strong);
     }
 
     .calendar-cell--today {
-        border-color: #0d6efd;
-        background: #e8f0ff;
-        box-shadow: 0 0 0 1px #0d6efd44;
+        border-color: var(--accent-primary);
+        background: var(--accent-primary-dim);
+        box-shadow: 0 0 0 1px rgba(79,142,247,0.3);
     }
 
     .calendar-cell__header {
@@ -238,7 +239,7 @@ else
 
     .calendar-day-number {
         font-size: 0.85rem;
-        color: #495057;
+        color: var(--text-secondary);
         flex-shrink: 0;
     }
 
@@ -249,7 +250,8 @@ else
     }
 
     .calendar-post-item {
-        background: #e8f4ff;
+        background: var(--bg-elevated);
+        border: 1px solid var(--border-color);
         border-radius: 4px;
         padding: 4px 5px;
         font-size: 0.75rem;
@@ -257,10 +259,12 @@ else
         min-width: 0;
         overflow: hidden;
         transition: background 0.12s;
+        color: var(--text-primary);
     }
 
     .calendar-post-item:hover {
-        background: #cce5ff;
+        background: var(--bg-tertiary);
+        border-color: var(--border-strong);
     }
 
     .calendar-post-item__title {
@@ -269,6 +273,7 @@ else
         text-overflow: ellipsis;
         font-weight: 500;
         min-width: 0;
+        color: var(--text-primary);
     }
 
     .calendar-post-meta {
@@ -276,7 +281,7 @@ else
         justify-content: space-between;
         align-items: center;
         margin-top: 2px;
-        color: #6c757d;
+        color: var(--text-muted);
         font-size: 0.65rem;
         gap: 4px;
     }
@@ -285,7 +290,7 @@ else
         font-size: 0.85rem;
         line-height: 1;
         flex-shrink: 0;
-        color: #dc3545 !important;
+        color: var(--accent-danger) !important;
         text-decoration: none;
     }
 
@@ -299,7 +304,7 @@ else
     }
 
     .post-pick-item:hover {
-        background: #f0f4ff;
+        background: var(--bg-tertiary);
     }
 </style>
 

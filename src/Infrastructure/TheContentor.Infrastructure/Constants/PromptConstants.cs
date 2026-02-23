@@ -116,9 +116,22 @@ public static class PromptConstants
         Do not include any text outside the JSON object.
         """;
 
+    public static string BuildSystemPrompt(int? partsCount, int? wordsPerPart)
+    {
+        var overrides = string.Empty;
+
+        if (partsCount.HasValue)
+            overrides += $"\n\n=== PARTS OVERRIDE ===\nYou MUST produce exactly {partsCount.Value} part(s). Do not deviate from this number regardless of content length.";
+
+        if (wordsPerPart.HasValue)
+            overrides += $"\n\nTarget exactly {wordsPerPart.Value} narrated words per part. Adjust splits accordingly.";
+
+        return SystemPrompt + overrides;
+    }
+
     public static string GetUserPrompt(string title, string content) => $"""
         Post Title: {title}
-        
+
         Post Content:
         {content}
         """;

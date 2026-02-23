@@ -10,8 +10,8 @@ public record AssetDto
     public Guid Id { get; set; }
     /// <summary>Original file name.</summary>
     public string FileName { get; set; } = string.Empty;
-    /// <summary>Tag string used for filtering.</summary>
-    public string Tags { get; set; } = string.Empty;
+    /// <summary>Predefined content tag. Null means untagged.</summary>
+    public AssetContentTag? ContentTag { get; set; }
     /// <summary>Asset duration when known.</summary>
     public TimeSpan? Duration { get; set; }
     /// <summary>Whether the asset is currently active.</summary>
@@ -26,4 +26,10 @@ public record AssetDto
     public string? OriginalUrl { get; set; }
     /// <summary>Quality of the YouTube video. Null for manually uploaded assets.</summary>
     public YouTubeVideoQuality? Quality { get; set; }
+    /// <summary>Video title. Populated for YouTube assets.</summary>
+    public string? Title { get; set; }
+    /// <summary>Relative thumbnail file name from the entity.</summary>
+    public string? ThumbnailPath { get; set; }
+    /// <summary>Thumbnail URL served via /storage/ static middleware. Null until generated.</summary>
+    public string? ThumbnailUrl { get; set; }
 }
