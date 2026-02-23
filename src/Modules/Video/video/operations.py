@@ -152,24 +152,6 @@ async def compose_final_video(video_blob_path, audio_blob_path, subtitle_blob_pa
             blank_path = os.path.join(sub_dir, 'blank.png')
             Image.new('RGBA', (vid_w, vid_h), (0, 0, 0, 0)).save(blank_path, 'PNG')
 
-            # Deduplicate PNG inputs: blank first (idx=2), then subtitle states
-            unique_paths = [blank_path]
-            path_to_idx = {blank_path: 2}
-            for seg in segs_sorted:
-                p = seg['path']
-                if p not in path_to_idx:
-                    path_to_idx[p] = 2 + len(unique_paths)
-                    unique_paths.append(p)
-
-            inputs = ['-i', video_path, '-i', audio_path]
-            for p in unique_paths:
-                inputs += ['-loop', '1', '-r', '30', '-t', str(audio_dur + 1), '-i', p]
-            # Watermark inputs follow subtitle inputs
-            wm_unique = list(dict.fromkeys(p for p, _ in wm_pieces))
-            wm_path_to_idx = {p: 2 + len(unique_paths) + i for i, p in enumerate(wm_unique)}
-            for p in wm_unique:
-                inputs += ['-loop', '1', '-r', '30', '-t', str(audio_dur + 1), '-i', p]
-
             # Build ordered piece list: (png_path, duration_seconds)
             pieces = []
             prev_end = 0.0
@@ -181,27 +163,36 @@ async def compose_final_video(video_blob_path, audio_blob_path, subtitle_blob_pa
             if audio_dur > prev_end + 0.005:
                 pieces.append((blank_path, audio_dur - prev_end))
 
-            # Each piece: trim the looped PNG to its duration, normalise timestamps + format
-            filter_parts = []
-            filter_parts.append(
-                f"[0:v]trim=end={audio_dur:.6f},setpts=PTS-STARTPTS[base]"
-            )
-            piece_labels = []
-            for k, (path, dur) in enumerate(pieces):
-                label = f'pc{k}'
-                in_idx = path_to_idx[path]
-                # max() guards against sub-frame durations that would produce 0 frames
-                filter_parts.append(
-                    f"[{in_idx}:v]trim=end={max(dur, 1/30):.6f},"
-                    f"setpts=PTS-STARTPTS,format=rgba[{label}]"
-                )
-                piece_labels.append(f'[{label}]')
+            # Pass 1: write a concat list and render all subtitle frames into a single
+            # video track. This uses one FFmpeg input regardless of segment count,
+            # avoiding the pthread_create exhaustion caused by 100+ PNG inputs.
+            concat_list_path = os.path.join(sub_dir, 'subtitle_concat.txt')
+            with open(concat_list_path, 'w') as cf:
+                for path, dur in pieces:
+                    cf.write(f"file '{path}'\n")
+                    cf.write(f"duration {max(dur, 1/30):.6f}\n")
+                # Trailing entry prevents the concat demuxer from dropping the last frame
+                if pieces:
+                    cf.write(f"file '{pieces[-1][0]}'\n")
 
-            # Concat all pieces into one subtitle stream, then single overlay
-            n_pieces = len(piece_labels)
-            filter_parts.append(
-                f"{''.join(piece_labels)}concat=n={n_pieces}:v=1:a=0,format=rgba[subtitles]"
-            )
+            sub_track_path = os.path.join(sub_dir, 'subtitle_track.mov')
+            _run_ffmpeg([
+                '-f', 'concat', '-safe', '0', '-i', concat_list_path,
+                '-vf', 'format=rgba', '-c:v', 'png',
+                '-r', '30', sub_track_path,
+            ], description=f"render subtitle track ({len(pieces)} pieces)")
+
+            # Pass 2: compose — subtitle_track is a single input at index 2.
+            # Watermark PNGs (typically very few) remain as direct inputs.
+            wm_unique = list(dict.fromkeys(p for p, _ in wm_pieces))
+            wm_path_to_idx = {p: 3 + i for i, p in enumerate(wm_unique)}
+            inputs = ['-i', video_path, '-i', audio_path, '-i', sub_track_path]
+            for p in wm_unique:
+                inputs += ['-loop', '1', '-r', '30', '-t', str(audio_dur + 1), '-i', p]
+
+            filter_parts = [
+                f"[0:v]trim=end={audio_dur:.6f},setpts=PTS-STARTPTS[base]",
+            ]
             if wm_pieces:
                 wm_labels = []
                 for k, (path, dur) in enumerate(wm_pieces):
@@ -215,10 +206,10 @@ async def compose_final_video(video_blob_path, audio_blob_path, subtitle_blob_pa
                 filter_parts.append(
                     f"{''.join(wm_labels)}concat=n={n_wm}:v=1:a=0,format=rgba[watermark]"
                 )
-                filter_parts.append("[base][subtitles]overlay=x=0:y=0:format=auto[subtitled]")
+                filter_parts.append("[base][2:v]overlay=x=0:y=0:format=auto[subtitled]")
                 filter_parts.append("[subtitled][watermark]overlay=x=0:y=0:format=auto[vout]")
             else:
-                filter_parts.append("[base][subtitles]overlay=x=0:y=0:format=auto[vout]")
+                filter_parts.append("[base][2:v]overlay=x=0:y=0:format=auto[vout]")
             filter_complex = ';'.join(filter_parts)
 
             if FFMPEG_ENCODER == 'h264_videotoolbox':
