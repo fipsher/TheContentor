@@ -466,47 +466,6 @@ else
                                         <div class="p-2 border rounded bg-light" style="white-space: pre-wrap;">@part.ProcessedText</div>
                                     }
                                 </div>
-                                <div class="mb-3">
-                                    <label class="form-label fw-bold">Part Hashtags</label>
-                                    @if (_isEditing)
-                                    {
-                                        <input type="text" class="form-control" @bind="@_partHashtags[part]" placeholder="Part hashtags..." />
-                                    }
-                                    else
-                                    {
-                                        <div class="p-2 border rounded bg-light">@(_partHashtags.TryGetValue(part, out var h) ? h : "")</div>
-                                    }
-                                </div>
-                                <div class="mb-0">
-                                    <label class="form-label fw-bold d-block">Publish To</label>
-                                    @if (_isEditing)
-                                    {
-                                        @foreach (var platform in Enum.GetValues<SocialPlatform>())
-                                        {
-                                            <div class="form-check form-check-inline">
-                                                <input class="form-check-input" type="checkbox"
-                                                       id="@($"platform-{part.GetHashCode()}-{platform}")"
-                                                       checked="@part.PublishedTo.Contains(platform)"
-                                                       @onchange="@(e => TogglePlatform(part, platform, e.Value))" />
-                                                <label class="form-check-label" for="@($"platform-{part.GetHashCode()}-{platform}")">@platform</label>
-                                            </div>
-                                        }
-                                    }
-                                    else
-                                    {
-                                        <div class="d-flex flex-wrap gap-1 mt-1">
-                                            @foreach (var platform in Enum.GetValues<SocialPlatform>())
-                                            {
-                                                var isActive = part.PublishedTo.Contains(platform);
-                                                <button class="btn btn-sm @(isActive ? "btn-success" : "btn-outline-secondary")"
-                                                        @onclick="() => QuickTogglePlatform(part, platform)"
-                                                        title="@(isActive ? $"Remove {platform}" : $"Mark as posted to {platform}")">
-                                                    @platform
-                                                </button>
-                                            }
-                                        </div>
-                                    }
-                                </div>
                             </div>
                         </div>
                     }
