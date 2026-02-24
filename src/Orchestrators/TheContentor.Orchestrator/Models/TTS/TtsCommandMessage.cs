@@ -13,4 +13,6 @@ public class TtsCommandMessage
     public Guid? PartId { get; set; }
     public string OrchestrationInstanceId { get; set; } = string.Empty;
     public string TextType { get; set; } = string.Empty; // "description" or "part"
+    /// <summary>TTS engine name ("EdgeTTS" or "Kokoro").</summary>
+    public string Engine { get; set; } = "EdgeTTS";
 }

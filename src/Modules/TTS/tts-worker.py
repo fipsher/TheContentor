@@ -33,7 +33,7 @@ def save_to_local_storage(file_path, container_name):
     shutil.copy2(file_path, os.path.join(container_dir, unique_name))
     return container_name, unique_name
 
-async def generate_audio(text, voice, rate, pitch, output_path):
+async def generate_audio_edge_tts(text, voice, rate, pitch, output_path):
     """Generate audio using Edge-TTS with rate and pitch settings"""
     # Edge-TTS rate format: +N% or -N%
     rate_str = f"+{rate}%" if rate >= 0 else f"{rate}%"
@@ -42,6 +42,46 @@ async def generate_audio(text, voice, rate, pitch, output_path):
 
     communicate = edge_tts.Communicate(text, voice, rate=rate_str, pitch=pitch_str)
     await communicate.save(output_path)
+
+def generate_audio_kokoro(text, voice, rate, output_path):
+    """Generate audio using Kokoro-TTS and convert WAV to MP3.
+
+    Rate maps -50..+50 integer to speed multiplier 0.5..1.5.
+    Pitch is not supported by Kokoro and is silently ignored.
+    """
+    import importlib
+    import subprocess
+    import numpy as np
+    import soundfile as sf
+
+    kokoro = importlib.import_module("kokoro")
+    KPipeline = getattr(kokoro, "KPipeline")
+
+    # Map rate integer (-50..50) to Kokoro speed float (0.5..1.5)
+    speed = max(0.5, min(2.0, 1.0 + rate / 100.0))
+
+    pipeline = KPipeline(lang_code="a")
+    sample_rate = 24000
+    chunks = []
+    for _, _, audio in pipeline(text, voice=voice, speed=speed):
+        chunks.append(audio)
+
+    if not chunks:
+        raise RuntimeError("Kokoro produced no audio samples")
+
+    wav_path = output_path.replace(".mp3", ".wav")
+    sf.write(wav_path, np.concatenate(chunks), sample_rate)
+    subprocess.run(["ffmpeg", "-y", "-i", wav_path, "-q:a", "2", output_path],
+                   check=True, capture_output=True)
+    os.remove(wav_path)
+
+async def generate_audio(text, voice, rate, pitch, engine, output_path):
+    """Dispatch to the appropriate TTS engine."""
+    if engine == "Kokoro":
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, generate_audio_kokoro, text, voice, rate, output_path)
+    else:
+        await generate_audio_edge_tts(text, voice, rate, pitch, output_path)
 
 async def send_event_callback(sender, callback_data):
     """Send callback event to orchestrator"""
@@ -60,6 +100,7 @@ async def process_tts_command(command, events_sender):
         voice = command.get("Voice", "en-US-GuyNeural")
         rate = command.get("Rate", 0)
         pitch = command.get("Pitch", 0)
+        engine = command.get("Engine", "EdgeTTS")
         processed_post_id = command.get("ProcessedPostId")
         part_id = command.get("PartId")
         orchestration_instance_id = command.get("OrchestrationInstanceId")
@@ -72,7 +113,8 @@ async def process_tts_command(command, events_sender):
         # Generate audio in temp directory
         with tempfile.TemporaryDirectory() as temp_dir:
             audio_file = os.path.join(temp_dir, f"{text_type}_{processed_post_id}.mp3")
-            await generate_audio(text, voice, rate, pitch, audio_file)
+            print(f"Using TTS engine: {engine}")
+            await generate_audio(text, voice, rate, pitch, engine, audio_file)
 
             # Measure audio duration
             audio_duration_seconds = MP3(audio_file).info.length

@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Azure.Messaging.ServiceBus;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.DurableTask;
@@ -175,6 +175,7 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
                 tasks.Add(context.CallActivityAsync("SendTtsCommand", new TtsCommandMessage
                 {
                     Text = text,
+                    Engine = request.Settings.Engine,
                     Voice = request.Settings.Voice,
                     Rate = request.Settings.Rate,
                     Pitch = request.Settings.Pitch,
@@ -693,6 +694,7 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
                 ttsTasks.Add(context.CallActivityAsync("SendTtsCommand", new TtsCommandMessage
                 {
                     Text = text,
+                    Engine = request.TtsSettings.Engine,
                     Voice = request.TtsSettings.Voice,
                     Rate = request.TtsSettings.Rate,
                     Pitch = request.TtsSettings.Pitch,

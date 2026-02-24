@@ -1,3 +1,6 @@
 azure-servicebus>=7.14.3
 edge_tts
 mutagen
+kokoro>=0.9.4
+soundfile
+numpy

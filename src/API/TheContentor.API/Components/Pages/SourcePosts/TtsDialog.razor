@@ -15,24 +15,49 @@
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Voice</label>
-                        <select class="form-select" @bind="_selectedVoice" disabled="@_isGenerating">
-                            <option value="en-US-GuyNeural">Male (Guy - US English)</option>
-                            <option value="en-US-MichelleNeural">Female (Michelle - US English)</option>
-                            <option value="en-US-ChristopherNeural">Male (Christopher - US English)</option>
-                            <option value="en-US-JennyNeural">Female (Jenny - US English)</option>
+                        <label class="form-label fw-bold">TTS Engine</label>
+                        <select class="form-select" @bind="_engine" @bind:after="OnEngineChanged" disabled="@_isGenerating">
+                            <option value="@TtsEngine.EdgeTTS">Edge TTS (Microsoft Neural)</option>
+                            <option value="@TtsEngine.Kokoro">Kokoro TTS (Local)</option>
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Rate: @_rate%</label>
+                        <label class="form-label fw-bold">Voice</label>
+                        @if (_engine == TtsEngine.EdgeTTS)
+                        {
+                            <select class="form-select" @bind="_selectedVoice" disabled="@_isGenerating">
+                                <option value="en-US-GuyNeural">Male (Guy - US English)</option>
+                                <option value="en-US-MichelleNeural">Female (Michelle - US English)</option>
+                                <option value="en-US-ChristopherNeural">Male (Christopher - US English)</option>
+                                <option value="en-US-JennyNeural">Female (Jenny - US English)</option>
+                            </select>
+                        }
+                        else
+                        {
+                            <select class="form-select" @bind="_selectedVoice" disabled="@_isGenerating">
+                                <option value="af_heart">Heart (Female - American)</option>
+                                <option value="af_sky">Sky (Female - American)</option>
+                                <option value="af_bella">Bella (Female - American)</option>
+                                <option value="am_adam">Adam (Male - American)</option>
+                                <option value="am_michael">Michael (Male - American)</option>
+                                <option value="bf_emma">Emma (Female - British)</option>
+                                <option value="bm_george">George (Male - British)</option>
+                            </select>
+                        }
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">@(_engine == TtsEngine.Kokoro ? "Speed" : "Rate"): @_rate%</label>
                         <input type="range" class="form-range" min="-50" max="50" @bind="_rate" @bind:event="oninput" disabled="@_isGenerating" />
                         <small class="text-muted">Adjust speech speed (-50% slower to +50% faster)</small>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Pitch: @_pitch Hz</label>
-                        <input type="range" class="form-range" min="-20" max="20" @bind="_pitch" @bind:event="oninput" disabled="@_isGenerating" />
-                        <small class="text-muted">Adjust voice pitch (-20Hz lower to +20Hz higher)</small>
-                    </div>
+                    @if (_engine == TtsEngine.EdgeTTS)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Pitch: @_pitch Hz</label>
+                            <input type="range" class="form-range" min="-20" max="20" @bind="_pitch" @bind:event="oninput" disabled="@_isGenerating" />
+                            <small class="text-muted">Adjust voice pitch (-20Hz lower to +20Hz higher)</small>
+                        </div>
+                    }
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" @onclick="Close" disabled="@_isGenerating">Cancel</button>
@@ -60,6 +85,7 @@
     [Parameter] public EventCallback OnClose { get; set; }
     [Parameter] public EventCallback OnGenerated { get; set; }
 
+    private TtsEngine _engine = TtsEngine.EdgeTTS;
     private string _selectedVoice = string.Empty;
     private int _rate = 0;
     private int _pitch = 0;
@@ -67,11 +93,18 @@
 
     protected override void OnParametersSet()
     {
-        // Set default voice based on gender
         if (string.IsNullOrEmpty(_selectedVoice))
         {
             _selectedVoice = Gender == NarratorGender.Male ? "en-US-GuyNeural" : "en-US-MichelleNeural";
         }
+    }
+
+    private void OnEngineChanged()
+    {
+        _selectedVoice = _engine == TtsEngine.EdgeTTS
+            ? (Gender == NarratorGender.Male ? "en-US-GuyNeural" : "en-US-MichelleNeural")
+            : (Gender == NarratorGender.Male ? "am_adam" : "af_heart");
+        _pitch = 0;
     }
 
     private async Task GenerateTts()
@@ -83,6 +116,7 @@
         {
             var settings = new TtsSettingsModel
             {
+                Engine = _engine,
                 Voice = _selectedVoice,
                 Rate = _rate,
                 Pitch = _pitch
