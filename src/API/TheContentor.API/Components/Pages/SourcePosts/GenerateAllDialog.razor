@@ -151,8 +151,7 @@
         _isLoading = true;
         try
         {
-            var allAssets = await Mediator.Send(new GetAssetListQuery(ActiveOnly: true));
-            _assets = allAssets.Where(a => a.IsActive).ToList();
+            _assets = await Mediator.Send(new GetAssetListQuery(ActiveOnly: true));
         }
         finally
         {
@@ -181,8 +180,8 @@
             };
 
             await Mediator.Send(new GenerateAllCommand(ProcessedPostId.Value, ttsSettings, _selectedAssetIds.ToList()));
-            await Close();
             await OnGenerated.InvokeAsync();
+            await Close();
         }
         finally
         {

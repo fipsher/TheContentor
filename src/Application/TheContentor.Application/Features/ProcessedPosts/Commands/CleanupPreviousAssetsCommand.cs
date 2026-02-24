@@ -26,6 +26,13 @@ public class CleanupPreviousAssetsCommandHandler(
             throw new InvalidOperationException($"ProcessedPost with ID {request.ProcessedPostId} not found");
         }
 
+        if (processedPost.TtsStatus == TtsStatus.InProgress ||
+            processedPost.VideoStatus == VideoStatus.InProgress)
+        {
+            throw new InvalidOperationException(
+                "Cannot clean up assets while generation is in progress. Cancel generation first.");
+        }
+
         foreach (var part in processedPost.Parts)
         {
             if (part.AudioBlobPath != null)

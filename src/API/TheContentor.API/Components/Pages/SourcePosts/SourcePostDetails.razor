@@ -241,6 +241,38 @@
     </div>
 }
 
+@if (_showCleanupConfirm)
+{
+    <div class="modal fade show" style="display:block;" tabindex="-1" @onclick="CloseCleanupConfirm">
+        <div class="modal-dialog modal-dialog-centered" style="max-width:420px;" @onclick:stopPropagation>
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-exclamation-triangle me-2" style="color:var(--accent-danger);"></i>
+                        Clean Up Generated Assets
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CloseCleanupConfirm"></button>
+                </div>
+                <div class="modal-body">
+                    <p>This will permanently delete all generated files for this post:</p>
+                    <ul>
+                        <li>TTS audio files (all parts + description)</li>
+                        <li>Subtitle files</li>
+                        <li>Video files</li>
+                    </ul>
+                    <p class="mb-0">The processed text content will not be affected.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseCleanupConfirm">Cancel</button>
+                    <button type="button" class="btn btn-danger" @onclick="ConfirmCleanup">
+                        <i class="bi bi-trash3 me-1"></i> Delete All Generated Assets
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @if (Post == null)
 {
     <div class="container mt-4">
@@ -387,6 +419,24 @@ else
                                     else
                                     {
                                         <span>Cancel Generation</span>
+                                    }
+                                </button>
+                            }
+
+                            @if (HasAnyGeneratedAssets())
+                            {
+                                <button type="button" class="btn btn-outline-danger w-100 mt-2"
+                                        @onclick="ShowCleanupConfirm"
+                                        disabled="@(_isProcessing || _isEditing || IsGenerating || _isCleaning)">
+                                    @if (_isCleaning)
+                                    {
+                                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                        <span> Cleaning up...</span>
+                                    }
+                                    else
+                                    {
+                                        <i class="bi bi-trash3"></i>
+                                        <span> Clean Up Assets</span>
                                     }
                                 </button>
                             }
@@ -553,6 +603,8 @@ else
     private bool _isProcessing = false;
     private bool _isEditing = false;
     private bool _isCanceling = false;
+    private bool _isCleaning = false;
+    private bool _showCleanupConfirm = false;
     private bool _showGenerateDialog = false;
     private bool _showProcessModal = false;
     private string? _previewVideoUrl;
@@ -703,21 +755,6 @@ else
         _partHashtags.Remove(part);
     }
 
-    private void TogglePlatform(ProcessedPostPartDto part, SocialPlatform platform, object? isChecked)
-    {
-        if (!_isEditing) return;
-
-        if (isChecked is true)
-        {
-            if (!part.PublishedTo.Contains(platform))
-                part.PublishedTo.Add(platform);
-        }
-        else
-        {
-            part.PublishedTo.Remove(platform);
-        }
-    }
-
     private void GoBack()
     {
         NavigationManager.NavigateTo("/source-posts");
@@ -779,6 +816,29 @@ else
             || Post?.ProcessedPost?.VideoStatus == VideoStatus.Generated;
     }
 
+    private bool HasAnyGeneratedAssets() =>
+        Post?.ProcessedPost?.TtsStatus is TtsStatus.Generated or TtsStatus.Failed
+        || Post?.ProcessedPost?.VideoStatus is VideoStatus.Generated or VideoStatus.Failed;
+
+    private void ShowCleanupConfirm() => _showCleanupConfirm = true;
+    private void CloseCleanupConfirm() => _showCleanupConfirm = false;
+
+    private async Task ConfirmCleanup()
+    {
+        if (Post?.ProcessedPost == null) return;
+        _showCleanupConfirm = false;
+        _isCleaning = true;
+        try
+        {
+            await Mediator.Send(new CleanupPreviousAssetsCommand(Post.ProcessedPost.Id));
+            await LoadPost();
+        }
+        finally
+        {
+            _isCleaning = false;
+        }
+    }
+
     private async Task CancelGeneration()
     {
         if (Post?.ProcessedPost == null) return;
@@ -837,25 +897,6 @@ else
         Post.Status = Post.Status == SourcePostStatus.Skipped
             ? SourcePostStatus.Raw
             : SourcePostStatus.Skipped;
-        StateHasChanged();
-    }
-
-    private async Task QuickTogglePlatform(ProcessedPostPartDto part, SocialPlatform platform)
-    {
-        if (part.Id == null) return;
-
-        var newValue = !part.PublishedTo.Contains(platform);
-        await Mediator.Send(new TogglePartPlatformCommand(part.Id.Value, platform, newValue));
-
-        if (newValue)
-        {
-            if (!part.PublishedTo.Contains(platform))
-                part.PublishedTo.Add(platform);
-        }
-        else
-        {
-            part.PublishedTo.Remove(platform);
-        }
         StateHasChanged();
     }
 

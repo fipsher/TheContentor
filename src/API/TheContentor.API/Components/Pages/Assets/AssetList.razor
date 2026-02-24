@@ -270,7 +270,7 @@ else
                     {
                         <button type="button" class="btn btn-secondary" @onclick="CloseAddModal" disabled="@_addLoading">Cancel</button>
                         <button type="button" class="btn btn-primary" @onclick="UploadFile"
-                                disabled="@(_addLoading || string.IsNullOrWhiteSpace(_uploadName))">
+                                disabled="@(_addLoading || string.IsNullOrWhiteSpace(_uploadName) || _uploadFile == null)">
                             @if (_addLoading) { <span class="spinner-border spinner-border-sm me-1"></span> }
                             Upload
                         </button>
@@ -399,7 +399,7 @@ else
 
     private async Task UploadFile()
     {
-        if (string.IsNullOrWhiteSpace(_uploadName)) return;
+        if (string.IsNullOrWhiteSpace(_uploadName) || _uploadFile == null) return;
         _addLoading = true;
         _addError = null;
         try

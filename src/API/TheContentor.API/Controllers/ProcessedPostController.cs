@@ -81,6 +81,21 @@ public class ProcessedPostController(IMediator mediator, IHubContext<VideoGenera
         return Ok();
     }
 
+    /// <summary>Cleans up all generated assets (TTS audio, subtitles, video) for a processed post.</summary>
+    [HttpPost("{id:guid}/cleanup")]
+    public async Task<IActionResult> CleanupAssets(Guid id)
+    {
+        try
+        {
+            await mediator.Send(new CleanupPreviousAssetsCommand(id));
+            return Ok();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
     /// <summary>Sets the posted status for a processed post.</summary>
     [HttpPatch("{id:guid}/mark-posted")]
     public async Task<IActionResult> MarkPosted(Guid id, [FromBody] MarkPostedRequest request)
