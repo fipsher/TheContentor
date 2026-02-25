@@ -104,6 +104,7 @@
         _selectedVoice = _engine == TtsEngine.EdgeTTS
             ? (Gender == NarratorGender.Male ? "en-US-GuyNeural" : "en-US-MichelleNeural")
             : (Gender == NarratorGender.Male ? "am_adam" : "af_heart");
+        _rate = _engine == TtsEngine.Kokoro ? 30 : 50;
         _pitch = 0;
     }
 

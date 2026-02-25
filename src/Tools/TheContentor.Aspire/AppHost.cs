@@ -22,10 +22,17 @@ var serviceBus = builder
     .RunAsMyEmulator(c => { c.WithLifetime(ContainerLifetime.Session); });
 ConfigureServiceBus(serviceBus);
 
+// TTS Preview HTTP server (for playground / test generation)
+var ttsPreview = builder.AddPythonApp("tts-preview", "../../Modules/TTS", "tts-preview.py")
+    .WithHttpEndpoint(port: 8765, name: "http", env: "PORT")
+    .WithEnvironment("STORAGE_BASE_PATH", storageBasePath)
+    .WithEnvironment("PYTHONUNBUFFERED", "1");
+
 var apiService = builder.AddProject<Projects.TheContentor_API>("the-contentor")
     .WithReference(postgresDb)
     .WithReference(serviceBus)
     .WithEnvironment("LocalStorage__BasePath", storageBasePath)
+    .WithEnvironment("TtsPreview__Url", ttsPreview.GetEndpoint("http"))
     .WaitFor(postgresDb);
 
 builder

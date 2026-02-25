@@ -1,0 +1,177 @@
+@page "/tts-playground"
+@using MediatR
+@using TheContentor.Application.Features.ProcessedPosts.Models
+@using TheContentor.Application.Features.TtsPreview.Commands
+@using TheContentor.Domain.Enums
+@inject IMediator Mediator
+@rendermode InteractiveServer
+
+<div class="container mt-4 pb-5" style="max-width: 760px;">
+    <div class="mb-4">
+        <h3 style="font-weight: 700;">TTS Playground</h3>
+        <small style="color: var(--text-muted);">Generate audio previews to test voice settings before full production.</small>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3 mb-3">
+                <div class="col-sm-6">
+                    <label class="form-label fw-bold">Engine</label>
+                    <select class="form-select" @bind="_engine" @bind:after="OnEngineChanged" disabled="@_isGenerating">
+                        <option value="@TtsEngine.EdgeTTS">Edge TTS (Microsoft Neural)</option>
+                        <option value="@TtsEngine.Kokoro">Kokoro TTS (Local)</option>
+                    </select>
+                </div>
+                <div class="col-sm-6">
+                    <label class="form-label fw-bold">Voice</label>
+                    @if (_engine == TtsEngine.EdgeTTS)
+                    {
+                        <select class="form-select" @bind="_voice" disabled="@_isGenerating">
+                            <option value="en-US-GuyNeural">Guy (Male · US)</option>
+                            <option value="en-US-ChristopherNeural">Christopher (Male · US)</option>
+                            <option value="en-US-MichelleNeural">Michelle (Female · US)</option>
+                            <option value="en-US-JennyNeural">Jenny (Female · US)</option>
+                        </select>
+                    }
+                    else
+                    {
+                        <select class="form-select" @bind="_voice" disabled="@_isGenerating">
+                            <option value="am_adam">Adam (Male · American)</option>
+                            <option value="am_michael">Michael (Male · American)</option>
+                            <option value="bm_george">George (Male · British)</option>
+                            <option value="af_heart">Heart (Female · American)</option>
+                            <option value="af_sky">Sky (Female · American)</option>
+                            <option value="af_bella">Bella (Female · American)</option>
+                            <option value="bf_emma">Emma (Female · British)</option>
+                        </select>
+                    }
+                </div>
+            </div>
+
+            <div class="row g-3 mb-3">
+                <div class="col-sm-6">
+                    <label class="form-label fw-bold">Rate: @_rate%</label>
+                    <input type="range" class="form-range" min="-50" max="50"
+                           @bind="_rate" @bind:event="oninput" disabled="@_isGenerating" />
+                    <small class="text-muted">Speech speed (−50% slower · +50% faster)</small>
+                </div>
+                @if (_engine == TtsEngine.EdgeTTS)
+                {
+                    <div class="col-sm-6">
+                        <label class="form-label fw-bold">Pitch: @_pitch Hz</label>
+                        <input type="range" class="form-range" min="-20" max="20"
+                               @bind="_pitch" @bind:event="oninput" disabled="@_isGenerating" />
+                        <small class="text-muted">Voice pitch (−20 Hz lower · +20 Hz higher)</small>
+                    </div>
+                }
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-bold">Text</label>
+                <textarea class="form-control" rows="6" maxlength="2000"
+                          @bind="_text" @bind:event="oninput"
+                          placeholder="Enter text to synthesize…"
+                          disabled="@_isGenerating"></textarea>
+                <div class="d-flex justify-content-between mt-1">
+                    <small class="text-muted">Max 2 000 characters</small>
+                    <small class="@(_text.Length > 1800 ? "text-warning" : "text-muted")">@_text.Length / 2000</small>
+                </div>
+            </div>
+
+            @if (_errorMessage != null)
+            {
+                <div class="alert alert-danger py-2 mb-3">@_errorMessage</div>
+            }
+
+            <button class="btn btn-primary w-100" @onclick="Generate"
+                    disabled="@(_isGenerating || string.IsNullOrWhiteSpace(_text))">
+                @if (_isGenerating)
+                {
+                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    <span>Generating…</span>
+                }
+                else
+                {
+                    <i class="bi bi-play-circle me-1"></i>
+                    <span>Generate Preview</span>
+                }
+            </button>
+        </div>
+    </div>
+
+    @if (_audioUrl != null)
+    {
+        <div class="card shadow-sm border-success">
+            <div class="card-header fw-bold" style="background: var(--accent-success-dim, #0f2a1a); color: var(--accent-success, #2ecc71); border-color: var(--accent-success, #2ecc71);">
+                <i class="bi bi-soundwave me-2"></i>Preview
+                @if (_durationSeconds > 0)
+                {
+                    <span class="ms-2 fw-normal text-muted" style="font-size: 0.85rem;">@FormatDuration(_durationSeconds)</span>
+                }
+            </div>
+            <div class="card-body">
+                <audio controls autoplay class="w-100" @key="_audioUrl">
+                    <source src="@_audioUrl" type="audio/mpeg" />
+                    Your browser does not support the audio element.
+                </audio>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private TtsEngine _engine = TtsEngine.EdgeTTS;
+    private string _voice = "en-US-GuyNeural";
+    private int _rate = 0;
+    private int _pitch = 0;
+    private string _text = string.Empty;
+    private bool _isGenerating = false;
+    private string? _audioUrl;
+    private double _durationSeconds;
+    private string? _errorMessage;
+
+    private void OnEngineChanged()
+    {
+        _voice = _engine == TtsEngine.EdgeTTS ? "en-US-GuyNeural" : "am_adam";
+        _rate = _engine == TtsEngine.Kokoro ? 30 : 50;
+        _pitch = 0;
+    }
+
+    private async Task Generate()
+    {
+        if (string.IsNullOrWhiteSpace(_text)) return;
+
+        _isGenerating = true;
+        _errorMessage = null;
+        try
+        {
+            var settings = new TtsSettingsModel
+            {
+                Engine = _engine,
+                Voice = _voice,
+                Rate = _rate,
+                Pitch = _pitch
+            };
+
+            var result = await Mediator.Send(new GenerateTtsPreviewCommand(_text.Trim(), settings));
+            _audioUrl = $"/storage/{result.AudioPath}";
+            _durationSeconds = result.DurationSeconds;
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Generation failed: {ex.Message}";
+        }
+        finally
+        {
+            _isGenerating = false;
+        }
+    }
+
+    private static string FormatDuration(double seconds)
+    {
+        var ts = TimeSpan.FromSeconds(seconds);
+        return ts.TotalMinutes >= 1
+            ? $"{(int)ts.TotalMinutes}:{ts.Seconds:D2}"
+            : $"0:{ts.Seconds:D2}";
+    }
+}

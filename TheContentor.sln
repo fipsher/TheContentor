@@ -52,6 +52,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "TTS", "TTS", "{B46D2CBC-0FF
 	ProjectSection(SolutionItems) = preProject
 		src\Modules\TTS\tts-worker.py = src\Modules\TTS\tts-worker.py
 		src\Modules\TTS\requirements.txt = src\Modules\TTS\requirements.txt
+		src\Modules\TTS\tts-preview.py = src\Modules\TTS\tts-preview.py
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Subtitle", "Subtitle", "{A293FD3B-6A2E-44AA-BB37-E5BE35C64E78}"
