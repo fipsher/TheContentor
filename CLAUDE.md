@@ -37,6 +37,8 @@ src/
 └── Tools/           # Aspire host, console app, TTS tool
 ```
 
+**Orchestration flow:** `TtsOrchestrator` → `VideoOrchestrator` → `GenerateAllOrchestrator` (bulk). Triggered via `trigger-orchestration-queue`; workers send callbacks to `events-queue` which the `EventHandler` Function relays back to orchestrations. Real-time UI updates via SignalR at `/hubs/video-generation`.
+
 ## Code Conventions
 
 - Inject `TheContentorDbContext` directly — no repository pattern
@@ -56,14 +58,17 @@ Asset (background videos), AnalysisCriteria, VideoProject, BlobPath
 
 ## File Storage
 
-Local file system at `storage/` (configurable via `LocalStorage:BasePath`). Container names = subdirectories (e.g. `storage/assets/`, `storage/tts-audio/`). Served to the browser via static file middleware at `/storage/...`. Both .NET and Python workers read/write files directly — no Azure Blob Storage.
+Local file system at `storage/` (configurable via `LocalStorage:BasePath`). Container names = subdirectories (e.g. `storage/assets/`, `storage/tts-audio/`). Served to the browser via static file middleware at `/storage/...`. Both .NET and Python workers read/write files directly — no Azure Blob Storage. Uploaded files get a UUID appended: `video.mp4` → `video-{uuid}.mp4`.
 
 ## Python Workers
 
 Located in `src/Modules/`. Listen on Azure Service Bus, send status via callback events. Read/write files directly to local storage via `STORAGE_BASE_PATH` env var.
-- **TTS**: Edge-TTS (primary), Bark/Tortoise fallback
-- **Subtitle**: OpenAI Whisper
-- **Video**: MoviePy + FFmpeg composition
+- **TTS**: EdgeTTS (primary), Kokoro (alternative); `tts-preview.py` is a separate HTTP server (port 8765) for on-demand previews at `/tts-playground`
+- **Subtitle**: OpenAI Whisper (`base` model by default — change in `subtitle-worker.py` to trade accuracy vs. speed)
+- **Video**: FFmpeg (direct subprocess) + Pillow for watermarks; code is a package at `src/Modules/Video/video/`
+
+**Service Bus queues:** input — `tts-commands-queue`, `video-commands-queue`, `subtitle-commands-queue`; output — `events-queue` (all workers).
+**Python env vars:** `STORAGE_BASE_PATH`, `ConnectionStrings__ContentorServiceBus` (Aspire sets these automatically; use `SERVICE_BUS_CONNECTION_STRING` for manual runs).
 
 Requirements: `pip install -r requirements.txt` in each module dir. FFmpeg must be installed (`brew install ffmpeg`).
 
@@ -76,4 +81,15 @@ Requirements: `pip install -r requirements.txt` in each module dir. FFmpeg must 
 ## Setup
 
 Requires: .NET 10.0 SDK, Python 3.9+, Docker, FFmpeg.
-Secrets: `dotnet user-secrets set "LLM:Gemini:ApiKey" "<key>" --project src/API/TheContentor.API`
+
+```bash
+dotnet user-secrets set "LLM:Gemini:ApiKey" "<key>" --project src/API/TheContentor.API
+dotnet user-secrets set "LLM:ChatGPT:ApiKey" "<key>" --project src/API/TheContentor.API
+```
+
+## Gotchas
+
+- **DB migrations run automatically** on API startup — no manual `ef database update` needed in dev.
+- **FFmpeg hardware acceleration**: Video worker detects `h264_videotoolbox` on macOS automatically; falls back to `libx264`.
+- **Whisper cold start**: Subtitle worker loads the Whisper model at process start — first boot is slow.
+- **LLM providers**: Both `Gemini` and `ChatGPT` are wired up; set the key for whichever you use (or both).
