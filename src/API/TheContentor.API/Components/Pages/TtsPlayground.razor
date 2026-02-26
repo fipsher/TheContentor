@@ -3,6 +3,7 @@
 @using TheContentor.Application.Features.ProcessedPosts.Models
 @using TheContentor.Application.Features.TtsPreview.Commands
 @using TheContentor.Domain.Enums
+@implements IAsyncDisposable
 @inject IMediator Mediator
 @rendermode InteractiveServer
 
@@ -129,6 +130,7 @@
     private string? _audioUrl;
     private double _durationSeconds;
     private string? _errorMessage;
+    private string? _previousAudioPath;
 
     private void OnEngineChanged()
     {
@@ -145,6 +147,12 @@
         _errorMessage = null;
         try
         {
+            if (_previousAudioPath != null)
+            {
+                try { await Mediator.Send(new DeleteTtsPreviewCommand(_previousAudioPath)); }
+                catch { /* non-fatal */ }
+            }
+
             var settings = new TtsSettingsModel
             {
                 Engine = _engine,
@@ -156,6 +164,7 @@
             var result = await Mediator.Send(new GenerateTtsPreviewCommand(_text.Trim(), settings));
             _audioUrl = $"/storage/{result.AudioPath}";
             _durationSeconds = result.DurationSeconds;
+            _previousAudioPath = result.AudioPath;
         }
         catch (Exception ex)
         {
@@ -164,6 +173,16 @@
         finally
         {
             _isGenerating = false;
+        }
+    }
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        if (_previousAudioPath != null)
+        {
+            try { await Mediator.Send(new DeleteTtsPreviewCommand(_previousAudioPath)); }
+            catch { /* non-fatal */ }
         }
     }
 

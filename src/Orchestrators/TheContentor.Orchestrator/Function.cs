@@ -405,12 +405,14 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
 
                 if (callback.CommandType == "concat-cut")
                 {
-                    partVideos[partId] = new BlobPathInfo
+                    var blobPathInfo = new BlobPathInfo
                     {
                         ContainerName = callback.BlobContainer!,
                         AssetPath = callback.BlobPath!,
                         PartId = partId
                     };
+                    partVideos[partId] = blobPathInfo;
+                    state.IntermediateVideos[partId] = blobPathInfo;
 
                     // Trigger subtitle generation
                     var part = videoData.Parts.First(p => p.Id == partId);
@@ -425,12 +427,14 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
                 }
                 else if (callback.CommandType == "generate-subtitles")
                 {
-                    partSubtitles[partId] = new BlobPathInfo
+                    var blobPathInfo = new BlobPathInfo
                     {
                         ContainerName = callback.BlobContainer!,
                         AssetPath = callback.BlobPath!,
                         PartId = partId
                     };
+                    partSubtitles[partId] = blobPathInfo;
+                    state.IntermediateSubtitles[partId] = blobPathInfo;
 
                     // Trigger video composition
                     await context.CallActivityAsync("SendVideoComposeCommand", new VideoCommandMessage
@@ -473,6 +477,7 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
         else
         {
             logger.LogInformation("Video Orchestrator completed successfully for ProcessedPost: {ProcessedPostId}", request.ProcessedPostId);
+            await context.CallActivityAsync("CleanupIntermediateAssets", state);
         }
     }
 
@@ -857,12 +862,14 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
 
                 if (callback.CommandType == "concat-cut")
                 {
-                    partVideos[partId] = new BlobPathInfo
+                    var blobPathInfo = new BlobPathInfo
                     {
                         ContainerName = callback.BlobContainer!,
                         AssetPath = callback.BlobPath!,
                         PartId = partId
                     };
+                    partVideos[partId] = blobPathInfo;
+                    videoState.IntermediateVideos[partId] = blobPathInfo;
 
                     concatCutReceived++;
                     var concatPercent = 45 + (int)((concatCutReceived / (double)partsCount) * 15);
@@ -884,12 +891,14 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
                 }
                 else if (callback.CommandType == "generate-subtitles")
                 {
-                    partSubtitles[partId] = new BlobPathInfo
+                    var blobPathInfo = new BlobPathInfo
                     {
                         ContainerName = callback.BlobContainer!,
                         AssetPath = callback.BlobPath!,
                         PartId = partId
                     };
+                    partSubtitles[partId] = blobPathInfo;
+                    videoState.IntermediateSubtitles[partId] = blobPathInfo;
 
                     subtitleReceived++;
                     var subtitlePercent = 60 + (int)((subtitleReceived / (double)partsCount) * 15);
@@ -951,7 +960,7 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
                 Stage = "Cleanup", Message = "Cleaning up intermediate files..."
             });
 
-            await context.CallActivityAsync("CleanupIntermediateAssets", request.ProcessedPostId);
+            await context.CallActivityAsync("CleanupIntermediateAssets", videoState);
 
             await context.CallActivityAsync("ReportProgress", new GenerationProgressDto
             {
@@ -1002,9 +1011,16 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
     }
 
     [Function("CleanupIntermediateAssets")]
-    public async Task CleanupIntermediateAssets([ActivityTrigger] Guid processedPostId)
+    public async Task CleanupIntermediateAssets([ActivityTrigger] VideoOrchestrationState state)
     {
-        var request = new RestRequest($"{_apiUrl}/api/ProcessedPost/{processedPostId}/cleanup-intermediate", Method.Post);
+        var additionalBlobPaths = state.IntermediateVideos.Values
+            .Concat(state.IntermediateSubtitles.Values)
+            .Select(b => new { b.ContainerName, b.AssetPath })
+            .ToList();
+
+        var request = new RestRequest($"{_apiUrl}/api/ProcessedPost/{state.ProcessedPostId}/cleanup-intermediate", Method.Post);
+        request.AddJsonBody(new { additionalBlobPaths });
+
         var response = await client.ExecuteAsync(request);
         if (!response.IsSuccessful)
         {

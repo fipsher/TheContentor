@@ -75,9 +75,12 @@ public class ProcessedPostController(IMediator mediator, IHubContext<VideoGenera
 
     /// <summary>Cleans up intermediate assets for a processed post.</summary>
     [HttpPost("{id:guid}/cleanup-intermediate")]
-    public async Task<IActionResult> CleanupIntermediateAssets(Guid id)
+    public async Task<IActionResult> CleanupIntermediateAssets(
+        Guid id,
+        [FromBody] CleanupIntermediateRequest? request = null,
+        CancellationToken cancellationToken = default)
     {
-        await mediator.Send(new CleanupIntermediateAssetsCommand(id));
+        await mediator.Send(new CleanupIntermediateAssetsCommand(id, request?.AdditionalBlobPaths), cancellationToken);
         return Ok();
     }
 
@@ -228,3 +231,6 @@ public class TogglePartPlatformRequest
     /// <summary>Whether the part is published to the platform.</summary>
     public bool IsPublished { get; set; }
 }
+
+/// <summary>Optional body for the cleanup-intermediate endpoint carrying extra blobs to delete.</summary>
+public record CleanupIntermediateRequest(List<BlobPath>? AdditionalBlobPaths);
