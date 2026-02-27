@@ -1,0 +1,76 @@
+@using TheContentor.Application.Features.Schedule.Models
+
+<div class="week-grid">
+    @* Header row *@
+    @for (var i = 0; i < 7; i++)
+    {
+        var currentDate = WeekStart.AddDays(i);
+        var isToday = currentDate == DateOnly.FromDateTime(DateTime.Today);
+        <div class="week-header-cell @(isToday ? "week-header-cell--today" : "")">
+            <span class="week-header-day">@currentDate.ToString("ddd")</span>
+            <span class="week-header-date">@currentDate.Day</span>
+        </div>
+    }
+
+    @* Day columns *@
+    @for (var i = 0; i < 7; i++)
+    {
+        var currentDate = WeekStart.AddDays(i);
+        var isToday = currentDate == DateOnly.FromDateTime(DateTime.Today);
+        var postsForDay = Schedule.Where(p => p.ScheduledDate == currentDate).ToList();
+        var capturedDate = currentDate;
+
+        <div class="week-day-col @(isToday ? "week-day-col--today" : "")">
+            <div class="week-day-col__actions">
+                <button class="btn btn-sm btn-outline-success calendar-action-btn"
+                        title="Auto-assign top post"
+                        @onclick="() => OnAutoAssign.InvokeAsync(capturedDate)">&#9889;</button>
+                <button class="btn btn-sm btn-outline-secondary calendar-action-btn"
+                        title="Add a post"
+                        @onclick="() => OnAddPost.InvokeAsync(capturedDate)">+</button>
+            </div>
+            <div class="week-day-col__items">
+                @if (postsForDay.Count == 0)
+                {
+                    <span style="font-size:0.7rem; color:var(--text-muted); padding:4px 2px;">No posts</span>
+                }
+                else
+                {
+                    @foreach (var post in postsForDay)
+                    {
+                        <SchedulePostCard Post="post"
+                                          OnNavigate="OnNavigate"
+                                          OnRemove="OnRemove"
+                                          ShowVideoPreview="true" />
+                    }
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>The Monday that starts this week.</summary>
+    [Parameter]
+    public DateOnly WeekStart { get; set; }
+
+    /// <summary>Full list of scheduled day entries for the week.</summary>
+    [Parameter]
+    public List<ScheduledDayDto> Schedule { get; set; } = [];
+
+    /// <summary>Callback fired when the auto-assign button is clicked for a day.</summary>
+    [Parameter]
+    public EventCallback<DateOnly> OnAutoAssign { get; set; }
+
+    /// <summary>Callback fired when the add-post button is clicked for a day.</summary>
+    [Parameter]
+    public EventCallback<DateOnly> OnAddPost { get; set; }
+
+    /// <summary>Callback fired with the source post identifier when a post card is clicked.</summary>
+    [Parameter]
+    public EventCallback<Guid> OnNavigate { get; set; }
+
+    /// <summary>Callback fired with the scheduled post identifier when a remove button is clicked.</summary>
+    [Parameter]
+    public EventCallback<Guid> OnRemove { get; set; }
+}

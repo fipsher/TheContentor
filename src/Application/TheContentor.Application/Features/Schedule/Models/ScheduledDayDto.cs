@@ -37,4 +37,7 @@ public class ScheduledDayDto
 
     /// <summary>When this schedule entry was created (UTC).</summary>
     public DateTimeOffset CreatedUtc { get; set; }
+
+    /// <summary>Pre-signed URL for video preview. Populated only when <see cref="VideoStatus"/> is <see cref="VideoStatus.Generated"/>.</summary>
+    public string? VideoSasUrl { get; set; }
 }

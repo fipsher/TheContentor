@@ -1,0 +1,90 @@
+@using TheContentor.Application.Features.Schedule.Models
+@using TheContentor.Domain.Enums
+
+<div class="week-post-card" @onclick="() => OnNavigate.InvokeAsync(Post.SourcePostId)">
+    <div class="week-post-card__top">
+        <span class="badge @GetStatusBadgeClass(Post)" style="font-size:0.6rem">@GetStatusLabel(Post)</span>
+        <span class="badge bg-secondary" style="font-size:0.6rem">@Post.Community</span>
+        <button class="btn btn-link p-0 text-danger remove-btn ms-auto"
+                title="Remove"
+                @onclick:stopPropagation
+                @onclick="() => OnRemove.InvokeAsync(Post.ScheduledPostId)">&#xD7;</button>
+    </div>
+    <div class="week-post-card__title">@Post.Title</div>
+    <div class="week-post-card__meta">
+        <span>&#9650; @Post.Score</span>
+        <span>@Post.WordCount w</span>
+        @if (!ShowVideoPreview || Post.VideoSasUrl == null)
+        {
+            <span class="week-post-card__video-dot @GetVideoDotClass(Post.VideoStatus)" title="@GetVideoStatusLabel(Post.VideoStatus)"></span>
+        }
+    </div>
+    @if (ShowVideoPreview && Post.VideoSasUrl != null)
+    {
+        <div class="week-post-card__thumb" @onclick:stopPropagation @onclick="OpenVideo">
+            <video src="@(Post.VideoSasUrl + "#t=0.5")" muted preload="metadata" class="week-post-thumb-video"></video>
+            <div class="week-post-thumb-play">&#9654;</div>
+        </div>
+    }
+</div>
+
+@if (_previewUrl != null)
+{
+    <div class="video-preview-overlay" @onclick="() => _previewUrl = null">
+        <div class="iphone-frame" @onclick:stopPropagation>
+            <video src="@_previewUrl" controls autoplay class="iphone-video"></video>
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>The scheduled post data to display.</summary>
+    [Parameter]
+    public ScheduledDayDto Post { get; set; } = null!;
+
+    /// <summary>Callback fired with the source post identifier when the card is clicked.</summary>
+    [Parameter]
+    public EventCallback<Guid> OnNavigate { get; set; }
+
+    /// <summary>Callback fired with the scheduled post identifier when the remove button is clicked.</summary>
+    [Parameter]
+    public EventCallback<Guid> OnRemove { get; set; }
+
+    /// <summary>When true and a video SAS URL is available, displays an inline video thumbnail.</summary>
+    [Parameter]
+    public bool ShowVideoPreview { get; set; } = false;
+
+    private string? _previewUrl;
+
+    private void OpenVideo() => _previewUrl = Post.VideoSasUrl;
+
+    private static string GetStatusLabel(ScheduledDayDto post)
+    {
+        if (!post.IsProcessed) return "Not Processed";
+        if (post.VideoStatus == VideoStatus.Generated) return "Video Ready";
+        return "AI Processed";
+    }
+
+    private static string GetStatusBadgeClass(ScheduledDayDto post)
+    {
+        if (!post.IsProcessed) return "bg-secondary";
+        if (post.VideoStatus == VideoStatus.Generated) return "bg-success";
+        return "bg-primary";
+    }
+
+    private static string GetVideoDotClass(VideoStatus? status) => status switch
+    {
+        VideoStatus.Generated   => "video-dot--generated",
+        VideoStatus.InProgress  => "video-dot--in-progress",
+        VideoStatus.Failed      => "video-dot--failed",
+        _                       => "video-dot--none"
+    };
+
+    private static string GetVideoStatusLabel(VideoStatus? status) => status switch
+    {
+        VideoStatus.Generated   => "Video ready",
+        VideoStatus.InProgress  => "Video in progress",
+        VideoStatus.Failed      => "Video failed",
+        _                       => "No video"
+    };
+}

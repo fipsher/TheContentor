@@ -1,6 +1,7 @@
 @page "/"
 @page "/schedule"
 @using MediatR
+@using Microsoft.JSInterop
 @using TheContentor.Application.Features.Schedule.Commands
 @using TheContentor.Application.Features.Schedule.Models
 @using TheContentor.Application.Features.Schedule.Queries
@@ -9,6 +10,7 @@
 @using TheContentor.Domain.Enums
 @inject IMediator Mediator
 @inject NavigationManager NavigationManager
+@inject IJSRuntime JS
 @rendermode InteractiveServer
 
 <PageTitle>Schedule</PageTitle>
@@ -64,10 +66,29 @@
 </div>
 
 <!-- Calendar Navigation -->
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <button class="btn btn-outline-secondary" @onclick="PreviousMonth">&lsaquo; Previous</button>
-    <h4 class="mb-0">@(new DateTime(_year, _month, 1).ToString("MMMM yyyy"))</h4>
-    <button class="btn btn-outline-secondary" @onclick="NextMonth">Next &rsaquo;</button>
+<div class="d-flex justify-content-between align-items-center mb-3 gap-2 flex-wrap">
+    <button class="btn btn-outline-secondary" @onclick="HandlePrevious">&lsaquo; Previous</button>
+
+    <div class="d-flex align-items-center gap-3">
+        <h4 class="mb-0">
+            @if (_viewMode == ViewMode.Month)
+            {
+                @(new DateTime(_year, _month, 1).ToString("MMMM yyyy"))
+            }
+            else
+            {
+                @($"{_weekStart:MMM d} – {_weekStart.AddDays(6):MMM d, yyyy}")
+            }
+        </h4>
+        <div class="status-pill-group">
+            <button class="status-pill @(_viewMode == ViewMode.Month ? "active" : "")"
+                    @onclick="() => SetView(ViewMode.Month)">Month</button>
+            <button class="status-pill @(_viewMode == ViewMode.Week ? "active" : "")"
+                    @onclick="() => SetView(ViewMode.Week)">Week</button>
+        </div>
+    </div>
+
+    <button class="btn btn-outline-secondary" @onclick="HandleNext">Next &rsaquo;</button>
 </div>
 
 <!-- Calendar Grid -->
@@ -75,7 +96,7 @@
 {
     <div class="text-center py-5"><span class="spinner-border"></span></div>
 }
-else
+else if (_viewMode == ViewMode.Month)
 {
     <div class="calendar-wrapper">
         <div class="calendar-grid">
@@ -132,6 +153,15 @@ else
             }
         </div>
     </div>
+}
+else
+{
+    <WeekGrid WeekStart="_weekStart"
+              Schedule="_schedule"
+              OnAutoAssign="AutoAssignDay"
+              OnAddPost="OpenAddPost"
+              OnNavigate="GoToPost"
+              OnRemove="RemoveEntry" />
 }
 
 <!-- Add Post Panel (slide-in at bottom of page) -->
@@ -309,6 +339,10 @@ else
 </style>
 
 @code {
+    private enum ViewMode { Month, Week }
+    private ViewMode _viewMode = ViewMode.Month;
+    private DateOnly _weekStart = GetCurrentWeekStart();
+
     private int _year = DateTime.Today.Year;
     private int _month = DateTime.Today.Month;
 
@@ -373,12 +407,38 @@ else
                 p.Title.Contains(_postPickerSearch, StringComparison.OrdinalIgnoreCase) ||
                 p.Community.Contains(_postPickerSearch, StringComparison.OrdinalIgnoreCase));
 
+    private static DateOnly GetCurrentWeekStart()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        return today.AddDays(today.DayOfWeek == DayOfWeek.Sunday ? -6 : -(int)today.DayOfWeek + 1);
+    }
+
     protected override async Task OnInitializedAsync() => await RefreshSchedule();
+
+    /// <inheritdoc />
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var saved = await JS.InvokeAsync<string?>("localStorage.getItem", "schedule-view-mode");
+            if (saved == "Week") { _viewMode = ViewMode.Week; await RefreshSchedule(); }
+        }
+    }
+
+    private async Task SetView(ViewMode mode)
+    {
+        _viewMode = mode;
+        await JS.InvokeVoidAsync("localStorage.setItem", "schedule-view-mode", mode.ToString());
+        await RefreshSchedule();
+    }
 
     private async Task RefreshSchedule()
     {
         _schedule = null;
-        _schedule = await Mediator.Send(new GetScheduleQuery(_year, _month));
+        if (_viewMode == ViewMode.Week)
+            _schedule = await Mediator.Send(new GetScheduleWeekQuery(_weekStart));
+        else
+            _schedule = await Mediator.Send(new GetScheduleQuery(_year, _month));
     }
 
     private async Task PreviousMonth()
@@ -393,6 +453,21 @@ else
         if (_month == 12) { _month = 1; _year++; }
         else _month++;
         await RefreshSchedule();
+    }
+
+    private async Task PreviousWeek() { _weekStart = _weekStart.AddDays(-7); await RefreshSchedule(); }
+    private async Task NextWeek()     { _weekStart = _weekStart.AddDays(7);  await RefreshSchedule(); }
+
+    private async Task HandlePrevious()
+    {
+        if (_viewMode == ViewMode.Week) await PreviousWeek();
+        else await PreviousMonth();
+    }
+
+    private async Task HandleNext()
+    {
+        if (_viewMode == ViewMode.Week) await NextWeek();
+        else await NextMonth();
     }
 
     private async Task RemoveEntry(Guid scheduledPostId)
