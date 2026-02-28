@@ -693,7 +693,7 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
             foreach (var part in postData.Parts)
             {
                 var text = part.Part == 1
-                    ? $"{postData.Title} {part.ProcessedText}".Trim()
+                    ? $"{postData.Description} {part.ProcessedText}".Trim()
                     : part.ProcessedText;
 
                 ttsTasks.Add(context.CallActivityAsync("SendTtsCommand", new TtsCommandMessage

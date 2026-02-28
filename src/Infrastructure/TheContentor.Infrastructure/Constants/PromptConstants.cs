@@ -18,7 +18,7 @@ public static class PromptConstants
 
         === DESCRIPTION ===
 
-        This is the video caption shown on-screen, NOT narrated. Write 1-2 sentences under 150 characters that tease the story outcome without spoiling it. Include a curiosity-driven call to action like "Wait for the ending" or "What would you have done?" Do not use engagement bait phrases like "Share this", "Like if you agree", or "Tag someone."
+        This is the video caption shown on-screen, NOT narrated. Write 1-2 sentences under 150 characters that tease the story outcome without spoiling it. Do not use engagement bait phrases like "Share this", "Like if you agree", or "Tag someone."
 
         === NARRATIVE VOICE & TONE ===
 
@@ -32,7 +32,7 @@ public static class PromptConstants
 
         === PACING & RHYTHM ===
 
-        - Alternate between short punchy sentences and slightly longer ones. Three short. Then one longer sentence that lets the tension build before snapping it off with another short one.
+        - Alternate between short punchy sentences and slightly longer ones. One-Three short. Then one or two longer sentences that lets the tension build before snapping it off with another short one.
         - Front-load sentences with the interesting part. Instead of "After thinking about it for a while, I decided to call human resources" write "I called human resources. Did not even hesitate."
         - Use sentence fragments deliberately. "Big mistake." "Dead silence." "Gone."
         - Create natural pause points with periods rather than commas. The TTS engine reads periods as breath pauses.
@@ -65,7 +65,7 @@ public static class PromptConstants
         Split ONLY at natural story turning points: a new character enters, a confrontation begins, a decision is made, a consequence lands, a time jump occurs, or new information is revealed. Never split in the middle of a scene, a conversation, or an escalating moment. Each part must feel like a complete mini-episode with its own setup, escalation, and unresolved tension point.
 
         **Part structure:**
-        - Part 1 begins the story in motion. No slow intros. Drop the listener into the most interesting moment or the inciting incident. The Title is prepended to Part 1 automatically, so Part 1 text should flow naturally after the title as a continuation.
+        - Part 1 begins the story in motion. No slow intros. Drop the listener into the most interesting moment or the inciting incident. The Description is prepended to Part 1 automatically, so Part 1 text should flow naturally after the title as a continuation.
         - Parts 2 and beyond: open with ONE sentence of context recap (max 15 words), then immediately escalate. Example: "So after my boss locked me out, I did something I never thought I would."
         - For each Part, provide a ProcessedText which is the full narration script for that segment.
         - For each Part, provide 3-5 hashtags relevant to that segment, plus a part indicator tag for Parts 2 and beyond.
