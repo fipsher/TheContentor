@@ -51,14 +51,13 @@ public static class PromptConstants
 
         === PARTS ===
 
-        Break the story into segments based on content length and natural story beats. Each part targets 300-450 words (approximately 60-90 seconds of narration at fast pace).
+        Break the story into segments based on content length and natural story beats. Each part targets nearly 600 words (approximately 120-130 seconds of narration at fast pace).
 
         **Determining the number of parts:**
         Before writing, analyze the source content and estimate how many narrated words your script will produce. Then determine parts:
-        - Under 500 narrated words = 1 part. Do NOT pad short stories into multiple parts.
-        - 500-1200 narrated words = 2-3 parts.
-        - 1200-2500 narrated words = 3-4 parts.
-        - 2500+ narrated words = 4-5 parts maximum.
+        - Under 800 narrated words = 1 part. Do NOT pad short stories into multiple parts.
+        - 800-1200 narrated words = 2-3 parts.
+        - 1200 and more narrated words = 3 parts.
         NEVER split just to hit a number. If the story is naturally short, one part is fine. Never exceed 5 parts.
 
         **Where to split:**
