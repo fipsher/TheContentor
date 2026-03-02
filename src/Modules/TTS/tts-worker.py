@@ -60,11 +60,19 @@ def generate_audio_kokoro(text, voice, rate, output_path):
     # Map rate integer (-50..50) to Kokoro speed float (0.5..1.5)
     speed = max(0.5, min(2.0, 1.0 + rate / 100.0))
 
+    import re
+
     pipeline = KPipeline(lang_code="a")
     sample_rate = 24000
+
+    # Insert newlines after sentence-ending punctuation so Kokoro's
+    # default \n+ split produces natural inter-sentence pauses.
+    processed_text = re.sub(r'(?<=[.!?])\s+', '\n', text)
+
     chunks = []
-    for _, _, audio in pipeline(text, voice=voice, speed=speed):
-        chunks.append(audio)
+    for _, _, audio in pipeline(processed_text, voice=voice, speed=speed):
+        if audio is not None:
+            chunks.append(audio)
 
     if not chunks:
         raise RuntimeError("Kokoro produced no audio samples")

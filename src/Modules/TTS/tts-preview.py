@@ -36,13 +36,25 @@ def _generate_kokoro(text: str, voice: str, rate: int, output_path: str) -> None
 
     kokoro = importlib.import_module("kokoro")
     KPipeline = getattr(kokoro, "KPipeline")
+    import re
+
     speed = max(0.5, min(2.0, 1.0 + rate / 100.0))
     pipeline = KPipeline(lang_code="a")
-    chunks = [audio for _, _, audio in pipeline(text, voice=voice, speed=speed)]
+    sample_rate = 24000
+
+    # Insert newlines after sentence-ending punctuation so Kokoro's
+    # default \n+ split produces natural inter-sentence pauses.
+    processed_text = re.sub(r'(?<=[.!?])\s+', '\n', text)
+
+    chunks = []
+    for _, _, audio in pipeline(processed_text, voice=voice, speed=speed):
+        if audio is not None:
+            chunks.append(audio)
+
     if not chunks:
         raise RuntimeError("Kokoro produced no audio")
     wav_path = output_path.replace(".mp3", ".wav")
-    sf.write(wav_path, np.concatenate(chunks), 24000)
+    sf.write(wav_path, np.concatenate(chunks), sample_rate)
     subprocess.run(
         ["ffmpeg", "-y", "-i", wav_path, "-q:a", "2", output_path],
         check=True,
