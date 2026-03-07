@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Google.GenAI.Types;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenAI.Chat;
@@ -12,10 +13,11 @@ using TheContentor.Infrastructure.Options;
 namespace TheContentor.Infrastructure.Services;
 
 /// <summary>
-/// Service for processing post content using LLMs (Gemini or ChatGPT).
+/// Service for processing post content using LLMs (Gemini, ChatGPT, or local Ollama).
 /// </summary>
 public class PostProcessor(
     IOptions<LlmOptions> llmOptions,
+    IChatClient ollamaChatClient,
     ILogger<PostProcessor> logger) : IPostProcessor
 {
     private readonly JsonSerializerOptions _jsonOptions = new() { PropertyNameCaseInsensitive = true };
@@ -30,6 +32,7 @@ public class PostProcessor(
         LlmProvider provider = LlmProvider.Gemini,
         ProcessingMode mode = ProcessingMode.Classic,
         ProcessedPostResponse? existingProcessedPost = null,
+        string? localModelName = null,
         CancellationToken cancellationToken = default)
     {
         logger.LogInformation("Processing post with {Provider}, mode {Mode}. Title: {Title}", provider, mode, title);
@@ -41,9 +44,9 @@ public class PostProcessor(
 
             return mode switch
             {
-                ProcessingMode.FullPipeline => await ProcessFullPipelineAsync(title, content, systemPrompt, userPrompt, provider, cancellationToken),
-                ProcessingMode.EnhanceExisting => await ProcessEnhanceExistingAsync(title, content, existingProcessedPost!, provider, cancellationToken),
-                _ => await CallLlmAsync(systemPrompt, userPrompt, provider, cancellationToken)
+                ProcessingMode.FullPipeline => await ProcessFullPipelineAsync(title, content, systemPrompt, userPrompt, provider, localModelName, cancellationToken),
+                ProcessingMode.EnhanceExisting => await ProcessEnhanceExistingAsync(title, content, existingProcessedPost!, provider, localModelName, cancellationToken),
+                _ => await CallLlmAsync(systemPrompt, userPrompt, provider, localModelName, cancellationToken)
             };
         }
         catch (Exception ex)
@@ -54,34 +57,35 @@ public class PostProcessor(
     }
 
     /// <summary>Dispatches to the appropriate LLM implementation.</summary>
-    private Task<ProcessedPostResponse> CallLlmAsync(string systemPrompt, string userPrompt, LlmProvider provider, CancellationToken cancellationToken) =>
+    private Task<ProcessedPostResponse> CallLlmAsync(string systemPrompt, string userPrompt, LlmProvider provider, string? localModelName, CancellationToken cancellationToken) =>
         provider switch
         {
             LlmProvider.OpenAI => ProcessWithChatGPTAsync(systemPrompt, userPrompt, cancellationToken),
-            _ => ProcessWithGeminiAsync(systemPrompt, userPrompt, cancellationToken)
+            LlmProvider.Local  => ProcessWithLocalAsync(systemPrompt, userPrompt, localModelName, cancellationToken),
+            _                  => ProcessWithGeminiAsync(systemPrompt, userPrompt, cancellationToken)
         };
 
     /// <summary>Runs the three-step full pipeline: scriptwriter → creative refiner → retention critic.</summary>
     private async Task<ProcessedPostResponse> ProcessFullPipelineAsync(
         string title, string content, string step1SystemPrompt, string step1UserPrompt,
-        LlmProvider provider, CancellationToken cancellationToken)
+        LlmProvider provider, string? localModelName, CancellationToken cancellationToken)
     {
         logger.LogInformation("Full pipeline Step 1: Scripting...");
-        var result1 = await CallLlmAsync(step1SystemPrompt, step1UserPrompt, provider, cancellationToken);
+        var result1 = await CallLlmAsync(step1SystemPrompt, step1UserPrompt, provider, localModelName, cancellationToken);
 
         logger.LogInformation("Full pipeline Step 2: Creative refiner...");
         var step1Json = JsonSerializer.Serialize(result1, _jsonOptions);
         var result2 = await CallLlmAsync(
             PromptConstants.CreativeRefinerSystemPrompt,
             PromptConstants.GetCreativeRefinerUserPrompt(title, content, step1Json),
-            provider, cancellationToken);
+            provider, localModelName, cancellationToken);
 
         logger.LogInformation("Full pipeline Step 2.5: Retention critic...");
         var step2Json = JsonSerializer.Serialize(result2, _jsonOptions);
         var result3 = await CallLlmAsync(
             PromptConstants.RetentionCriticSystemPrompt,
             PromptConstants.GetRetentionCriticUserPrompt(step2Json),
-            provider, cancellationToken);
+            provider, localModelName, cancellationToken);
 
         return result3;
     }
@@ -89,7 +93,7 @@ public class PostProcessor(
     /// <summary>Runs refiner + critic on an already-processed post without rerunning the scriptwriter.</summary>
     private async Task<ProcessedPostResponse> ProcessEnhanceExistingAsync(
         string title, string content, ProcessedPostResponse existingProcessedPost,
-        LlmProvider provider, CancellationToken cancellationToken)
+        LlmProvider provider, string? localModelName, CancellationToken cancellationToken)
     {
         if (existingProcessedPost == null)
             throw new InvalidOperationException("EnhanceExisting mode requires an existing ProcessedPost.");
@@ -99,14 +103,14 @@ public class PostProcessor(
         var result2 = await CallLlmAsync(
             PromptConstants.CreativeRefinerSystemPrompt,
             PromptConstants.GetCreativeRefinerUserPrompt(title, content, existingJson),
-            provider, cancellationToken);
+            provider, localModelName, cancellationToken);
 
         logger.LogInformation("Enhance existing Step 2.5: Retention critic...");
         var step2Json = JsonSerializer.Serialize(result2, _jsonOptions);
         var result3 = await CallLlmAsync(
             PromptConstants.RetentionCriticSystemPrompt,
             PromptConstants.GetRetentionCriticUserPrompt(step2Json),
-            provider, cancellationToken);
+            provider, localModelName, cancellationToken);
 
         return result3;
     }
@@ -166,7 +170,7 @@ public class PostProcessor(
         ChatClient client = new(PromptConstants.ChatGPTModel, apiKey);
         ChatCompletionOptions options = new()
         {
-            ResponseFormat = ChatResponseFormat.CreateJsonObjectFormat()
+            ResponseFormat = OpenAI.Chat.ChatResponseFormat.CreateJsonObjectFormat()
         };
 
         ChatCompletion completion = await client.CompleteChatAsync(
@@ -186,5 +190,36 @@ public class PostProcessor(
 
         return JsonSerializer.Deserialize<ProcessedPostResponse>(text, _jsonOptions)
                ?? throw new Exception("Failed to deserialize ChatGPT response to ProcessedPostResponse.");
+    }
+
+    /// <summary>Processes using a local Ollama model via the injected IChatClient.</summary>
+    private async Task<ProcessedPostResponse> ProcessWithLocalAsync(
+        string systemPrompt,
+        string userPrompt,
+        string? modelOverride,
+        CancellationToken cancellationToken)
+    {
+        var model = !string.IsNullOrWhiteSpace(modelOverride) ? modelOverride : _options.Local.Model;
+
+        var chatOptions = new ChatOptions
+        {
+            ResponseFormat = Microsoft.Extensions.AI.ChatResponseFormat.Json,
+            ModelId = string.IsNullOrEmpty(model) ? null : model
+        };
+
+        var response = await ollamaChatClient.GetResponseAsync(
+            [
+                new Microsoft.Extensions.AI.ChatMessage(ChatRole.System, systemPrompt),
+                new Microsoft.Extensions.AI.ChatMessage(ChatRole.User, userPrompt)
+            ],
+            chatOptions,
+            cancellationToken);
+
+        var text = response.Text;
+        if (string.IsNullOrEmpty(text))
+            throw new Exception("Local LLM returned empty content.");
+
+        return JsonSerializer.Deserialize<ProcessedPostResponse>(text, _jsonOptions)
+               ?? throw new Exception("Failed to deserialize local LLM response.");
     }
 }

@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <PackageReference Include="Aspire.Azure.Messaging.ServiceBus" Version="13.1.0" />
+    <PackageReference Include="CommunityToolkit.Aspire.OllamaSharp" Version="13.1.1" />
 <PackageReference Include="AutoMapper" Version="16.0.0" />
     <PackageReference Include="Google.GenAI" Version="0.13.1" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />

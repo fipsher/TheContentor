@@ -44,8 +44,22 @@
                         <select class="form-select" @bind="_llmProvider">
                             <option value="@LlmProvider.Gemini">Google Gemini</option>
                             <option value="@LlmProvider.OpenAI">OpenAI ChatGPT</option>
+                            <option value="@LlmProvider.Local">Local (Ollama)</option>
                         </select>
                     </div>
+
+                    @if (_llmProvider == LlmProvider.Local)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Model Name</label>
+                            <input type="text" class="form-control" placeholder="qwen2.5:7b"
+                                   @bind="_localModelName" />
+                            <div class="form-text">
+                                Model must be pulled via <code>ollama pull &lt;model&gt;</code>.
+                                Examples: <code>qwen2.5:7b</code>, <code>gemma3:9b</code>, <code>llama3.3:70b</code>
+                            </div>
+                        </div>
+                    }
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" @onclick="() => _showProcessModal = false" disabled="@_aiProcessing">Cancel</button>
@@ -471,6 +485,7 @@ else
     private bool _aiProcessing;
     private Guid? _processSourcePostId;
     private LlmProvider _llmProvider = LlmProvider.Gemini;
+    private string _localModelName = "";
 
     // Generate dialog
     private bool _showGenerateDialog;
@@ -832,7 +847,10 @@ else
         _errorMessage = null;
         try
         {
-            await Mediator.Send(new QueueAiProcessingCommand(_processSourcePostId.Value, LlmProvider: _llmProvider));
+            var localModelName = _llmProvider == LlmProvider.Local && !string.IsNullOrWhiteSpace(_localModelName)
+            ? _localModelName
+            : null;
+        await Mediator.Send(new QueueAiProcessingCommand(_processSourcePostId.Value, LlmProvider: _llmProvider, LocalModelName: localModelName));
             _showProcessModal = false;
             _successMessage = "AI processing queued.";
             await RefreshSchedule();

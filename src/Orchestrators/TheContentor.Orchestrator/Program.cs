@@ -22,6 +22,8 @@ builder.Services
     .AddApplicationInsightsTelemetryWorkerService()
     .ConfigureFunctionsApplicationInsights()
     .AddDurableTaskClient(o => { })
-    .AddRestClient();
+    .AddRestClient(r => r.Timeout = TimeSpan.FromMinutes(10));
+
+builder.Services.ConfigureHttpClientDefaults(b => b.ConfigureHttpClient(c => c.Timeout = TimeSpan.FromMinutes(10)));
 
 builder.Build().Run();

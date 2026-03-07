@@ -14,5 +14,6 @@ public interface IPostProcessor
         LlmProvider provider = LlmProvider.Gemini,
         ProcessingMode mode = ProcessingMode.Classic,
         ProcessedPostResponse? existingProcessedPost = null,
+        string? localModelName = null,
         CancellationToken cancellationToken = default);
 }

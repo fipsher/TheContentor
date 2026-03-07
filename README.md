@@ -3,7 +3,7 @@
 
 **TheContentor** is an automated content creation engine designed to scrape web content, analyze it for engagement potential using AI, and transform it into high-quality videos with voiceovers and synchronized subtitles.
 
-> **Project Philosophy:** Prioritize open-source, on-premise solutions to minimize operational costs while leveraging powerful APIs (Gemini/ChatGPT) for high-level content analysis.
+> **Project Philosophy:** Prioritize open-source, on-premise solutions to minimize operational costs. Supports cloud LLMs (Gemini/ChatGPT) and local LLMs via Ollama for zero-cost, rate-limit-free processing.
 
 * * *
 
@@ -28,7 +28,7 @@
 | **Frontend/API**     | ASP.NET Core & Blazor                     |
 | **Orchestration**    | Azure Durable Functions (via .NET Aspire) |
 | **Database**         | PostgreSQL (EF Core Code-First)           |
-| **LLM Integration**  | Gemini API, ChatGPT API                   |
+| **LLM Integration**  | Gemini API, ChatGPT API, Local (Ollama)   |
 | **Voice / TTS**      | Edge-TTS (Primary), Tortoise-TTS, Bark    |
 | **Subtitles**        | OpenAI Whisper                            |
 | **Video Processing** | MoviePy / FFmpeg                          |
@@ -68,6 +68,41 @@
     
 *   **Asset Library:** CRUD operations for video assets. Includes an "Active/Inactive" toggle system instead of hard deletion to preserve pipeline history.
 
+
+* * *
+
+## ⚡ Local LLM (Ollama)
+
+TheContentor supports local LLM inference via [Ollama](https://ollama.ai) as an alternative to cloud APIs — no rate limits, no API keys, runs fully on-device.
+
+**Ollama starts automatically** when you run the Aspire host. The default model (`qwen2.5:14b`) is pulled on first start and cached for all subsequent runs.
+
+### Recommended models
+
+| Model | Size (Q4) | Speed (M2 Pro) | Best for |
+|-------|-----------|----------------|----------|
+| `qwen2.5:14b` ⭐ | ~9 GB | ~15 tok/s | Default — best JSON + instruction following |
+| `qwen2.5:32b` | ~20 GB | ~7 tok/s | M3 Max / M4 Max — better creative quality |
+| `gemma3:9b` | ~6 GB | ~20 tok/s | Faster, slightly weaker JSON adherence |
+| `llama3.3:70b` | ~43 GB | ~4 tok/s | Maximum quality, requires 64 GB+ RAM |
+
+### Usage
+
+Select **Local (Ollama)** from the LLM Provider dropdown in the AI processing modal. Type the model name (e.g. `qwen2.5:14b`) — it defaults to the configured model but is editable per run.
+
+### Apple Silicon note
+
+Ollama in Docker does not use Metal GPU acceleration. For maximum speed on M-series Macs, install Ollama natively and set it to auto-start:
+
+```bash
+brew install ollama
+brew services start ollama  # auto-starts at login
+```
+
+Then override the endpoint in user-secrets:
+```bash
+dotnet user-secrets set "LLM:Local:BaseUrl" "http://localhost:11434" --project src/API/TheContentor.API
+```
 
 * * *
 

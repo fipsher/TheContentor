@@ -1099,14 +1099,16 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
         logger.LogInformation("Running AI processing for SourcePost: {SourcePostId}", request.SourcePostId);
 
         var processRequest = new RestRequest($"{_apiUrl}/api/SourcePost/{request.SourcePostId}/process-ai-internal", Method.Post);
+        processRequest.Timeout = TimeSpan.FromMinutes(10);
         processRequest.AddJsonBody(new
         {
             request.PartsCount,
             request.WordsPerPart,
             request.LlmProvider,
-            request.ProcessingMode
+            request.ProcessingMode,
+            request.LocalModelName
         });
-
+        
         var processResponse = await client.ExecuteAsync(processRequest);
         if (!processResponse.IsSuccessful)
             throw new Exception($"AI processing failed: {processResponse.Content ?? processResponse.ErrorMessage}");

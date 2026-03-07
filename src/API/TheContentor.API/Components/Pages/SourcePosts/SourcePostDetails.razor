@@ -239,8 +239,22 @@
                         <select class="form-select" @bind="_llmProvider">
                             <option value="@LlmProvider.Gemini">Google Gemini</option>
                             <option value="@LlmProvider.OpenAI">OpenAI ChatGPT</option>
+                            <option value="@LlmProvider.Local">Local (Ollama)</option>
                         </select>
                     </div>
+
+                    @if (_llmProvider == LlmProvider.Local)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Model Name</label>
+                            <input type="text" class="form-control" placeholder="qwen2.5:7b"
+                                   @bind="_localModelName" />
+                            <div class="form-text">
+                                Model must be pulled via <code>ollama pull &lt;model&gt;</code>.
+                                Examples: <code>qwen2.5:7b</code>, <code>gemma3:9b</code>, <code>llama3.3:70b</code>
+                            </div>
+                        </div>
+                    }
 
                     @if (_processingMode != ProcessingMode.EnhanceExisting)
                     {
@@ -702,6 +716,7 @@ else
     // AI settings
     private ProcessingMode _processingMode = ProcessingMode.Classic;
     private LlmProvider _llmProvider = LlmProvider.Gemini;
+    private string _localModelName = "qwen2.5:7b";
     private bool _partsCountAuto = true;
     private int _partsCount = 3;
     private bool _wordsPerPartAuto = true;
@@ -840,7 +855,10 @@ else
         {
             var partsCount = (_partsCountAuto || _processingMode == ProcessingMode.EnhanceExisting) ? (int?)null : _partsCount;
             var wordsPerPart = (_wordsPerPartAuto || _processingMode == ProcessingMode.EnhanceExisting) ? (int?)null : _wordsPerPart;
-            await Mediator.Send(new QueueAiProcessingCommand(Post.Id, partsCount, wordsPerPart, _llmProvider, _processingMode));
+            var localModelName = _llmProvider == LlmProvider.Local && !string.IsNullOrWhiteSpace(_localModelName)
+                ? _localModelName
+                : null;
+            await Mediator.Send(new QueueAiProcessingCommand(Post.Id, partsCount, wordsPerPart, _llmProvider, _processingMode, localModelName));
             Post.Status = SourcePostStatus.Processing;
             _isEditing = false;
         }

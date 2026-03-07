@@ -13,4 +13,6 @@ public class AiProcessingOrchestratorRequest
     public string LlmProvider { get; set; } = "Gemini";
     /// <summary>Processing mode name (e.g. "Classic", "FullPipeline", "EnhanceExisting").</summary>
     public string ProcessingMode { get; set; } = "Classic";
+    /// <summary>Optional model name override for the local LLM provider.</summary>
+    public string? LocalModelName { get; set; }
 }

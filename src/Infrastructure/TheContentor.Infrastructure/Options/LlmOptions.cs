@@ -19,6 +19,16 @@ public class LlmOptions
     /// Options for ChatGPT.
     /// </summary>
     public ChatGPTOptions ChatGPT { get; set; } = new();
+
+    /// <summary>Configuration for the local Ollama LLM provider.</summary>
+    public LocalLlmOptions Local { get; set; } = new();
+
+    /// <summary>Options for local LLM via Ollama.</summary>
+    public class LocalLlmOptions
+    {
+        /// <summary>Default model name to use (e.g. "qwen2.5:14b"). Can be overridden per request.</summary>
+        public string Model { get; set; } = "qwen2.5:14b";
+    }
 }
 
 /// <summary>

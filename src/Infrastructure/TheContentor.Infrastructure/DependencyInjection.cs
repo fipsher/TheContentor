@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Http;
 using RestSharp.Extensions.DependencyInjection;
 using TheContentor.Infrastructure.Interfaces;
 using TheContentor.Infrastructure.Mappings;
@@ -30,6 +31,16 @@ public static class DependencyInjection
 
         builder.Services.Configure<LocalStorageOptions>(configuration.GetSection(LocalStorageOptions.SectionName));
         builder.AddAzureServiceBusClient("ContentorServiceBus");
+
+        builder.AddOllamaApiClient("ollama").AddChatClient();
+        builder.Services.PostConfigure<HttpClientFactoryOptions>("httpClientKey", options =>
+        {
+            options.HttpClientActions.Add(client =>
+            {
+                // This will run after the library's configuration
+                client.Timeout = TimeSpan.FromMinutes(10);
+            });
+        });
 
         builder.Services.AddScoped<IBlobService, LocalFileSystemBlobService>();
         builder.Services.AddScoped<IPostProcessor, PostProcessor>();

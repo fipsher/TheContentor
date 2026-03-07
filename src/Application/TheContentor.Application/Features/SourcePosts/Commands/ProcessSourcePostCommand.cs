@@ -14,7 +14,8 @@ public record ProcessSourcePostCommand(
     int? PartsCount = null,
     int? WordsPerPart = null,
     LlmProvider LlmProvider = LlmProvider.Gemini,
-    ProcessingMode ProcessingMode = ProcessingMode.Classic
+    ProcessingMode ProcessingMode = ProcessingMode.Classic,
+    string? LocalModelName = null
 ) : IRequest;
 
 /// <summary>Runs processing for a source post and stores results.</summary>
@@ -61,6 +62,7 @@ public class ProcessSourcePostCommandHandler(TheContentorDbContext context, IPos
             sourcePost.Title, sourcePost.RawText,
             request.PartsCount, request.WordsPerPart, request.LlmProvider,
             request.ProcessingMode, existingData,
+            request.LocalModelName,
             cancellationToken);
 
         var processedPost = new ProcessedPost
