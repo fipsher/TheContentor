@@ -43,6 +43,7 @@
                                           OnRemove="OnRemove"
                                           OnProcessAI="OnProcessAI"
                                           OnGenerate="OnGenerate"
+                                          AiProgressStage="@(AiProgressStages.GetValueOrDefault(post.SourcePostId))"
                                           ShowVideoPreview="true" />
                     }
                 }
@@ -83,4 +84,8 @@
     /// <summary>Callback fired with the scheduled day DTO when the generate video button is clicked.</summary>
     [Parameter]
     public EventCallback<ScheduledDayDto> OnGenerate { get; set; }
+
+    /// <summary>AI processing stage text per source post ID.</summary>
+    [Parameter]
+    public Dictionary<Guid, string> AiProgressStages { get; set; } = new();
 }

@@ -29,6 +29,9 @@ public class ScheduledDayDto
     /// <summary>Whether the source post has been processed into a <c>ProcessedPost</c>.</summary>
     public bool IsProcessed { get; set; }
 
+    /// <summary>Current status of the source post.</summary>
+    public SourcePostStatus SourcePostStatus { get; set; }
+
     /// <summary>Processed post identifier. Null when not yet processed.</summary>
     public Guid? ProcessedPostId { get; set; }
 

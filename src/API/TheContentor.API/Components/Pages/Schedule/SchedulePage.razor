@@ -8,6 +8,7 @@
 @using TheContentor.Application.Features.SourcePosts.Models
 @using TheContentor.Application.Features.SourcePosts.Queries
 @using TheContentor.Application.Features.SourcePosts.Commands
+@using TheContentor.Application.Features.SourcePosts.Models
 @using TheContentor.Application.Features.ProcessedPosts.Commands
 @using TheContentor.Application.Features.ProcessedPosts.Models
 @using TheContentor.Application.Features.Assets.Queries
@@ -188,7 +189,7 @@ else if (_viewMode == ViewMode.Month)
                             <div class="calendar-post-meta">
                                 <span>&#9650; @postCapture.Score</span>
                                 <span>@postCapture.WordCount w</span>
-                                @if (!postCapture.IsProcessed && postCapture.IsPosted != true)
+                                @if (!postCapture.IsProcessed && postCapture.IsPosted != true && postCapture.SourcePostStatus != SourcePostStatus.Processing)
                                 {
                                     <button class="btn btn-link p-0" style="font-size:0.7rem;color:var(--accent-warning);"
                                             title="Process with AI"
@@ -227,7 +228,8 @@ else
               OnNavigate="GoToPost"
               OnRemove="RemoveEntry"
               OnProcessAI="OpenProcessAI"
-              OnGenerate="OpenGenerateDialog" />
+              OnGenerate="OpenGenerateDialog"
+              AiProgressStages="_aiProgressStages" />
 }
 
 <!-- Add Post Panel (slide-in at bottom of page) -->
@@ -442,6 +444,8 @@ else
     // SignalR
     private HubConnection? _hubConnection;
     private HashSet<Guid> _joinedGroups = new();
+    private HashSet<Guid> _joinedAiGroups = new();
+    private Dictionary<Guid, string> _aiProgressStages = new();
 
     private record CalendarCell(int Day, DateOnly Date, bool IsToday, bool IsCurrentWeek, List<ScheduledDayDto> Posts);
 
@@ -524,6 +528,28 @@ else
         }
     }
 
+    private async Task JoinAiProcessingGroups()
+    {
+        if (_hubConnection?.State != HubConnectionState.Connected || _schedule == null) return;
+
+        var processingIds = _schedule
+            .Where(s => s.SourcePostStatus == SourcePostStatus.Processing)
+            .Select(s => s.SourcePostId)
+            .ToHashSet();
+
+        foreach (var id in _joinedAiGroups.Except(processingIds).ToList())
+        {
+            await _hubConnection.InvokeAsync("LeaveSourcePostGroup", id);
+            _joinedAiGroups.Remove(id);
+        }
+
+        foreach (var id in processingIds.Except(_joinedAiGroups))
+        {
+            await _hubConnection.InvokeAsync("JoinSourcePostGroup", id);
+            _joinedAiGroups.Add(id);
+        }
+    }
+
     /// <inheritdoc/>
     public async ValueTask DisposeAsync()
     {
@@ -554,8 +580,24 @@ else
                 await InvokeAsync(StateHasChanged);
             });
 
+            _hubConnection.On<AiProcessingProgressModel>("AiProcessingUpdate", async (progress) =>
+            {
+                if (progress.IsComplete)
+                {
+                    _aiProgressStages.Remove(progress.SourcePostId);
+                    await RefreshSchedule();
+                    await JoinAiProcessingGroups();
+                }
+                else
+                {
+                    _aiProgressStages[progress.SourcePostId] = progress.Stage;
+                }
+                await InvokeAsync(StateHasChanged);
+            });
+
             await _hubConnection.StartAsync();
             await JoinInProgressGroups();
+            await JoinAiProcessingGroups();
         }
     }
 
@@ -699,6 +741,7 @@ else
     private static string GetStatusLabel(ScheduledDayDto post)
     {
         if (post.IsPosted == true) return "Posted";
+        if (post.SourcePostStatus == SourcePostStatus.Processing) return "AI Processing";
         if (post.TtsStatus == TtsStatus.InProgress) return "TTS In Progress";
         if (post.VideoStatus == VideoStatus.InProgress) return "Video In Progress";
         if (!post.IsProcessed) return "Not Processed";
@@ -710,6 +753,7 @@ else
     private static string GetStatusBadgeClass(ScheduledDayDto post)
     {
         if (post.IsPosted == true) return "bg-info";
+        if (post.SourcePostStatus == SourcePostStatus.Processing) return "bg-warning text-dark";
         if (post.TtsStatus == TtsStatus.InProgress || post.VideoStatus == VideoStatus.InProgress) return "bg-warning text-dark";
         if (!post.IsProcessed) return "bg-secondary";
         if (post.VideoStatus == VideoStatus.Generated) return "bg-success";
@@ -730,10 +774,11 @@ else
         _errorMessage = null;
         try
         {
-            await Mediator.Send(new ProcessSourcePostCommand(_processSourcePostId.Value, LlmProvider: _llmProvider));
+            await Mediator.Send(new QueueAiProcessingCommand(_processSourcePostId.Value, LlmProvider: _llmProvider));
             _showProcessModal = false;
-            _successMessage = "AI processing complete.";
+            _successMessage = "AI processing queued.";
             await RefreshSchedule();
+            await JoinAiProcessingGroups();
         }
         catch (Exception ex)
         {

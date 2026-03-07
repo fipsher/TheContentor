@@ -337,6 +337,7 @@ input[type="range"] { accent-color: var(--accent-primary); }
 .badge-approved   { background: var(--accent-success-dim); color: var(--accent-success); }
 .badge-rejected   { background: var(--accent-danger-dim);  color: var(--accent-danger);  }
 .badge-skipped    { background: var(--bg-tertiary);        color: var(--accent-gray);    }
+.badge-processing { background: #fff3cd;                   color: #856404;               }
 .badge-not-generated { background: var(--bg-tertiary);     color: var(--text-muted);     }
 .badge-in-progress   { background: var(--accent-warning-dim); color: var(--accent-warning); }
 .badge-generated     { background: var(--accent-success-dim); color: var(--accent-success); }

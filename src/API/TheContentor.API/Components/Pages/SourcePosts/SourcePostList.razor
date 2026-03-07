@@ -289,11 +289,12 @@ else
 
     private static string GetStatusBadgeClass(SourcePostStatus status) => status switch
     {
-        SourcePostStatus.Raw      => "badge-raw",
-        SourcePostStatus.Processed => "badge-processed",
-        SourcePostStatus.Approved  => "badge-approved",
-        SourcePostStatus.Rejected  => "badge-rejected",
-        SourcePostStatus.Skipped   => "badge-skipped",
+        SourcePostStatus.Raw        => "badge-raw",
+        SourcePostStatus.Processed  => "badge-processed",
+        SourcePostStatus.Approved   => "badge-approved",
+        SourcePostStatus.Rejected   => "badge-rejected",
+        SourcePostStatus.Skipped    => "badge-skipped",
+        SourcePostStatus.Processing => "badge-processing",
         _ => "badge-inactive"
     };
 

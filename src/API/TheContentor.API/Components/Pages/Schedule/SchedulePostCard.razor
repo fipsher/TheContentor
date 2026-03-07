@@ -87,19 +87,25 @@
     [Parameter]
     public EventCallback<ScheduledDayDto> OnGenerate { get; set; }
 
+    /// <summary>Current AI processing stage text. Null when not actively receiving updates.</summary>
+    [Parameter]
+    public string? AiProgressStage { get; set; }
+
     private string? _previewUrl;
 
-    private bool IsInProgress => Post.TtsStatus == TtsStatus.InProgress
+    private bool IsInProgress => Post.SourcePostStatus == SourcePostStatus.Processing
+                              || Post.TtsStatus == TtsStatus.InProgress
                               || Post.VideoStatus == VideoStatus.InProgress;
 
-    private string InProgressLabel => Post.TtsStatus == TtsStatus.InProgress
-        ? "TTS…" : "Video…";
+    private string InProgressLabel => Post.SourcePostStatus == SourcePostStatus.Processing
+        ? (AiProgressStage ?? "AI…") : Post.TtsStatus == TtsStatus.InProgress ? "TTS…" : "Video…";
 
     private void OpenVideo() => _previewUrl = Post.VideoSasUrl;
 
     private static string GetStatusLabel(ScheduledDayDto post)
     {
         if (post.IsPosted == true) return "Posted";
+        if (post.SourcePostStatus == SourcePostStatus.Processing) return "AI Processing";
         if (post.TtsStatus == TtsStatus.InProgress) return "TTS In Progress";
         if (post.VideoStatus == VideoStatus.InProgress) return "Video In Progress";
         if (!post.IsProcessed) return "Not Processed";
@@ -111,6 +117,7 @@
     private static string GetStatusBadgeClass(ScheduledDayDto post)
     {
         if (post.IsPosted == true) return "bg-info";
+        if (post.SourcePostStatus == SourcePostStatus.Processing) return "bg-warning text-dark";
         if (post.TtsStatus == TtsStatus.InProgress || post.VideoStatus == VideoStatus.InProgress) return "bg-warning text-dark";
         if (!post.IsProcessed) return "bg-secondary";
         if (post.VideoStatus == VideoStatus.Generated) return "bg-success";

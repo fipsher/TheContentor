@@ -6,6 +6,7 @@ using Microsoft.DurableTask.Client;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RestSharp;
+using TheContentor.Orchestrator.Models.AiProcessing;
 using TheContentor.Orchestrator.Models.GenerateAll;
 using TheContentor.Orchestrator.Models.ProcessedPost;
 using TheContentor.Orchestrator.Models.TTS;
@@ -96,6 +97,25 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
                 {
                     logger.LogWarning(ex, "Failed to terminate Video orchestration for ProcessedPost: {ProcessedPostId}, InstanceId: {InstanceId}",
                         cancelRequest.ProcessedPostId, instanceId);
+                }
+            }
+        }
+        else if (messageType == "ai-processing")
+        {
+            var aiRequest = JsonSerializer.Deserialize<AiProcessingOrchestratorRequest>(message.Body.ToString());
+            if (aiRequest != null)
+            {
+                logger.LogInformation("Triggering AI processing orchestration for SourcePost: {SourcePostId}", aiRequest.SourcePostId);
+                var instanceId = $"ai-processing-{aiRequest.SourcePostId}";
+                try
+                {
+                    await client.ScheduleNewOrchestrationInstanceAsync(
+                        nameof(AiProcessingOrchestrator), aiRequest,
+                        new StartOrchestrationOptions { InstanceId = instanceId });
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to schedule AI processing for SourcePost: {SourcePostId} (may already be running)", aiRequest.SourcePostId);
                 }
             }
         }
@@ -1027,4 +1047,80 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
             logger.LogWarning("Failed to cleanup intermediate assets: {ErrorMessage}", response.ErrorMessage);
         }
     }
+
+    // ==================== AI Processing Orchestration ====================
+
+    [Function(nameof(AiProcessingOrchestrator))]
+    public async Task AiProcessingOrchestrator([OrchestrationTrigger] TaskOrchestrationContext context)
+    {
+        var request = context.GetInput<AiProcessingOrchestratorRequest>()!;
+
+        logger.LogInformation("AI Processing Orchestrator started for SourcePost: {SourcePostId}", request.SourcePostId);
+
+        try
+        {
+            await context.CallActivityAsync("RunAiProcessingActivity", request);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "AI Processing Orchestrator failed for SourcePost: {SourcePostId}", request.SourcePostId);
+            await context.CallActivityAsync("ReportAiProcessingStatus", new AiProcessingStatusPayload
+            {
+                SourcePostId = request.SourcePostId,
+                Success = false,
+                ErrorMessage = ex.Message
+            });
+        }
+    }
+
+    [Function("RunAiProcessingActivity")]
+    public async Task RunAiProcessingActivity([ActivityTrigger] AiProcessingOrchestratorRequest request)
+    {
+        logger.LogInformation("Running AI processing for SourcePost: {SourcePostId}", request.SourcePostId);
+
+        var processRequest = new RestRequest($"{_apiUrl}/api/SourcePost/{request.SourcePostId}/process-ai-internal", Method.Post);
+        processRequest.AddJsonBody(new
+        {
+            request.PartsCount,
+            request.WordsPerPart,
+            request.LlmProvider
+        });
+
+        var processResponse = await client.ExecuteAsync(processRequest);
+        if (!processResponse.IsSuccessful)
+            throw new Exception($"AI processing failed: {processResponse.Content ?? processResponse.ErrorMessage}");
+
+        // Report success
+        await ReportAiProcessingStatus(new AiProcessingStatusPayload
+        {
+            SourcePostId = request.SourcePostId,
+            Success = true
+        });
+    }
+
+    [Function("ReportAiProcessingStatus")]
+    public async Task ReportAiProcessingStatus([ActivityTrigger] AiProcessingStatusPayload payload)
+    {
+        var statusRequest = new RestRequest($"{_apiUrl}/api/SourcePost/{payload.SourcePostId}/ai-status", Method.Post);
+        statusRequest.AddJsonBody(new
+        {
+            payload.Success,
+            payload.ErrorMessage
+        });
+
+        var response = await client.ExecuteAsync(statusRequest);
+        if (!response.IsSuccessful)
+            logger.LogWarning("Failed to report AI processing status for SourcePost: {SourcePostId}: {Error}", payload.SourcePostId, response.ErrorMessage);
+    }
+}
+
+/// <summary>Payload for reporting AI processing completion status.</summary>
+public class AiProcessingStatusPayload
+{
+    /// <summary>Source post identifier.</summary>
+    public Guid SourcePostId { get; set; }
+    /// <summary>Whether processing succeeded.</summary>
+    public bool Success { get; set; }
+    /// <summary>Error message on failure.</summary>
+    public string? ErrorMessage { get; set; }
 }

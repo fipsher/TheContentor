@@ -348,6 +348,13 @@ else
                 </div>
 
                 <div class="d-grid gap-2 mb-4">
+                    @if (!string.IsNullOrEmpty(_aiError))
+                    {
+                        <div class="alert alert-danger alert-dismissible py-2 mb-2">
+                            <small>AI processing failed: @_aiError</small>
+                            <button type="button" class="btn-close btn-close-sm" @onclick="() => _aiError = null" style="padding:8px;"></button>
+                        </div>
+                    }
                     <button type="button" class="btn btn-warning" @onclick="OpenProcessModal" disabled="@(_isProcessing || _isEditing)">
                         @if (_isProcessing)
                         {
@@ -359,6 +366,25 @@ else
                             <span>@(Post.Status == SourcePostStatus.Processed ? "Re-process with AI" : "Process with AI")</span>
                         }
                     </button>
+
+                    @if (_aiProgress != null)
+                    {
+                        <div class="mt-2">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <small class="fw-bold">@_aiProgress.Stage</small>
+                                <small>@(_aiProgress.ProgressPercent)%</small>
+                            </div>
+                            <div class="progress" style="height: 6px;">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated bg-warning"
+                                     role="progressbar"
+                                     style="width: @(_aiProgress.ProgressPercent)%"
+                                     aria-valuenow="@_aiProgress.ProgressPercent"
+                                     aria-valuemin="0"
+                                     aria-valuemax="100">
+                                </div>
+                            </div>
+                        </div>
+                    }
 
                     @if (Post.ProcessedPost != null && Post.Status == SourcePostStatus.Processed)
                     {
@@ -622,6 +648,8 @@ else
     private HubConnection? _hubConnection;
     private GenerationProgressModel? _currentProgress;
     private Guid? _copiedPartId;
+    private string? _aiError;
+    private AiProcessingProgressModel? _aiProgress;
 
     private bool IsGenerating => Post?.ProcessedPost?.TtsStatus == TtsStatus.InProgress
                               || Post?.ProcessedPost?.VideoStatus == VideoStatus.InProgress;
@@ -647,7 +675,28 @@ else
             await InvokeAsync(StateHasChanged);
         });
 
+        _hubConnection.On<AiProcessingProgressModel>("AiProcessingUpdate", async (progress) =>
+        {
+            if (progress.IsComplete)
+            {
+                _isProcessing = false;
+                _aiProgress = null;
+                _aiError = progress.HasError ? progress.ErrorMessage : null;
+                await LoadPost();
+                if (Post?.ProcessedPost != null)
+                    await _hubConnection!.InvokeAsync("JoinPostGroup", Post.ProcessedPost.Id);
+            }
+            else
+            {
+                _aiProgress = progress;
+            }
+            await InvokeAsync(StateHasChanged);
+        });
+
         await _hubConnection.StartAsync();
+
+        // Join source post group for AI processing updates
+        await _hubConnection.InvokeAsync("JoinSourcePostGroup", Id);
 
         if (Post?.ProcessedPost != null)
         {
@@ -657,6 +706,18 @@ else
 
     private void InitProgressFromStatus()
     {
+        // Restore AI processing state on page load
+        if (Post?.Status == SourcePostStatus.Processing)
+        {
+            _isProcessing = true;
+            _aiProgress = new AiProcessingProgressModel
+            {
+                SourcePostId = Post.Id,
+                Stage = "AI processing in progress…",
+                ProgressPercent = 10
+            };
+        }
+
         if (Post?.ProcessedPost == null) return;
         var pp = Post.ProcessedPost;
         if (pp.TtsStatus == TtsStatus.InProgress)
@@ -708,18 +769,19 @@ else
     {
         if (Post == null) return;
         _isProcessing = true;
+        _aiError = null;
         try
         {
             var partsCount = _partsCountAuto ? (int?)null : _partsCount;
             var wordsPerPart = _wordsPerPartAuto ? (int?)null : _wordsPerPart;
-            await Mediator.Send(new ProcessSourcePostCommand(Post.Id, partsCount, wordsPerPart, _llmProvider));
-            await LoadPost();
-            await EnsureJoinedHubGroup();
+            await Mediator.Send(new QueueAiProcessingCommand(Post.Id, partsCount, wordsPerPart, _llmProvider));
+            Post.Status = SourcePostStatus.Processing;
             _isEditing = false;
         }
-        finally
+        catch
         {
             _isProcessing = false;
+            throw;
         }
     }
 
@@ -793,11 +855,12 @@ else
 
     private static string GetStatusClass(SourcePostStatus status) => status switch
     {
-        SourcePostStatus.Raw       => "badge-raw",
-        SourcePostStatus.Processed => "badge-processed",
-        SourcePostStatus.Approved  => "badge-approved",
-        SourcePostStatus.Rejected  => "badge-rejected",
-        SourcePostStatus.Skipped   => "badge-skipped",
+        SourcePostStatus.Raw        => "badge-raw",
+        SourcePostStatus.Processed  => "badge-processed",
+        SourcePostStatus.Approved   => "badge-approved",
+        SourcePostStatus.Rejected   => "badge-rejected",
+        SourcePostStatus.Skipped    => "badge-skipped",
+        SourcePostStatus.Processing => "badge-processing",
         _ => "badge-inactive"
     };
 

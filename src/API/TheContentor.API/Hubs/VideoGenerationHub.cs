@@ -16,4 +16,16 @@ public class VideoGenerationHub : Hub
     {
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, processedPostId.ToString());
     }
+
+    /// <summary>Adds caller to a group for AI processing updates on a source post.</summary>
+    public async Task JoinSourcePostGroup(Guid sourcePostId)
+    {
+        await Groups.AddToGroupAsync(Context.ConnectionId, $"sourcepost-{sourcePostId}");
+    }
+
+    /// <summary>Removes caller from a source post AI processing group.</summary>
+    public async Task LeaveSourcePostGroup(Guid sourcePostId)
+    {
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"sourcepost-{sourcePostId}");
+    }
 }

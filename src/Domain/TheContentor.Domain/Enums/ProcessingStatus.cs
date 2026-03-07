@@ -7,4 +7,6 @@ public enum SourcePostStatus
     Approved = 3,
     Rejected = 4,
     Skipped = 5,
+    /// <summary>AI processing is queued or in progress.</summary>
+    Processing = 6,
 }
