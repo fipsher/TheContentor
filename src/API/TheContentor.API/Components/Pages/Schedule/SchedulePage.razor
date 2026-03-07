@@ -8,11 +8,11 @@
 @using TheContentor.Application.Features.SourcePosts.Models
 @using TheContentor.Application.Features.SourcePosts.Queries
 @using TheContentor.Application.Features.SourcePosts.Commands
-@using TheContentor.Application.Features.SourcePosts.Models
 @using TheContentor.Application.Features.ProcessedPosts.Commands
 @using TheContentor.Application.Features.ProcessedPosts.Models
 @using TheContentor.Application.Features.Assets.Queries
 @using TheContentor.Application.Features.Assets.Models
+@using TheContentor.API.Controllers
 @using TheContentor.Domain.Enums
 @using Microsoft.AspNetCore.SignalR.Client
 @inject IMediator Mediator
@@ -135,8 +135,44 @@
         </div>
     </div>
 
-    <button class="btn btn-outline-secondary" @onclick="HandleNext">Next &rsaquo;</button>
+    <div class="d-flex align-items-center gap-2">
+        @if (_viewMode == ViewMode.Week)
+        {
+            <button class="btn btn-success btn-sm" @onclick="GenerateWeek" disabled="@(_generateWeekRunning || _generateWeekProgress != null)">
+                @if (_generateWeekRunning)
+                {
+                    <span class="spinner-border spinner-border-sm me-1"></span>
+                }
+                Generate Week
+            </button>
+        }
+        <button class="btn btn-outline-secondary" @onclick="HandleNext">Next &rsaquo;</button>
+    </div>
 </div>
+
+@if (_generateWeekProgress != null)
+{
+    <div class="alert @(_generateWeekProgress.HasError ? "alert-danger" : _generateWeekProgress.IsComplete ? "alert-success" : "alert-info") d-flex align-items-center gap-3 mb-3">
+        @if (!_generateWeekProgress.IsComplete)
+        {
+            <div class="spinner-border spinner-border-sm"></div>
+        }
+        <div class="flex-grow-1">
+            <div class="fw-semibold mb-1">
+                Generate Week: @_generateWeekProgress.CompletedPosts / @_generateWeekProgress.TotalPosts posts
+            </div>
+            <div class="progress" style="height:6px;">
+                <div class="progress-bar @(_generateWeekProgress.HasError ? "bg-danger" : "") progress-bar-striped @(!_generateWeekProgress.IsComplete ? "progress-bar-animated" : "")"
+                     style="width:@(_generateWeekProgress.TotalPosts > 0 ? (int)(_generateWeekProgress.CompletedPosts * 100.0 / _generateWeekProgress.TotalPosts) : 0)%"></div>
+            </div>
+            <small class="text-muted">@_generateWeekProgress.Stage</small>
+        </div>
+        @if (_generateWeekProgress.IsComplete)
+        {
+            <button class="btn btn-sm btn-outline-secondary" @onclick="DismissGenerateWeekProgress">Dismiss</button>
+        }
+    </div>
+}
 
 <!-- Calendar Grid -->
 @if (_schedule == null)
@@ -441,6 +477,10 @@ else
     private Guid? _generatePostId;
     private NarratorGender _generateGender = NarratorGender.Male;
 
+    // Generate Week
+    private bool _generateWeekRunning;
+    private GenerateWeekProgressPayload? _generateWeekProgress;
+
     // SignalR
     private HubConnection? _hubConnection;
     private HashSet<Guid> _joinedGroups = new();
@@ -576,6 +616,24 @@ else
                 {
                     await RefreshSchedule();
                     await JoinInProgressGroups();
+                }
+                await InvokeAsync(StateHasChanged);
+            });
+
+            _hubConnection.On<GenerateWeekProgressPayload>("GenerateWeekUpdate", async (progress) =>
+            {
+                _generateWeekProgress = progress;
+                if (progress.IsComplete)
+                {
+                    _generateWeekRunning = false;
+                    await RefreshSchedule();
+                    await JoinInProgressGroups();
+                    await JoinAiProcessingGroups();
+                }
+                else
+                {
+                    // Refresh to pick up status changes as posts get processed
+                    await RefreshSchedule();
                 }
                 await InvokeAsync(StateHasChanged);
             });
@@ -810,6 +868,51 @@ else
         _successMessage = "Video generation started.";
         await RefreshSchedule();
         await JoinInProgressGroups();
+    }
+
+    private async Task GenerateWeek()
+    {
+        _errorMessage = null;
+        _successMessage = null;
+        _generateWeekRunning = true;
+        _generateWeekProgress = null;
+
+        try
+        {
+            // Join SignalR group for week progress
+            var weekKey = _weekStart.ToString("yyyy-MM-dd");
+            if (_hubConnection?.State == HubConnectionState.Connected)
+            {
+                await _hubConnection.InvokeAsync("JoinGenerateWeekGroup", weekKey);
+            }
+
+            var count = await Mediator.Send(new GenerateWeekCommand(_weekStart));
+            if (count == 0)
+            {
+                _errorMessage = "No eligible posts to process for this week.";
+                _generateWeekRunning = false;
+            }
+            else
+            {
+                _generateWeekProgress = new GenerateWeekProgressPayload
+                {
+                    WeekStart = weekKey,
+                    TotalPosts = count,
+                    CompletedPosts = 0,
+                    Stage = "Queued for processing..."
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+            _generateWeekRunning = false;
+        }
+    }
+
+    private void DismissGenerateWeekProgress()
+    {
+        _generateWeekProgress = null;
     }
 
     private static string TruncateTitle(string title) =>

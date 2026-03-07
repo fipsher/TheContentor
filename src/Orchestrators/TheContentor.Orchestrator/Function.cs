@@ -8,6 +8,7 @@ using Microsoft.Extensions.Options;
 using RestSharp;
 using TheContentor.Orchestrator.Models.AiProcessing;
 using TheContentor.Orchestrator.Models.GenerateAll;
+using TheContentor.Orchestrator.Models.GenerateWeek;
 using TheContentor.Orchestrator.Models.ProcessedPost;
 using TheContentor.Orchestrator.Models.TTS;
 using TheContentor.Orchestrator.Models.Video;
@@ -97,6 +98,25 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
                 {
                     logger.LogWarning(ex, "Failed to terminate Video orchestration for ProcessedPost: {ProcessedPostId}, InstanceId: {InstanceId}",
                         cancelRequest.ProcessedPostId, instanceId);
+                }
+            }
+        }
+        else if (messageType == "generate-week")
+        {
+            var weekRequest = JsonSerializer.Deserialize<GenerateWeekOrchestratorRequest>(message.Body.ToString());
+            if (weekRequest != null)
+            {
+                logger.LogInformation("Triggering GenerateWeek orchestration for week starting: {WeekStart}", weekRequest.WeekStart);
+                var instanceId = $"generate-week-{weekRequest.WeekStart}";
+                try
+                {
+                    await client.ScheduleNewOrchestrationInstanceAsync(
+                        nameof(GenerateWeekOrchestrator), weekRequest,
+                        new StartOrchestrationOptions { InstanceId = instanceId });
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to schedule GenerateWeek for week: {WeekStart} (may already be running)", weekRequest.WeekStart);
                 }
             }
         }
@@ -1112,6 +1132,177 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
         if (!response.IsSuccessful)
             logger.LogWarning("Failed to report AI processing status for SourcePost: {SourcePostId}: {Error}", payload.SourcePostId, response.ErrorMessage);
     }
+
+    // ==================== Generate Week Orchestration ====================
+
+    [Function(nameof(GenerateWeekOrchestrator))]
+    public async Task GenerateWeekOrchestrator([OrchestrationTrigger] TaskOrchestrationContext context)
+    {
+        var request = context.GetInput<GenerateWeekOrchestratorRequest>()!;
+
+        logger.LogInformation("GenerateWeek Orchestrator started for week: {WeekStart}, {Count} posts",
+            request.WeekStart, request.Items.Count);
+
+        var totalPosts = request.Items.Count;
+        var completedPosts = 0;
+        var hasErrors = false;
+
+        await context.CallActivityAsync("ReportGenerateWeekProgress", new GenerateWeekProgressDto
+        {
+            WeekStart = request.WeekStart, TotalPosts = totalPosts, CompletedPosts = 0,
+            Stage = $"Starting batch processing of {totalPosts} posts..."
+        });
+
+        foreach (var item in request.Items)
+        {
+            try
+            {
+                // Phase 1: AI Processing (if needed)
+                if (item.NeedsAiProcessing)
+                {
+                    await context.CallActivityAsync("ReportGenerateWeekProgress", new GenerateWeekProgressDto
+                    {
+                        WeekStart = request.WeekStart, TotalPosts = totalPosts, CompletedPosts = completedPosts,
+                        CurrentSourcePostId = item.SourcePostId,
+                        Stage = $"AI processing post {completedPosts + 1}/{totalPosts}..."
+                    });
+
+                    // Queue AI processing and wait for it
+                    await context.CallActivityAsync("RunWeekAiProcessing", item);
+
+                    // Fetch the processed post ID after AI processing
+                    var processedPostId = await context.CallActivityAsync<Guid?>("FetchProcessedPostIdForSource", item.SourcePostId);
+                    if (processedPostId == null)
+                    {
+                        logger.LogError("AI processing did not produce a ProcessedPost for SourcePost: {SourcePostId}", item.SourcePostId);
+                        hasErrors = true;
+                        completedPosts++;
+                        continue;
+                    }
+                    item.ProcessedPostId = processedPostId;
+                }
+
+                // Phase 2: Video Generation
+                await context.CallActivityAsync("ReportGenerateWeekProgress", new GenerateWeekProgressDto
+                {
+                    WeekStart = request.WeekStart, TotalPosts = totalPosts, CompletedPosts = completedPosts,
+                    CurrentSourcePostId = item.SourcePostId,
+                    Stage = $"Generating video for post {completedPosts + 1}/{totalPosts}..."
+                });
+
+                await context.CallActivityAsync("TriggerWeekVideoGeneration", new WeekVideoGenerationInput
+                {
+                    ProcessedPostId = item.ProcessedPostId!.Value,
+                    AssetId = item.AssetId,
+                    Voice = item.Voice
+                });
+
+                completedPosts++;
+
+                await context.CallActivityAsync("ReportGenerateWeekProgress", new GenerateWeekProgressDto
+                {
+                    WeekStart = request.WeekStart, TotalPosts = totalPosts, CompletedPosts = completedPosts,
+                    Stage = $"Post {completedPosts}/{totalPosts} queued for video generation"
+                });
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "GenerateWeek failed for SourcePost: {SourcePostId}", item.SourcePostId);
+                hasErrors = true;
+                completedPosts++;
+            }
+        }
+
+        await context.CallActivityAsync("ReportGenerateWeekProgress", new GenerateWeekProgressDto
+        {
+            WeekStart = request.WeekStart, TotalPosts = totalPosts, CompletedPosts = completedPosts,
+            Stage = hasErrors ? "Batch completed with some errors" : "All posts processed successfully!",
+            IsComplete = true, HasError = hasErrors
+        });
+    }
+
+    [Function("RunWeekAiProcessing")]
+    public async Task RunWeekAiProcessing([ActivityTrigger] WeekPostItem item)
+    {
+        logger.LogInformation("GenerateWeek: Running AI processing for SourcePost: {SourcePostId}", item.SourcePostId);
+
+        var processRequest = new RestRequest($"{_apiUrl}/api/SourcePost/{item.SourcePostId}/process-ai-internal", Method.Post);
+        processRequest.AddJsonBody(new
+        {
+            LlmProvider = "Gemini"
+        });
+
+        var processResponse = await client.ExecuteAsync(processRequest);
+        if (!processResponse.IsSuccessful)
+            throw new Exception($"AI processing failed for SourcePost {item.SourcePostId}: {processResponse.Content ?? processResponse.ErrorMessage}");
+
+        // Report success status so UI updates
+        var statusRequest = new RestRequest($"{_apiUrl}/api/SourcePost/{item.SourcePostId}/ai-status", Method.Post);
+        statusRequest.AddJsonBody(new { Success = true });
+        await client.ExecuteAsync(statusRequest);
+    }
+
+    [Function("FetchProcessedPostIdForSource")]
+    public async Task<Guid?> FetchProcessedPostIdForSource([ActivityTrigger] Guid sourcePostId)
+    {
+        var response = await client.ExecuteGetAsync<ProcessedPostIdResponse>(
+            $"{_apiUrl}/api/SourcePost/{sourcePostId}/processed-post-id");
+        return response.Data?.ProcessedPostId;
+    }
+
+    [Function("TriggerWeekVideoGeneration")]
+    public async Task TriggerWeekVideoGeneration([ActivityTrigger] WeekVideoGenerationInput input)
+    {
+        logger.LogInformation("GenerateWeek: Triggering video generation for ProcessedPost: {ProcessedPostId}", input.ProcessedPostId);
+
+        var request = new RestRequest($"{_apiUrl}/api/ProcessedPost/generate-all-internal", Method.Post);
+        request.AddJsonBody(new
+        {
+            input.ProcessedPostId,
+            TtsSettings = new
+            {
+                Engine = "Kokoro",
+                Voice = input.Voice,
+                Rate = 25,
+                Pitch = 0
+            },
+            AssetIds = new[] { input.AssetId }
+        });
+
+        var response = await client.ExecuteAsync(request);
+        if (!response.IsSuccessful)
+            throw new Exception($"Video generation trigger failed for ProcessedPost {input.ProcessedPostId}: {response.Content ?? response.ErrorMessage}");
+    }
+
+    [Function("ReportGenerateWeekProgress")]
+    public async Task ReportGenerateWeekProgress([ActivityTrigger] GenerateWeekProgressDto progress)
+    {
+        var request = new RestRequest($"{_apiUrl}/api/Schedule/generate-week-progress", Method.Post);
+        request.AddJsonBody(progress);
+        var response = await client.ExecuteAsync(request);
+        if (!response.IsSuccessful)
+        {
+            logger.LogWarning("Failed to report generate-week progress: {ErrorMessage}", response.ErrorMessage);
+        }
+    }
+}
+
+/// <summary>Input for triggering video generation for a single post in the generate-week batch.</summary>
+public class WeekVideoGenerationInput
+{
+    /// <summary>Processed post identifier.</summary>
+    public Guid ProcessedPostId { get; set; }
+    /// <summary>Background video asset identifier.</summary>
+    public Guid AssetId { get; set; }
+    /// <summary>Kokoro voice identifier.</summary>
+    public string Voice { get; set; } = string.Empty;
+}
+
+/// <summary>Response from the processed-post-id endpoint.</summary>
+public class ProcessedPostIdResponse
+{
+    /// <summary>Processed post identifier.</summary>
+    public Guid? ProcessedPostId { get; set; }
 }
 
 /// <summary>Payload for reporting AI processing completion status.</summary>

@@ -28,4 +28,16 @@ public class VideoGenerationHub : Hub
     {
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"sourcepost-{sourcePostId}");
     }
+
+    /// <summary>Adds caller to a group for generate-week progress updates.</summary>
+    public async Task JoinGenerateWeekGroup(string weekStart)
+    {
+        await Groups.AddToGroupAsync(Context.ConnectionId, $"generate-week-{weekStart}");
+    }
+
+    /// <summary>Removes caller from a generate-week progress group.</summary>
+    public async Task LeaveGenerateWeekGroup(string weekStart)
+    {
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"generate-week-{weekStart}");
+    }
 }

@@ -64,6 +64,21 @@ public class ProcessedPostController(IMediator mediator, IHubContext<VideoGenera
         return Accepted();
     }
 
+    /// <summary>Internal endpoint for the generate-week orchestrator to trigger generate-all for a single post.</summary>
+    [HttpPost("generate-all-internal")]
+    public async Task<IActionResult> GenerateAllInternal([FromBody] GenerateAllInternalRequest request)
+    {
+        try
+        {
+            await mediator.Send(new GenerateAllCommand(request.ProcessedPostId, request.TtsSettings, request.AssetIds));
+            return Accepted();
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { Error = ex.Message });
+        }
+    }
+
     /// <summary>Receives progress updates from the orchestrator and broadcasts via SignalR.</summary>
     [HttpPost("progress")]
     public async Task<IActionResult> ReportProgress([FromBody] GenerationProgressModel progress)
@@ -230,6 +245,17 @@ public class TogglePartPlatformRequest
     public SocialPlatform Platform { get; set; }
     /// <summary>Whether the part is published to the platform.</summary>
     public bool IsPublished { get; set; }
+}
+
+/// <summary>Request model for the internal generate-all endpoint used by the generate-week orchestrator.</summary>
+public class GenerateAllInternalRequest
+{
+    /// <summary>Processed post identifier.</summary>
+    public Guid ProcessedPostId { get; set; }
+    /// <summary>TTS settings.</summary>
+    public TtsSettingsModel TtsSettings { get; set; } = new();
+    /// <summary>Asset IDs for video generation.</summary>
+    public List<Guid> AssetIds { get; set; } = [];
 }
 
 /// <summary>Optional body for the cleanup-intermediate endpoint carrying extra blobs to delete.</summary>
