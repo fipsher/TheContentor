@@ -7,6 +7,11 @@
 @using TheContentor.Application.Features.Schedule.Queries
 @using TheContentor.Application.Features.SourcePosts.Models
 @using TheContentor.Application.Features.SourcePosts.Queries
+@using TheContentor.Application.Features.SourcePosts.Commands
+@using TheContentor.Application.Features.ProcessedPosts.Commands
+@using TheContentor.Application.Features.ProcessedPosts.Models
+@using TheContentor.Application.Features.Assets.Queries
+@using TheContentor.Application.Features.Assets.Models
 @using TheContentor.Domain.Enums
 @inject IMediator Mediator
 @inject NavigationManager NavigationManager
@@ -14,6 +19,45 @@
 @rendermode InteractiveServer
 
 <PageTitle>Schedule</PageTitle>
+
+<GenerateAllDialog IsVisible="_showGenerateDialog"
+                   ProcessedPostId="_generatePostId"
+                   Gender="_generateGender"
+                   OnClose="CloseGenerateDialog"
+                   OnGenerated="OnGenerated" />
+
+@if (_showProcessModal)
+{
+    <div class="modal fade show" style="display:block;" tabindex="-1" @onclick="() => _showProcessModal = false">
+        <div class="modal-dialog modal-dialog-centered" style="max-width:420px;" @onclick:stopPropagation>
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-cpu me-2" style="color:var(--accent-warning);"></i> AI Processing</h5>
+                    <button type="button" class="btn-close" @onclick="() => _showProcessModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">LLM Provider</label>
+                        <select class="form-select" @bind="_llmProvider">
+                            <option value="@LlmProvider.Gemini">Google Gemini</option>
+                            <option value="@LlmProvider.OpenAI">OpenAI ChatGPT</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => _showProcessModal = false" disabled="@_aiProcessing">Cancel</button>
+                    <button type="button" class="btn btn-warning" @onclick="ConfirmProcessAI" disabled="@_aiProcessing">
+                        @if (_aiProcessing)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        <i class="bi bi-cpu me-1"></i> Process
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1>Schedule</h1>
@@ -142,6 +186,24 @@ else if (_viewMode == ViewMode.Month)
                             <div class="calendar-post-meta">
                                 <span>&#9650; @postCapture.Score</span>
                                 <span>@postCapture.WordCount w</span>
+                                @if (!postCapture.IsProcessed && postCapture.IsPosted != true)
+                                {
+                                    <button class="btn btn-link p-0" style="font-size:0.7rem;color:var(--accent-warning);"
+                                            title="Process with AI"
+                                            @onclick:stopPropagation
+                                            @onclick="() => OpenProcessAI(postCapture.SourcePostId)">
+                                        <i class="bi bi-cpu"></i>
+                                    </button>
+                                }
+                                else if (postCapture.VideoStatus != VideoStatus.Generated && postCapture.IsPosted != true)
+                                {
+                                    <button class="btn btn-link p-0" style="font-size:0.7rem;color:var(--accent-success);"
+                                            title="Generate Video"
+                                            @onclick:stopPropagation
+                                            @onclick="() => OpenGenerateDialog(postCapture)">
+                                        <i class="bi bi-film"></i>
+                                    </button>
+                                }
                                 <button class="btn btn-link p-0 text-danger remove-btn"
                                         title="Remove"
                                         @onclick:stopPropagation
@@ -161,7 +223,9 @@ else
               OnAutoAssign="AutoAssignDay"
               OnAddPost="OpenAddPost"
               OnNavigate="GoToPost"
-              OnRemove="RemoveEntry" />
+              OnRemove="RemoveEntry"
+              OnProcessAI="OpenProcessAI"
+              OnGenerate="OpenGenerateDialog" />
 }
 
 <!-- Add Post Panel (slide-in at bottom of page) -->
@@ -361,6 +425,17 @@ else
 
     private string? _errorMessage;
     private string? _successMessage;
+
+    // AI Process modal
+    private bool _showProcessModal;
+    private bool _aiProcessing;
+    private Guid? _processSourcePostId;
+    private LlmProvider _llmProvider = LlmProvider.Gemini;
+
+    // Generate dialog
+    private bool _showGenerateDialog;
+    private Guid? _generatePostId;
+    private NarratorGender _generateGender = NarratorGender.Male;
 
     private record CalendarCell(int Day, DateOnly Date, bool IsToday, bool IsCurrentWeek, List<ScheduledDayDto> Posts);
 
@@ -564,6 +639,7 @@ else
 
     private static string GetStatusLabel(ScheduledDayDto post)
     {
+        if (post.IsPosted == true) return "Posted";
         if (!post.IsProcessed) return "Not Processed";
         if (post.VideoStatus == VideoStatus.Generated) return "Video Ready";
         return "AI Processed";
@@ -571,9 +647,59 @@ else
 
     private static string GetStatusBadgeClass(ScheduledDayDto post)
     {
+        if (post.IsPosted == true) return "bg-info";
         if (!post.IsProcessed) return "bg-secondary";
         if (post.VideoStatus == VideoStatus.Generated) return "bg-success";
         return "bg-primary";
+    }
+
+    private void OpenProcessAI(Guid sourcePostId)
+    {
+        _processSourcePostId = sourcePostId;
+        _showProcessModal = true;
+    }
+
+    private async Task ConfirmProcessAI()
+    {
+        if (_processSourcePostId == null) return;
+        _aiProcessing = true;
+        _errorMessage = null;
+        try
+        {
+            await Mediator.Send(new ProcessSourcePostCommand(_processSourcePostId.Value, LlmProvider: _llmProvider));
+            _showProcessModal = false;
+            _successMessage = "AI processing complete.";
+            await RefreshSchedule();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+            _showProcessModal = false;
+        }
+        finally
+        {
+            _aiProcessing = false;
+        }
+    }
+
+    private void OpenGenerateDialog(ScheduledDayDto post)
+    {
+        if (post.ProcessedPostId == null) return;
+        _generatePostId = post.ProcessedPostId;
+        _generateGender = post.NarratorGender ?? NarratorGender.Male;
+        _showGenerateDialog = true;
+    }
+
+    private async Task CloseGenerateDialog()
+    {
+        _showGenerateDialog = false;
+        await Task.CompletedTask;
+    }
+
+    private async Task OnGenerated()
+    {
+        _successMessage = "Video generation started.";
+        await RefreshSchedule();
     }
 
     private static string TruncateTitle(string title) =>

@@ -29,8 +29,17 @@ public class ScheduledDayDto
     /// <summary>Whether the source post has been processed into a <c>ProcessedPost</c>.</summary>
     public bool IsProcessed { get; set; }
 
+    /// <summary>Processed post identifier. Null when not yet processed.</summary>
+    public Guid? ProcessedPostId { get; set; }
+
+    /// <summary>TTS generation status. Null when not yet processed.</summary>
+    public TtsStatus? TtsStatus { get; set; }
+
     /// <summary>Video generation status. Null when not yet processed.</summary>
     public VideoStatus? VideoStatus { get; set; }
+
+    /// <summary>Narrator gender. Null when not yet processed.</summary>
+    public NarratorGender? NarratorGender { get; set; }
 
     /// <summary>Whether the post has already been published. Null when not yet processed.</summary>
     public bool? IsPosted { get; set; }

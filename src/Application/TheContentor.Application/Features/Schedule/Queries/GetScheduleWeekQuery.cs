@@ -33,7 +33,10 @@ public class GetScheduleWeekQueryHandler(TheContentorDbContext context, IBlobSer
                 x.SourcePost.Score,
                 x.SourcePost.WordCount,
                 IsProcessed = x.SourcePost.ProcessedPost != null,
+                ProcessedPostId = x.SourcePost.ProcessedPost != null ? (Guid?)x.SourcePost.ProcessedPost.Id : null,
+                TtsStatus = x.SourcePost.ProcessedPost != null ? (TtsStatus?)x.SourcePost.ProcessedPost.TtsStatus : null,
                 VideoStatus = x.SourcePost.ProcessedPost != null ? (VideoStatus?)x.SourcePost.ProcessedPost.VideoStatus : null,
+                NarratorGender = x.SourcePost.ProcessedPost != null ? (NarratorGender?)x.SourcePost.ProcessedPost.NarratorGender : null,
                 IsPosted = x.SourcePost.ProcessedPost != null ? (bool?)x.SourcePost.ProcessedPost.IsPosted : null,
                 x.CreatedUtc,
                 VideoBlobContainer = x.SourcePost.ProcessedPost != null
@@ -63,7 +66,10 @@ public class GetScheduleWeekQueryHandler(TheContentorDbContext context, IBlobSer
                 Score = row.Score,
                 WordCount = row.WordCount,
                 IsProcessed = row.IsProcessed,
+                ProcessedPostId = row.ProcessedPostId,
+                TtsStatus = row.TtsStatus,
                 VideoStatus = row.VideoStatus,
+                NarratorGender = row.NarratorGender,
                 IsPosted = row.IsPosted,
                 CreatedUtc = row.CreatedUtc
             };

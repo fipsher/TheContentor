@@ -44,7 +44,10 @@ public class GetScheduleQueryHandler(TheContentorDbContext context)
                 Score = x.SourcePost.Score,
                 WordCount = x.SourcePost.WordCount,
                 IsProcessed = x.SourcePost.ProcessedPost != null,
+                ProcessedPostId = x.SourcePost.ProcessedPost != null ? x.SourcePost.ProcessedPost.Id : null,
+                TtsStatus = x.SourcePost.ProcessedPost != null ? x.SourcePost.ProcessedPost.TtsStatus : null,
                 VideoStatus = x.SourcePost.ProcessedPost != null ? x.SourcePost.ProcessedPost.VideoStatus : null,
+                NarratorGender = x.SourcePost.ProcessedPost != null ? x.SourcePost.ProcessedPost.NarratorGender : null,
                 IsPosted = x.SourcePost.ProcessedPost != null ? x.SourcePost.ProcessedPost.IsPosted : null,
                 CreatedUtc = x.CreatedUtc
             })

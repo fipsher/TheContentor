@@ -41,6 +41,8 @@
                         <SchedulePostCard Post="post"
                                           OnNavigate="OnNavigate"
                                           OnRemove="OnRemove"
+                                          OnProcessAI="OnProcessAI"
+                                          OnGenerate="OnGenerate"
                                           ShowVideoPreview="true" />
                     }
                 }
@@ -73,4 +75,12 @@
     /// <summary>Callback fired with the scheduled post identifier when a remove button is clicked.</summary>
     [Parameter]
     public EventCallback<Guid> OnRemove { get; set; }
+
+    /// <summary>Callback fired with the source post identifier when the process AI button is clicked.</summary>
+    [Parameter]
+    public EventCallback<Guid> OnProcessAI { get; set; }
+
+    /// <summary>Callback fired with the scheduled day DTO when the generate video button is clicked.</summary>
+    [Parameter]
+    public EventCallback<ScheduledDayDto> OnGenerate { get; set; }
 }
