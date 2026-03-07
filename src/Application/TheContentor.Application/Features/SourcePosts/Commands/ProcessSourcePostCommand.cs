@@ -4,6 +4,7 @@ using TheContentor.Domain.Entities;
 using TheContentor.Domain.Enums;
 using TheContentor.Infrastructure;
 using TheContentor.Infrastructure.Interfaces;
+using TheContentor.Infrastructure.Models;
 
 namespace TheContentor.Application.Features.SourcePosts.Commands;
 
@@ -12,7 +13,8 @@ public record ProcessSourcePostCommand(
     Guid SourcePostId,
     int? PartsCount = null,
     int? WordsPerPart = null,
-    LlmProvider LlmProvider = LlmProvider.Gemini
+    LlmProvider LlmProvider = LlmProvider.Gemini,
+    ProcessingMode ProcessingMode = ProcessingMode.Classic
 ) : IRequest;
 
 /// <summary>Runs processing for a source post and stores results.</summary>
@@ -32,6 +34,24 @@ public class ProcessSourcePostCommandHandler(TheContentorDbContext context, IPos
             return;
         }
 
+        ProcessedPostResponse? existingData = null;
+        if (request.ProcessingMode == ProcessingMode.EnhanceExisting && sourcePost.ProcessedPost != null)
+        {
+            existingData = new ProcessedPostResponse
+            {
+                Title = sourcePost.ProcessedPost.Title,
+                Description = sourcePost.ProcessedPost.Description,
+                Hashtags = sourcePost.ProcessedPost.Hashtags,
+                NarratorGender = sourcePost.ProcessedPost.NarratorGender.ToString(),
+                Parts = sourcePost.ProcessedPost.Parts.OrderBy(p => p.Part).Select(p => new ProcessedPostPartResponse
+                {
+                    Part = p.Part,
+                    ProcessedText = p.ProcessedText,
+                    Hashtags = p.Hashtags
+                }).ToList()
+            };
+        }
+
         if (sourcePost.ProcessedPost != null)
         {
             context.ProcessedPosts.Remove(sourcePost.ProcessedPost);
@@ -40,6 +60,7 @@ public class ProcessSourcePostCommandHandler(TheContentorDbContext context, IPos
         var processedData = await postProcessor.ProcessAsync(
             sourcePost.Title, sourcePost.RawText,
             request.PartsCount, request.WordsPerPart, request.LlmProvider,
+            request.ProcessingMode, existingData,
             cancellationToken);
 
         var processedPost = new ProcessedPost

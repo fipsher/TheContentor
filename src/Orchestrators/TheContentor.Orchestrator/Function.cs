@@ -1103,7 +1103,8 @@ public class Function(ILogger<Function> logger, ServiceBusClient serviceBusClien
         {
             request.PartsCount,
             request.WordsPerPart,
-            request.LlmProvider
+            request.LlmProvider,
+            request.ProcessingMode
         });
 
         var processResponse = await client.ExecuteAsync(processRequest);

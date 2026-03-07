@@ -196,44 +196,104 @@
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
+                        <label class="form-label fw-bold">Processing Mode</label>
+                        <div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="radio" id="modeClassic"
+                                       checked="@(_processingMode == ProcessingMode.Classic)"
+                                       @onchange="() => _processingMode = ProcessingMode.Classic" />
+                                <label class="form-check-label" for="modeClassic">
+                                    <strong>Quick Process</strong><br />
+                                    <small class="text-muted">Fast single-step analysis. Good for most posts.</small>
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="radio" id="modeFullPipeline"
+                                       checked="@(_processingMode == ProcessingMode.FullPipeline)"
+                                       @onchange="() => _processingMode = ProcessingMode.FullPipeline" />
+                                <label class="form-check-label" for="modeFullPipeline">
+                                    <strong>Best Quality</strong><br />
+                                    <small class="text-muted">Three-step AI refinement for maximum engagement. Takes longer.</small>
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="radio" id="modeEnhance"
+                                       checked="@(_processingMode == ProcessingMode.EnhanceExisting)"
+                                       disabled="@(Post?.ProcessedPost == null)"
+                                       @onchange="() => _processingMode = ProcessingMode.EnhanceExisting" />
+                                <label class="form-check-label @(Post?.ProcessedPost == null ? "text-muted" : "")" for="modeEnhance">
+                                    <strong>Refine Existing</strong>
+                                    @if (Post?.ProcessedPost == null)
+                                    {
+                                        <span class="badge bg-secondary ms-1" style="font-size:0.7rem;">Requires existing content</span>
+                                    }
+                                    <br />
+                                    <small class="text-muted">Run remaining steps on already-processed content without starting over.</small>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
                         <label class="form-label">LLM Provider</label>
                         <select class="form-select" @bind="_llmProvider">
                             <option value="@LlmProvider.Gemini">Google Gemini</option>
                             <option value="@LlmProvider.OpenAI">OpenAI ChatGPT</option>
                         </select>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Parts Count</label>
-                        <div class="d-flex align-items-center gap-2">
-                            <input type="number" class="form-control" style="width:90px;"
-                                   @bind="_partsCount" min="1" max="20"
-                                   disabled="@_partsCountAuto" />
-                            <button class="auto-toggle @(_partsCountAuto ? "active" : "")"
-                                    @onclick="() => _partsCountAuto = !_partsCountAuto">
-                                <i class="bi @(_partsCountAuto ? "bi-magic" : "bi-input-cursor")"></i>
-                                @(_partsCountAuto ? "Auto" : "Manual")
-                            </button>
+
+                    @if (_processingMode != ProcessingMode.EnhanceExisting)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Parts Count</label>
+                            <div class="d-flex align-items-center gap-2">
+                                <input type="number" class="form-control" style="width:90px;"
+                                       @bind="_partsCount" min="1" max="20"
+                                       disabled="@_partsCountAuto" />
+                                <button class="auto-toggle @(_partsCountAuto ? "active" : "")"
+                                        @onclick="() => _partsCountAuto = !_partsCountAuto">
+                                    <i class="bi @(_partsCountAuto ? "bi-magic" : "bi-input-cursor")"></i>
+                                    @(_partsCountAuto ? "Auto" : "Manual")
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                    <div class="mb-1">
-                        <label class="form-label">Words per Part</label>
-                        <div class="d-flex align-items-center gap-2">
-                            <input type="number" class="form-control" style="width:90px;"
-                                   @bind="_wordsPerPart" min="50" max="2000"
-                                   disabled="@_wordsPerPartAuto" />
-                            <button class="auto-toggle @(_wordsPerPartAuto ? "active" : "")"
-                                    @onclick="() => _wordsPerPartAuto = !_wordsPerPartAuto">
-                                <i class="bi @(_wordsPerPartAuto ? "bi-magic" : "bi-input-cursor")"></i>
-                                @(_wordsPerPartAuto ? "Auto" : "Manual")
-                            </button>
+                        <div class="mb-1">
+                            <label class="form-label">Words per Part</label>
+                            <div class="d-flex align-items-center gap-2">
+                                <input type="number" class="form-control" style="width:90px;"
+                                       @bind="_wordsPerPart" min="50" max="2000"
+                                       disabled="@_wordsPerPartAuto" />
+                                <button class="auto-toggle @(_wordsPerPartAuto ? "active" : "")"
+                                        @onclick="() => _wordsPerPartAuto = !_wordsPerPartAuto">
+                                    <i class="bi @(_wordsPerPartAuto ? "bi-magic" : "bi-input-cursor")"></i>
+                                    @(_wordsPerPartAuto ? "Auto" : "Manual")
+                                </button>
+                            </div>
                         </div>
-                    </div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-info py-2 px-3 mb-0" style="font-size:0.85rem;">
+                            <i class="bi bi-stars me-1"></i>
+                            Runs Steps 2 and 2.5 on your existing content — refines tone, hooks, and retention without restructuring.
+                        </div>
+                    }
+
+                    @if (_processingMode == ProcessingMode.FullPipeline)
+                    {
+                        <div class="alert alert-warning py-2 px-3 mt-2 mb-0" style="font-size:0.85rem;">
+                            <i class="bi bi-clock me-1"></i>
+                            Runs three AI steps — takes approximately three times longer than Quick Process.
+                        </div>
+                    }
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" @onclick="CloseProcessModal">Cancel</button>
                     <button type="button" class="btn btn-warning" @onclick="ConfirmProcessWithAI">
                         <i class="bi bi-cpu me-1"></i>
-                        @(Post?.Status == SourcePostStatus.Processed ? "Re-process" : "Process")
+                        @(_processingMode == ProcessingMode.EnhanceExisting
+                            ? "Enhance"
+                            : Post?.Status == SourcePostStatus.Processed ? "Re-process" : "Process")
                     </button>
                 </div>
             </div>
@@ -640,6 +700,7 @@ else
     private string? _previewVideoUrl;
 
     // AI settings
+    private ProcessingMode _processingMode = ProcessingMode.Classic;
     private LlmProvider _llmProvider = LlmProvider.Gemini;
     private bool _partsCountAuto = true;
     private int _partsCount = 3;
@@ -756,7 +817,12 @@ else
         }
     }
 
-    private void OpenProcessModal() => _showProcessModal = true;
+    private void OpenProcessModal()
+    {
+        _processingMode = Post?.ProcessedPost != null ? ProcessingMode.EnhanceExisting : ProcessingMode.Classic;
+        _showProcessModal = true;
+    }
+
     private void CloseProcessModal() => _showProcessModal = false;
 
     private async Task ConfirmProcessWithAI()
@@ -772,9 +838,9 @@ else
         _aiError = null;
         try
         {
-            var partsCount = _partsCountAuto ? (int?)null : _partsCount;
-            var wordsPerPart = _wordsPerPartAuto ? (int?)null : _wordsPerPart;
-            await Mediator.Send(new QueueAiProcessingCommand(Post.Id, partsCount, wordsPerPart, _llmProvider));
+            var partsCount = (_partsCountAuto || _processingMode == ProcessingMode.EnhanceExisting) ? (int?)null : _partsCount;
+            var wordsPerPart = (_wordsPerPartAuto || _processingMode == ProcessingMode.EnhanceExisting) ? (int?)null : _wordsPerPart;
+            await Mediator.Send(new QueueAiProcessingCommand(Post.Id, partsCount, wordsPerPart, _llmProvider, _processingMode));
             Post.Status = SourcePostStatus.Processing;
             _isEditing = false;
         }

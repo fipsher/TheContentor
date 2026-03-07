@@ -12,7 +12,8 @@ public record QueueAiProcessingCommand(
     Guid SourcePostId,
     int? PartsCount = null,
     int? WordsPerPart = null,
-    LlmProvider LlmProvider = LlmProvider.Gemini
+    LlmProvider LlmProvider = LlmProvider.Gemini,
+    ProcessingMode ProcessingMode = ProcessingMode.Classic
 ) : IRequest;
 
 /// <summary>Sets status to Processing and enqueues the job to Service Bus.</summary>
@@ -43,7 +44,8 @@ public class QueueAiProcessingCommandHandler(
                 SourcePostId = request.SourcePostId,
                 request.PartsCount,
                 request.WordsPerPart,
-                LlmProvider = request.LlmProvider.ToString()
+                LlmProvider = request.LlmProvider.ToString(),
+                ProcessingMode = request.ProcessingMode.ToString()
             }))
             {
                 ContentType = "application/json",

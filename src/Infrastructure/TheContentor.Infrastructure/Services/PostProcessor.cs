@@ -28,19 +28,22 @@ public class PostProcessor(
         int? partsCount = null,
         int? wordsPerPart = null,
         LlmProvider provider = LlmProvider.Gemini,
+        ProcessingMode mode = ProcessingMode.Classic,
+        ProcessedPostResponse? existingProcessedPost = null,
         CancellationToken cancellationToken = default)
     {
-        logger.LogInformation("Processing post with {Provider}. Title: {Title}", provider, title);
+        logger.LogInformation("Processing post with {Provider}, mode {Mode}. Title: {Title}", provider, mode, title);
 
         try
         {
             var systemPrompt = PromptConstants.BuildSystemPrompt(partsCount, wordsPerPart);
             var userPrompt = PromptConstants.GetUserPrompt(title, content);
 
-            return provider switch
+            return mode switch
             {
-                LlmProvider.OpenAI => await ProcessWithChatGPTAsync(systemPrompt, userPrompt, cancellationToken),
-                _ => await ProcessWithGeminiAsync(systemPrompt, userPrompt, cancellationToken)
+                ProcessingMode.FullPipeline => await ProcessFullPipelineAsync(title, content, systemPrompt, userPrompt, provider, cancellationToken),
+                ProcessingMode.EnhanceExisting => await ProcessEnhanceExistingAsync(title, content, existingProcessedPost!, provider, cancellationToken),
+                _ => await CallLlmAsync(systemPrompt, userPrompt, provider, cancellationToken)
             };
         }
         catch (Exception ex)
@@ -48,6 +51,64 @@ public class PostProcessor(
             logger.LogError(ex, "Error processing post with {Provider}", provider);
             throw;
         }
+    }
+
+    /// <summary>Dispatches to the appropriate LLM implementation.</summary>
+    private Task<ProcessedPostResponse> CallLlmAsync(string systemPrompt, string userPrompt, LlmProvider provider, CancellationToken cancellationToken) =>
+        provider switch
+        {
+            LlmProvider.OpenAI => ProcessWithChatGPTAsync(systemPrompt, userPrompt, cancellationToken),
+            _ => ProcessWithGeminiAsync(systemPrompt, userPrompt, cancellationToken)
+        };
+
+    /// <summary>Runs the three-step full pipeline: scriptwriter → creative refiner → retention critic.</summary>
+    private async Task<ProcessedPostResponse> ProcessFullPipelineAsync(
+        string title, string content, string step1SystemPrompt, string step1UserPrompt,
+        LlmProvider provider, CancellationToken cancellationToken)
+    {
+        logger.LogInformation("Full pipeline Step 1: Scripting...");
+        var result1 = await CallLlmAsync(step1SystemPrompt, step1UserPrompt, provider, cancellationToken);
+
+        logger.LogInformation("Full pipeline Step 2: Creative refiner...");
+        var step1Json = JsonSerializer.Serialize(result1, _jsonOptions);
+        var result2 = await CallLlmAsync(
+            PromptConstants.CreativeRefinerSystemPrompt,
+            PromptConstants.GetCreativeRefinerUserPrompt(title, content, step1Json),
+            provider, cancellationToken);
+
+        logger.LogInformation("Full pipeline Step 2.5: Retention critic...");
+        var step2Json = JsonSerializer.Serialize(result2, _jsonOptions);
+        var result3 = await CallLlmAsync(
+            PromptConstants.RetentionCriticSystemPrompt,
+            PromptConstants.GetRetentionCriticUserPrompt(step2Json),
+            provider, cancellationToken);
+
+        return result3;
+    }
+
+    /// <summary>Runs refiner + critic on an already-processed post without rerunning the scriptwriter.</summary>
+    private async Task<ProcessedPostResponse> ProcessEnhanceExistingAsync(
+        string title, string content, ProcessedPostResponse existingProcessedPost,
+        LlmProvider provider, CancellationToken cancellationToken)
+    {
+        if (existingProcessedPost == null)
+            throw new InvalidOperationException("EnhanceExisting mode requires an existing ProcessedPost.");
+
+        logger.LogInformation("Enhance existing Step 2: Creative refiner...");
+        var existingJson = JsonSerializer.Serialize(existingProcessedPost, _jsonOptions);
+        var result2 = await CallLlmAsync(
+            PromptConstants.CreativeRefinerSystemPrompt,
+            PromptConstants.GetCreativeRefinerUserPrompt(title, content, existingJson),
+            provider, cancellationToken);
+
+        logger.LogInformation("Enhance existing Step 2.5: Retention critic...");
+        var step2Json = JsonSerializer.Serialize(result2, _jsonOptions);
+        var result3 = await CallLlmAsync(
+            PromptConstants.RetentionCriticSystemPrompt,
+            PromptConstants.GetRetentionCriticUserPrompt(step2Json),
+            provider, cancellationToken);
+
+        return result3;
     }
 
     private async Task<ProcessedPostResponse> ProcessWithGeminiAsync(

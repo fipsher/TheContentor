@@ -11,4 +11,6 @@ public class AiProcessingOrchestratorRequest
     public int? WordsPerPart { get; set; }
     /// <summary>LLM provider name (e.g. "Gemini", "OpenAI").</summary>
     public string LlmProvider { get; set; } = "Gemini";
+    /// <summary>Processing mode name (e.g. "Classic", "FullPipeline", "EnhanceExisting").</summary>
+    public string ProcessingMode { get; set; } = "Classic";
 }
