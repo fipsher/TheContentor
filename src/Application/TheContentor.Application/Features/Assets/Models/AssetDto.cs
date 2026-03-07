@@ -32,4 +32,6 @@ public record AssetDto
     public string? ThumbnailPath { get; set; }
     /// <summary>Thumbnail URL served via /storage/ static middleware. Null until generated.</summary>
     public string? ThumbnailUrl { get; set; }
+    /// <summary>UTC timestamp of the last time this asset was used in video generation.</summary>
+    public DateTime? LastUsedAt { get; set; }
 }

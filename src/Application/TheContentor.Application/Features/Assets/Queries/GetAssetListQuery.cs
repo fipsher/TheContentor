@@ -31,7 +31,8 @@ public class GetAssetListQueryHandler(TheContentorDbContext context, IBlobServic
                 OriginalUrl = b.OriginalUrl,
                 Quality = b.Quality,
                 Title = b.Title,
-                ThumbnailPath = b.ThumbnailPath
+                ThumbnailPath = b.ThumbnailPath,
+                LastUsedAt = b.LastUsedAt
             })
             .ToListAsync(cancellationToken);
 

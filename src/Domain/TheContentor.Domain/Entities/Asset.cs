@@ -24,4 +24,7 @@ public class Asset : BaseEntity
 
     /// <summary>Relative file name of the generated thumbnail PNG in the "asset-thumbnails" storage container. Null until generated.</summary>
     public string? ThumbnailPath { get; set; }
+
+    /// <summary>UTC timestamp of the last time this asset was used in video generation. Null if never used.</summary>
+    public DateTime? LastUsedAt { get; set; }
 }

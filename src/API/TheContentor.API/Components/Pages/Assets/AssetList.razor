@@ -109,14 +109,16 @@ else
                             }
                         </td>
                         <td>
-                            @if (item.ContentTag.HasValue)
-                            {
-                                <span class="tag-chip">@item.ContentTag.Value</span>
-                            }
-                            else
-                            {
-                                <span style="color:var(--text-muted);">—</span>
-                            }
+                            <select class="form-select form-select-sm"
+                                    style="padding:2px 24px 2px 6px;font-size:0.75rem;height:auto;min-width:90px;"
+                                    value="@(item.ContentTag?.ToString() ?? "")"
+                                    @onchange="(e) => ChangeTag(item, e)">
+                                <option value="">— None —</option>
+                                @foreach (var tag in Enum.GetValues<AssetContentTag>())
+                                {
+                                    <option value="@tag">@tag</option>
+                                }
+                            </select>
                         </td>
                         <td>
                             <span class="status-badge @(item.IsActive ? "badge-active" : "badge-inactive")">
@@ -468,6 +470,15 @@ else
         }
         catch (Exception ex) { _addError = ex.Message; }
         finally { _addLoading = false; }
+    }
+
+    private async Task ChangeTag(AssetDto item, ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString();
+        AssetContentTag? newTag = string.IsNullOrEmpty(val) ? null : Enum.Parse<AssetContentTag>(val);
+        if (newTag == item.ContentTag) return;
+        await Mediator.Send(new RenameAssetCommand(item.Id, item.FileName, newTag));
+        item.ContentTag = newTag;
     }
 
     private static string ToggleTitle(bool isActive) => isActive ? "Deactivate" : "Activate";

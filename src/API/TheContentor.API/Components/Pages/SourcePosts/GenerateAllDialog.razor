@@ -85,8 +85,18 @@
                             <small class="text-muted d-block mb-2">
                                 Select one or more video assets. They will be concatenated and cut to match the audio duration for each part.
                             </small>
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <label class="form-label mb-0 fw-bold" style="white-space:nowrap;">Filter by tag:</label>
+                                <select class="form-select form-select-sm" style="width:auto;" @bind="_filterTag" disabled="@_isGenerating">
+                                    <option value="">All</option>
+                                    @foreach (var tag in Enum.GetValues<AssetContentTag>())
+                                    {
+                                        <option value="@tag">@tag</option>
+                                    }
+                                </select>
+                            </div>
                             <div class="asset-pick-grid">
-                                @foreach (var asset in _assets)
+                                @foreach (var asset in FilteredAssets)
                                 {
                                     var isSelected = _selectedAssetIds.Contains(asset.Id);
                                     <div class="asset-pick-card @(isSelected ? "selected" : "")"
@@ -108,6 +118,16 @@
                                                 @if (asset.ContentTag.HasValue)
                                                 {
                                                     <span>@asset.ContentTag.Value</span>
+                                                }
+                                            </div>
+                                            <div class="pick-meta" style="font-size:0.65rem;opacity:0.7;">
+                                                @if (asset.LastUsedAt.HasValue)
+                                                {
+                                                    <span>Used @FormatTimeAgo(asset.LastUsedAt.Value)</span>
+                                                }
+                                                else
+                                                {
+                                                    <span>Never used</span>
                                                 }
                                             </div>
                                         </div>
@@ -158,6 +178,11 @@
     private HashSet<Guid> _selectedAssetIds = new();
     private bool _isGenerating = false;
     private bool _isLoading = false;
+    private AssetContentTag? _filterTag;
+
+    private IEnumerable<AssetDto> FilteredAssets => _filterTag.HasValue
+        ? _assets.Where(a => a.ContentTag == _filterTag.Value)
+        : _assets;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -177,7 +202,7 @@
         _selectedVoice = _engine == TtsEngine.EdgeTTS
             ? (Gender == NarratorGender.Male ? "en-US-GuyNeural" : "en-US-MichelleNeural")
             : (Gender == NarratorGender.Male ? "am_adam" : "af_heart");
-        _rate = _engine == TtsEngine.Kokoro ? 20 : 50;
+        _rate = _engine == TtsEngine.Kokoro ? 25 : 50;
         _pitch = 0;
     }
 
@@ -186,7 +211,11 @@
         _isLoading = true;
         try
         {
-            _assets = await Mediator.Send(new GetAssetListQuery(ActiveOnly: true));
+            var assets = await Mediator.Send(new GetAssetListQuery(ActiveOnly: true));
+            _assets = assets
+                .OrderBy(a => a.LastUsedAt.HasValue ? 1 : 0)
+                .ThenBy(a => a.LastUsedAt)
+                .ToList();
         }
         finally
         {
@@ -230,7 +259,18 @@
         if (!_isGenerating)
         {
             _selectedAssetIds.Clear();
+            _filterTag = null;
             await OnClose.InvokeAsync();
         }
+    }
+
+    private static string FormatTimeAgo(DateTime utcDate)
+    {
+        var span = DateTime.UtcNow - utcDate;
+        if (span.TotalMinutes < 1) return "just now";
+        if (span.TotalHours < 1) return $"{(int)span.TotalMinutes}m ago";
+        if (span.TotalDays < 1) return $"{(int)span.TotalHours}h ago";
+        if (span.TotalDays < 30) return $"{(int)span.TotalDays}d ago";
+        return utcDate.ToString("MMM d, yyyy");
     }
 }

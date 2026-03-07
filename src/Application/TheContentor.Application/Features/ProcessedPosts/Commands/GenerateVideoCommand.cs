@@ -37,6 +37,15 @@ public class GenerateVideoCommandHandler(
         processedPost.VideoStatus = VideoStatus.InProgress;
         var settings = new VideoSettingsModel { AssetIds = request.AssetIds };
         processedPost.VideoSettings = JsonSerializer.Serialize(settings);
+
+        // Track last usage time on selected assets
+        var usedAssets = await context.Assets
+            .Where(a => request.AssetIds.Contains(a.Id))
+            .ToListAsync(cancellationToken);
+        var now = DateTime.UtcNow;
+        foreach (var asset in usedAssets)
+            asset.LastUsedAt = now;
+
         await context.SaveChangesAsync(cancellationToken);
 
         // Send message to orchestration trigger queue
