@@ -13,9 +13,11 @@
 @using TheContentor.Application.Features.Assets.Queries
 @using TheContentor.Application.Features.Assets.Models
 @using TheContentor.Domain.Enums
+@using Microsoft.AspNetCore.SignalR.Client
 @inject IMediator Mediator
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JS
+@implements IAsyncDisposable
 @rendermode InteractiveServer
 
 <PageTitle>Schedule</PageTitle>
@@ -437,6 +439,10 @@ else
     private Guid? _generatePostId;
     private NarratorGender _generateGender = NarratorGender.Male;
 
+    // SignalR
+    private HubConnection? _hubConnection;
+    private HashSet<Guid> _joinedGroups = new();
+
     private record CalendarCell(int Day, DateOnly Date, bool IsToday, bool IsCurrentWeek, List<ScheduledDayDto> Posts);
 
     private int DaysInMonth => DateTime.DaysInMonth(_year, _month);
@@ -488,7 +494,42 @@ else
         return today.AddDays(today.DayOfWeek == DayOfWeek.Sunday ? -6 : -(int)today.DayOfWeek + 1);
     }
 
-    protected override async Task OnInitializedAsync() => await RefreshSchedule();
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshSchedule();
+    }
+
+    private async Task JoinInProgressGroups()
+    {
+        if (_hubConnection?.State != HubConnectionState.Connected || _schedule == null) return;
+
+        var inProgressIds = _schedule
+            .Where(s => s.ProcessedPostId.HasValue
+                && (s.TtsStatus == TtsStatus.InProgress || s.VideoStatus == VideoStatus.InProgress))
+            .Select(s => s.ProcessedPostId!.Value)
+            .ToHashSet();
+
+        // Leave groups no longer in progress
+        foreach (var id in _joinedGroups.Except(inProgressIds).ToList())
+        {
+            await _hubConnection.InvokeAsync("LeavePostGroup", id);
+            _joinedGroups.Remove(id);
+        }
+
+        // Join new in-progress groups
+        foreach (var id in inProgressIds.Except(_joinedGroups))
+        {
+            await _hubConnection.InvokeAsync("JoinPostGroup", id);
+            _joinedGroups.Add(id);
+        }
+    }
+
+    /// <inheritdoc/>
+    public async ValueTask DisposeAsync()
+    {
+        if (_hubConnection != null)
+            await _hubConnection.DisposeAsync();
+    }
 
     /// <inheritdoc />
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -497,6 +538,24 @@ else
         {
             var saved = await JS.InvokeAsync<string?>("localStorage.getItem", "schedule-view-mode");
             if (saved == "Week") { _viewMode = ViewMode.Week; await RefreshSchedule(); }
+
+            _hubConnection = new HubConnectionBuilder()
+                .WithUrl(NavigationManager.ToAbsoluteUri("/hubs/video-generation"))
+                .WithAutomaticReconnect()
+                .Build();
+
+            _hubConnection.On<GenerationProgressModel>("ProgressUpdate", async (progress) =>
+            {
+                if (progress.IsComplete)
+                {
+                    await RefreshSchedule();
+                    await JoinInProgressGroups();
+                }
+                await InvokeAsync(StateHasChanged);
+            });
+
+            await _hubConnection.StartAsync();
+            await JoinInProgressGroups();
         }
     }
 
@@ -640,16 +699,21 @@ else
     private static string GetStatusLabel(ScheduledDayDto post)
     {
         if (post.IsPosted == true) return "Posted";
+        if (post.TtsStatus == TtsStatus.InProgress) return "TTS In Progress";
+        if (post.VideoStatus == VideoStatus.InProgress) return "Video In Progress";
         if (!post.IsProcessed) return "Not Processed";
         if (post.VideoStatus == VideoStatus.Generated) return "Video Ready";
+        if (post.VideoStatus == VideoStatus.Failed) return "Video Failed";
         return "AI Processed";
     }
 
     private static string GetStatusBadgeClass(ScheduledDayDto post)
     {
         if (post.IsPosted == true) return "bg-info";
+        if (post.TtsStatus == TtsStatus.InProgress || post.VideoStatus == VideoStatus.InProgress) return "bg-warning text-dark";
         if (!post.IsProcessed) return "bg-secondary";
         if (post.VideoStatus == VideoStatus.Generated) return "bg-success";
+        if (post.VideoStatus == VideoStatus.Failed) return "bg-danger";
         return "bg-primary";
     }
 
@@ -700,6 +764,7 @@ else
     {
         _successMessage = "Video generation started.";
         await RefreshSchedule();
+        await JoinInProgressGroups();
     }
 
     private static string TruncateTitle(string title) =>

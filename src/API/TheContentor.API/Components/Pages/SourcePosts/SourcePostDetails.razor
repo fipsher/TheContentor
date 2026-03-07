@@ -629,6 +629,7 @@ else
     protected override async Task OnInitializedAsync()
     {
         await LoadPost();
+        InitProgressFromStatus();
 
         _hubConnection = new HubConnectionBuilder()
             .WithUrl(NavigationManager.ToAbsoluteUri("/hubs/video-generation"))
@@ -651,6 +652,32 @@ else
         if (Post?.ProcessedPost != null)
         {
             await _hubConnection.InvokeAsync("JoinPostGroup", Post.ProcessedPost.Id);
+        }
+    }
+
+    private void InitProgressFromStatus()
+    {
+        if (Post?.ProcessedPost == null) return;
+        var pp = Post.ProcessedPost;
+        if (pp.TtsStatus == TtsStatus.InProgress)
+        {
+            _currentProgress = new GenerationProgressModel
+            {
+                ProcessedPostId = pp.Id,
+                Stage = "TTS Generation",
+                Message = "TTS generation is in progress…",
+                ProgressPercent = 25
+            };
+        }
+        else if (pp.VideoStatus == VideoStatus.InProgress)
+        {
+            _currentProgress = new GenerationProgressModel
+            {
+                ProcessedPostId = pp.Id,
+                Stage = "Video Generation",
+                Message = "Video generation is in progress…",
+                ProgressPercent = 60
+            };
         }
     }
 

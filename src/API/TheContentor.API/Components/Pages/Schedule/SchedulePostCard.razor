@@ -20,7 +20,16 @@
         }
     </div>
     <div class="week-post-card__actions" @onclick:stopPropagation>
-        @if (!Post.IsProcessed && Post.IsPosted != true)
+        @if (IsInProgress)
+        {
+            <div class="week-post-progress">
+                <div class="progress" style="height:4px;flex:1;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" style="width:100%"></div>
+                </div>
+                <small style="font-size:0.55rem;color:var(--text-muted);white-space:nowrap;">@InProgressLabel</small>
+            </div>
+        }
+        else if (!Post.IsProcessed && Post.IsPosted != true)
         {
             <button class="btn btn-outline-warning week-action-btn" title="Process with AI"
                     @onclick="() => OnProcessAI.InvokeAsync(Post.SourcePostId)">
@@ -80,21 +89,32 @@
 
     private string? _previewUrl;
 
+    private bool IsInProgress => Post.TtsStatus == TtsStatus.InProgress
+                              || Post.VideoStatus == VideoStatus.InProgress;
+
+    private string InProgressLabel => Post.TtsStatus == TtsStatus.InProgress
+        ? "TTS…" : "Video…";
+
     private void OpenVideo() => _previewUrl = Post.VideoSasUrl;
 
     private static string GetStatusLabel(ScheduledDayDto post)
     {
         if (post.IsPosted == true) return "Posted";
+        if (post.TtsStatus == TtsStatus.InProgress) return "TTS In Progress";
+        if (post.VideoStatus == VideoStatus.InProgress) return "Video In Progress";
         if (!post.IsProcessed) return "Not Processed";
         if (post.VideoStatus == VideoStatus.Generated) return "Video Ready";
+        if (post.VideoStatus == VideoStatus.Failed) return "Video Failed";
         return "AI Processed";
     }
 
     private static string GetStatusBadgeClass(ScheduledDayDto post)
     {
         if (post.IsPosted == true) return "bg-info";
+        if (post.TtsStatus == TtsStatus.InProgress || post.VideoStatus == VideoStatus.InProgress) return "bg-warning text-dark";
         if (!post.IsProcessed) return "bg-secondary";
         if (post.VideoStatus == VideoStatus.Generated) return "bg-success";
+        if (post.VideoStatus == VideoStatus.Failed) return "bg-danger";
         return "bg-primary";
     }
 

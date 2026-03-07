@@ -37,7 +37,9 @@ src/
 └── Tools/           # Aspire host, console app, TTS tool
 ```
 
-**Orchestration flow:** `TtsOrchestrator` → `VideoOrchestrator` → `GenerateAllOrchestrator` (bulk). Triggered via `trigger-orchestration-queue`; workers send callbacks to `events-queue` which the `EventHandler` Function relays back to orchestrations. Real-time UI updates via SignalR at `/hubs/video-generation`.
+**Orchestration flow:** `TtsOrchestrator` → `VideoOrchestrator` → `GenerateAllOrchestrator` (bulk). Triggered via `trigger-orchestration-queue`; workers send callbacks to `events-queue` which the `EventHandler` Function relays back to orchestrations.
+
+**Real-time progress:** Orchestrators POST to `/api/processed-post/progress` with `GenerationProgressModel` → controller broadcasts via SignalR hub at `/hubs/video-generation` → UI clients join groups by `ProcessedPostId` and receive `ProgressUpdate` events.
 
 ## Code Conventions
 
@@ -45,7 +47,7 @@ src/
 - All API routes start with `/api/`
 - Entity relationships on ONE side only (avoids duplicate FKs)
 - `IsActive` only via Activate/Deactivate/Toggle commands, never in Create/Update
-- Use FluentValidation, AutoMapper, async/await throughout
+- Use FluentValidation, async/await throughout; AutoMapper only in Reddit scrapper mapping — elsewhere use manual `Select()` projections
 - File-scoped namespaces, `var` over explicit types, no `dynamic`
 - XML comments required (WarningsAsErrors 1591) — keep minimal and meaningful
 - Application models go in `Features/<Feature>/Models/` next to Commands/Queries
@@ -54,7 +56,7 @@ src/
 ## Key Entities
 
 SourcePost → ProcessedPost → ProcessedPostPart (audio/subtitle/video segments)
-Asset (background videos), AnalysisCriteria, VideoProject, BlobPath
+Asset (background videos), ScheduledPost (calendar scheduling), VideoProject, BlobPath
 
 ## File Storage
 
