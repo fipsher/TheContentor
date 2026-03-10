@@ -651,7 +651,7 @@ else
                                                     @onclick="() => OpenVideoPreview(part.VideoBlobPath!.SasUrl)">
                                                 <i class="bi bi-phone"></i> Preview Video
                                             </button>
-                                            <a href="@part.VideoBlobPath!.SasUrl" download
+                                            <a href="@part.VideoBlobPath!.SasUrl" download="part@(part.Part).mp4"
                                                class="btn btn-sm btn-outline-success" target="_blank">
                                                 <i class="bi bi-download"></i> Download
                                             </a>
