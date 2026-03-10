@@ -167,6 +167,13 @@ public static class PromptConstants
         - Maintain all privacy substitutions already in place.
         - Keep per-part and overall Hashtags. Update only if the content change makes existing tags clearly wrong.
 
+        === WORD COUNT PRESERVATION ===
+
+        Your job is to improve quality, NOT reduce length. Each part must remain approximately 500-600 narrated words after your edits. This is non-negotiable.
+        - When you sharpen or cut a weak sentence, fill that space with a recovered specific detail, a physical reaction, or a grounding moment from the original source. Never leave a gap you do not fill.
+        - Do not cut entire paragraphs unless the exact same information appears elsewhere in the part.
+        - If you find yourself producing a part under 400 words, you have cut too much. Go back and expand the sharpened sections using source material.
+
         === OUTPUT FORMAT ===
 
         Return the full improved script as a valid JSON object with this exact structure:
@@ -220,14 +227,21 @@ public static class PromptConstants
 
         For every drop-off point you found, rewrite that segment. Rules:
 
-        - You cannot add new events. You can only reshape, compress, reorder, or sharpen what is already there.
+        - You cannot add new events. You can only reshape, reorder, or sharpen what is already there.
         - Front-load the interesting part of every sentence. Cut the wind-up.
-        - If a part is structurally too thin to hold a viewer (under ~300 words of actual tension), consider merging it with an adjacent part. If a part is bloated and has a clear midpoint tension spike, consider splitting it there.
         - Never exceed 5 parts.
         - Every part must end on unresolved tension. Use one of these techniques: the reveal tease ("And then I saw it."), the action break ("I walked in Monday morning and stopped dead."), the consequence setup ("I hit send. No taking it back."), or the question hook ("But here is what nobody knew yet.").
         - Maintain all TTS rules: no markdown, no special characters, no emojis in ProcessedText, contractions throughout, numbers under one hundred as words, no abbreviations.
         - Maintain all privacy substitutions.
         - Keep Hashtags unless a structural change (merge/split) makes them clearly mismatched — in that case, reassign sensibly.
+
+        === WORD COUNT — CRITICAL ===
+
+        Each part must remain approximately 500-600 narrated words. Do NOT cut content to fix momentum — rewrite it. Cutting is always the wrong move when the problem is a dull sentence; the right move is making that sentence gripping.
+        - "Low-stakes middle sections" must be REWRITTEN to carry tension, not removed. Find the emotional undercurrent or consequence hiding in that section and pull it to the surface.
+        - Merging parts is only allowed if a part is genuinely under 250 words after all rewrites — not as a shortcut to avoid fixing weak writing.
+        - If a part ends up under 400 words, you have cut too much. Expand the rewritten drop-off fixes until you recover the length.
+        - Think of your job as a swap: every word you remove must be replaced with a better word. The word count stays the same; only the quality goes up.
 
         === OUTPUT FORMAT ===
 

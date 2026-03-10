@@ -440,6 +440,12 @@ else
                             <span>@(Post.Status == SourcePostStatus.Processed ? "Re-process with AI" : "Process with AI")</span>
                         }
                     </button>
+                    @if (_isProcessing)
+                    {
+                        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="ResetAiProcessing" title="Unstick post if orchestration failed">
+                            <i class="bi bi-x-circle me-1"></i>Reset Stuck
+                        </button>
+                    }
 
                     @if (_aiProgress != null)
                     {
@@ -844,6 +850,23 @@ else
     {
         _showProcessModal = false;
         await ProcessWithAI();
+    }
+
+    private async Task ResetAiProcessing()
+    {
+        if (Post == null) return;
+        try
+        {
+            await Mediator.Send(new ResetAiProcessingCommand(Post.Id));
+            _isProcessing = false;
+            _aiProgress = null;
+            _aiError = null;
+            await LoadPost();
+        }
+        catch (Exception ex)
+        {
+            _aiError = ex.Message;
+        }
     }
 
     private async Task ProcessWithAI()
