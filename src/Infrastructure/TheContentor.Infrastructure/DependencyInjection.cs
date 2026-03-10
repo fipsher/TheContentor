@@ -33,11 +33,10 @@ public static class DependencyInjection
         builder.AddAzureServiceBusClient("ContentorServiceBus");
 
         builder.AddOllamaApiClient("ollama").AddChatClient();
-        builder.Services.PostConfigure<HttpClientFactoryOptions>("httpClientKey", options =>
+        builder.Services.PostConfigure<HttpClientFactoryOptions>("ollama", options =>
         {
             options.HttpClientActions.Add(client =>
             {
-                // This will run after the library's configuration
                 client.Timeout = TimeSpan.FromMinutes(10);
             });
         });

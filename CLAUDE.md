@@ -88,11 +88,12 @@ Requires: .NET 10.0 SDK, Python 3.9+, Docker, FFmpeg.
 dotnet user-secrets set "LLM:Gemini:ApiKey" "<key>" --project src/API/TheContentor.API
 dotnet user-secrets set "LLM:ChatGPT:ApiKey" "<key>" --project src/API/TheContentor.API
 
-# Local LLM (Ollama) — starts automatically via Aspire
-# Default model: qwen2.5:14b (pulled on first run, ~9 GB)
-# To override model or URL:
+# Local LLM (Ollama) — must be running natively before starting Aspire
+# Install: brew install ollama && brew services start ollama
+# Default URL: http://localhost:11434 — override in Aspire AppHost user-secrets:
+dotnet user-secrets set "Ollama:BaseUrl" "http://localhost:11434" --project src/Tools/TheContentor.Aspire
+# Override model (defaults to whatever Ollama serves):
 dotnet user-secrets set "LLM:Local:Model" "qwen2.5:14b" --project src/API/TheContentor.API
-dotnet user-secrets set "LLM:Local:BaseUrl" "http://localhost:11434" --project src/API/TheContentor.API
 ```
 
 ## Gotchas
@@ -101,5 +102,4 @@ dotnet user-secrets set "LLM:Local:BaseUrl" "http://localhost:11434" --project s
 - **FFmpeg hardware acceleration**: Video worker detects `h264_videotoolbox` on macOS automatically; falls back to `libx264`.
 - **Whisper cold start**: Subtitle worker loads the Whisper model at process start — first boot is slow.
 - **LLM providers**: Both `Gemini` and `ChatGPT` are wired up; set the key for whichever you use (or both).
-- **Ollama model pull**: First Aspire startup downloads `qwen2.5:14b` (~9 GB). Subsequent starts reuse the cached Docker volume — instant.
-- **Ollama GPU on macOS**: The Docker container uses CPU-only inference. For Metal GPU acceleration, run Ollama natively (`brew services start ollama`) and set `LLM:Local:BaseUrl` in user-secrets.
+- **Ollama runs natively**: Aspire no longer manages Ollama in Docker. Run `brew services start ollama` before starting Aspire. The URL defaults to `http://localhost:11434`; override with `Ollama:BaseUrl` in Aspire AppHost user-secrets.

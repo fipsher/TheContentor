@@ -75,7 +75,19 @@
 
 TheContentor supports local LLM inference via [Ollama](https://ollama.ai) as an alternative to cloud APIs — no rate limits, no API keys, runs fully on-device.
 
-**Ollama starts automatically** when you run the Aspire host. The default model (`qwen2.5:14b`) is pulled on first start and cached for all subsequent runs.
+**Ollama must be running natively** before you start the Aspire host. Aspire no longer manages Ollama in Docker, which gives full Metal GPU acceleration on Apple Silicon.
+
+```bash
+brew install ollama
+brew services start ollama  # auto-starts at login
+ollama pull qwen2.5:14b     # pull your preferred model
+```
+
+The Aspire host connects to `http://localhost:11434` by default. To use a different URL:
+
+```bash
+dotnet user-secrets set "Ollama:BaseUrl" "http://localhost:11434" --project src/Tools/TheContentor.Aspire
+```
 
 ### Recommended models
 
@@ -89,20 +101,6 @@ TheContentor supports local LLM inference via [Ollama](https://ollama.ai) as an 
 ### Usage
 
 Select **Local (Ollama)** from the LLM Provider dropdown in the AI processing modal. Type the model name (e.g. `qwen2.5:14b`) — it defaults to the configured model but is editable per run.
-
-### Apple Silicon note
-
-Ollama in Docker does not use Metal GPU acceleration. For maximum speed on M-series Macs, install Ollama natively and set it to auto-start:
-
-```bash
-brew install ollama
-brew services start ollama  # auto-starts at login
-```
-
-Then override the endpoint in user-secrets:
-```bash
-dotnet user-secrets set "LLM:Local:BaseUrl" "http://localhost:11434" --project src/API/TheContentor.API
-```
 
 * * *
 

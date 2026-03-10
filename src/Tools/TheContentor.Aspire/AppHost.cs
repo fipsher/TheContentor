@@ -22,28 +22,22 @@ var serviceBus = builder
     .RunAsMyEmulator(c => { c.WithLifetime(ContainerLifetime.Session); });
 ConfigureServiceBus(serviceBus);
 
-// Local LLM via Ollama — persistent container so models survive Aspire restarts
-var ollama = builder.AddOllama("ollama")
-    .WithAnnotation(new ContainerImageAnnotation { Image = OllamaContainerImageTags.Image, Tag = OllamaContainerImageTags.Tag, Registry = OllamaContainerImageTags.Registry }, ResourceAnnotationMutationBehavior.Replace)
-    .WithDataVolume()
-    .WithOpenWebUI();
-
-ollama.AddModel("qwen2.5:7b");
-
 // TTS Preview HTTP server (for playground / test generation)
 var ttsPreview = builder.AddPythonApp("tts-preview", "../../Modules/TTS", "tts-preview.py")
     .WithHttpEndpoint(port: 8765, name: "http", env: "PORT")
     .WithEnvironment("STORAGE_BASE_PATH", storageBasePath)
     .WithEnvironment("PYTHONUNBUFFERED", "1");
 
+// Ollama runs natively (not in Docker) — pass the URL directly
+var ollamaUrl = builder.Configuration["Ollama:BaseUrl"] ?? "http://localhost:11434";
+
 var apiService = builder.AddProject<Projects.TheContentor_API>("the-contentor")
     .WithReference(postgresDb)
     .WithReference(serviceBus)
-    .WithReference(ollama)
+    .WithEnvironment("ConnectionStrings__ollama", $"Endpoint={ollamaUrl}")
     .WithEnvironment("LocalStorage__BasePath", storageBasePath)
     .WithEnvironment("TtsPreview__Url", ttsPreview.GetEndpoint("http"))
-    .WaitFor(postgresDb)
-    .WaitFor(ollama);
+    .WaitFor(postgresDb);
 
 builder
     .AddAzureFunctionsProject<Projects.TheContentor_Orchestrator>("Func-Orchestrator")
