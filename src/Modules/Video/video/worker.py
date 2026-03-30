@@ -16,7 +16,7 @@ async def main():
 
     client = ServiceBusClient.from_connection_string(SERVICE_BUS_CONNECTION_STRING)
     async with client:
-        receiver = client.get_queue_receiver(queue_name=COMMANDS_QUEUE_NAME)
+        receiver = client.get_queue_receiver(queue_name=COMMANDS_QUEUE_NAME, prefetch_count=0)
         events_sender = client.get_queue_sender(queue_name=EVENTS_QUEUE_NAME)
 
         async with receiver, events_sender, AutoLockRenewer(max_lock_renewal_duration=60 * 30) as auto_lock_renewer:
