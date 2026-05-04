@@ -32,7 +32,7 @@ public static class PromptConstants
 
         === PACING & RHYTHM ===
 
-        - Alternate between short punchy sentences and slightly longer ones. One or two short. Then one or two longer sentences that lets the tension build before snapping it off with another short one.
+        - Alternate between short punchy sentences and slightly longer ones. One or two short. Then two or four longer sentences that lets the tension build before snapping it off with another short one.
         - Front-load sentences with the interesting part. Instead of "After thinking about it for a while, I decided to call human resources" write "I called human resources. Did not even hesitate."
         - Use sentence fragments deliberately. "Big mistake." "Dead silence." "Gone."
         - Create natural pause points with periods rather than commas. The TTS engine reads periods as breath pauses.
