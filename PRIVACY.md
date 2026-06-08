@@ -1,4 +1,4 @@
-# Privacy Policy for [Your App Name]
+# Privacy Policy for TheContentor
 
 **Last Updated:** [Date, e.g., June 8, 2026]
 
