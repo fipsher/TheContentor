@@ -1,4 +1,4 @@
-# Terms of Service for [Your App Name]
+# Terms of Service for TheContentor
 
 **Last Updated:** [Date, e.g., June 8, 2026]
 
